@@ -52,6 +52,7 @@ export const REPORT_DIR = path.resolve(__dirname, '../../storage');
 
 export const corsOrigins = [
   env.APP_PUBLIC_URL,
+  'https://godspowergwd.github.io',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:4173',
