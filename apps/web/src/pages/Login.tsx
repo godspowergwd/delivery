@@ -30,7 +30,7 @@ export function Login() {
   };
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5">
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center bg-white px-5">
       {params.get('expired') && (
         <p className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
           Your session expired. Please sign in again.
