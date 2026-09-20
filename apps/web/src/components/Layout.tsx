@@ -208,8 +208,13 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
               isActive ? 'bg-red-600' : 'bg-transparent',
             )}
           />
-          <span className="relative">
-            <Icon className={clsx(item.emphasize ? 'h-10 w-10' : 'h-6 w-6')} />
+          <span
+            className={clsx(
+              'relative flex items-center justify-center',
+              item.cart ? 'h-14 w-14 rounded-full bg-red-600 text-white shadow-lg shadow-red-600/25' : 'h-8 w-8',
+            )}
+          >
+            <Icon className={clsx(item.cart ? 'h-7 w-7' : item.emphasize ? 'h-10 w-10' : 'h-6 w-6')} />
             {item.cart && cartCount > 0 && (
               <span className="absolute -right-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-sm font-bold text-white">
                 {cartCount}
