@@ -34,7 +34,7 @@ export function Verify() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5">
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <img src="/logo.svg" alt="" className="h-16 w-16 rounded-2xl" />
+        <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-16 w-16 rounded-2xl" />
         <h1 className="text-2xl font-extrabold text-slate-900">Receipt verification</h1>
       </div>
 

@@ -26,15 +26,16 @@ import path from 'node:path';
  */
 export default defineConfig(({ mode }) => {
   const useHttps = mode === 'https' || process.env.VITE_HTTPS === 'true';
+  const base = process.env.GITHUB_ACTIONS === 'true' ? '/delivery/' : '/';
 
   const manifest = {
-    id: '/',
+    id: base,
     name: process.env.VITE_APP_NAME || 'Delivery System',
     short_name: 'Delivery',
     description:
       'Order food, follow every order live, and run the whole kitchen and business from one installable app.',
-    start_url: '/?source=pwa',
-    scope: '/',
+    start_url: `${base}?source=pwa`,
+    scope: base,
     display: 'standalone',
     display_override: ['fullscreen', 'standalone', 'minimal-ui'],
     orientation: 'any',
@@ -54,21 +55,21 @@ export default defineConfig(({ mode }) => {
         name: 'Kitchen queue',
         short_name: 'Kitchen',
         description: 'Open the incoming order queue',
-        url: '/kitchen',
+        url: `${base}kitchen`,
         icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
       },
       {
         name: 'My orders',
         short_name: 'Orders',
         description: 'Track and reorder',
-        url: '/app/orders',
+        url: `${base}app/orders`,
         icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
       },
       {
         name: 'Admin dashboard',
         short_name: 'Admin',
         description: 'Business analytics and reports',
-        url: '/admin',
+        url: `${base}admin`,
         icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
       },
     ],
@@ -87,7 +88,7 @@ export default defineConfig(({ mode }) => {
       manifestFilename: 'manifest.webmanifest',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,avif,woff,woff2}'],
-        navigateFallback: '/index.html',
+        navigateFallback: `${base}index.html`,
         navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
@@ -145,6 +146,7 @@ export default defineConfig(({ mode }) => {
   );
 
   return {
+    base,
     plugins,
     resolve: {
       alias: {

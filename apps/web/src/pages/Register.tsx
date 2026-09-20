@@ -30,7 +30,7 @@ export function Register() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5">
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <img src="/logo.svg" alt="" className="h-16 w-16 rounded-2xl" />
+        <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-16 w-16 rounded-2xl" />
         <h1 className="text-2xl font-extrabold text-slate-900">Create your account</h1>
         <p className="text-sm text-slate-500">Order in seconds and follow every delivery live.</p>
       </div>
