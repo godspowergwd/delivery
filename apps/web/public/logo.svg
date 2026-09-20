@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Delivery System logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="55%" stop-color="#dc2626" />
+      <stop offset="100%" stop-color="#991b1b" />
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#fee2e2" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <circle cx="256" cy="228" r="150" fill="#ffffff" opacity="0.12" />
+  <g transform="translate(0,6)">
+    <path d="M256 116c-52 0-94 42-94 94 0 70 94 172 94 172s94-102 94-172c0-52-42-94-94-94zm0 128a34 34 0 1 1 0-68 34 34 0 0 1 0 68z"
+      fill="url(#glow)" />
+    <rect x="150" y="356" width="212" height="34" rx="17" fill="#ffffff" opacity="0.9" />
+  </g>
+</svg>

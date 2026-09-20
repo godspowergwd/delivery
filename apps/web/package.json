@@ -1,0 +1,45 @@
+{
+  "name": "@delivery/web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Installable PWA client for customers, kitchen staff and administrators.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:https": "vite --host --https",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pwa:assets": "pwa-assets-generator --preset minimal-2023 public/logo.svg",
+    "pwa:audit": "node ../../scripts/pwa-audit.mjs"
+  },
+  "dependencies": {
+    "@delivery/shared": "*",
+    "@tanstack/react-query": "^5.102.8",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
+    "lucide-react": "^1.46.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.3",
+    "recharts": "^3.10.1",
+    "socket.io-client": "^4.8.3",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vite-pwa/assets-generator": "^1.0.4",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^5.0.0",
+    "workbox-window": "^7.4.1"
+  }
+}

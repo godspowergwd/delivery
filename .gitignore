@@ -1,0 +1,30 @@
+node_modules/
+dist/
+build/
+coverage/
+
+# environment
+.env
+.env.local
+!.env.example
+
+# local PostgreSQL cluster used for development
+.pgdata/
+pg-dev.log
+
+# uploaded product images
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep
+
+# generated report files
+apps/api/storage/
+!apps/api/storage/.gitkeep
+
+# editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.history/
+*.log
+.DS_Store
+Thumbs.db

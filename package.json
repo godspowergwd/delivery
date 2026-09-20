@@ -1,0 +1,39 @@
+{
+  "name": "delivery-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Premium mobile-first delivery platform with Customer, Kitchen and Admin accounts.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "postinstall": "npm run build:shared",
+    "build:shared": "npm run build -w @delivery/shared",
+    "build:api": "npm run build -w @delivery/api",
+    "build:web": "npm run build -w @delivery/web",
+    "build": "npm run build:shared && npm run build:api && npm run build:web",
+    "dev": "npm run build:shared && concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev -w @delivery/api",
+    "dev:web": "npm run dev -w @delivery/web",
+    "start": "npm run start -w @delivery/api",
+    "db:up": "node scripts/dev-db.mjs start",
+    "db:down": "node scripts/dev-db.mjs stop",
+    "db:status": "node scripts/dev-db.mjs status",
+    "db:reset": "node scripts/dev-db.mjs reset",
+    "prisma:generate": "npm run prisma:generate -w @delivery/api",
+    "db:migrate": "npm run db:migrate -w @delivery/api",
+    "db:deploy": "npm run db:deploy -w @delivery/api",
+    "db:seed": "npm run db:seed -w @delivery/api",
+    "test": "npm run test -w @delivery/api",
+    "verify:startup": "node scripts/verify-startup.mjs",
+    "setup": "npm install && npm run db:up && npm run db:migrate && npm run db:seed",
+    "verify": "npm run build && npm run db:up && npm run db:migrate && npm run test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

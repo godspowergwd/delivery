@@ -1,0 +1,76 @@
+=== Remaining non-premium patterns ===
+components\Layout.tsx
+  OldAvatar x2
+  SmallAvatar x2
+
+components\NotificationBell.tsx
+  XsMuted x2
+  FontSemiboldXs x2
+
+components\ui.tsx
+  SmallAvatar x2
+  DottedBorder x2
+
+pages\admin\Categories.tsx
+  XsMuted x3
+  SubtextXs x2
+
+pages\admin\Dashboard.tsx
+  XsMuted x2
+
+pages\admin\Orders.tsx
+  XsMuted x3
+  SubtextXs x5
+  FontSemiboldXs x2
+
+pages\admin\Products.tsx
+  XsMuted x2
+  OldAvatar x2
+
+pages\admin\Reports.tsx
+  XsMuted x2
+
+pages\admin\Settings.tsx
+  XsMuted x2
+
+pages\customer\Cart.tsx
+  XsMuted x2
+  OldAvatar x2
+  SmallAvatar x3
+  FontSemiboldXs x2
+
+pages\customer\Menu.tsx
+  XsMuted x2
+  SmallAvatar x3
+  FontSemiboldXs x2
+
+pages\customer\OrderDetail.tsx
+  XsMuted x5
+
+pages\customer\Product.tsx
+  SubtextXs x2
+  FontSemiboldXs x2
+
+pages\customer\Profile.tsx
+  XsMuted x3
+  SubtextXs x2
+  FontSemiboldXs x5
+
+pages\driver\Deliveries.tsx
+  XsMuted x3
+  FontSemiboldXs x3
+
+pages\driver\Map.tsx
+  SubtextXs x3
+
+pages\driver\Profile.tsx
+  XsMuted x2
+
+pages\kitchen\Kitchen.tsx
+  XsMuted x2
+  FontSemiboldXs x2
+
+pages\kitchen\KitchenHistory.tsx
+  SubtextXs x2
+
+Total files: 37

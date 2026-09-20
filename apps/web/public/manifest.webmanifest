@@ -1,0 +1,52 @@
+{
+  "id": "/",
+  "name": "Delivery System",
+  "short_name": "Delivery",
+  "description": "Order food, follow every order live, and run the whole kitchen and business from one installable app.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "theme_color": "#0b1120",
+  "background_color": "#0b1120",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["food", "shopping", "business"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/pwa-64x64.png", "sizes": "64x64", "type": "image/png" },
+    { "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    { "src": "/apple-touch-icon-180x180.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Kitchen queue",
+      "short_name": "Kitchen",
+      "description": "Open the incoming order queue",
+      "url": "/kitchen",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "My orders",
+      "short_name": "Orders",
+      "description": "Track current orders and reorder favourites",
+      "url": "/app/orders",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Admin dashboard",
+      "short_name": "Admin",
+      "description": "Business analytics, reports and product management",
+      "url": "/admin",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover"
+    />
+    <title>Delivery System</title>
+    <meta name="description" content="Order food, track every order live and run the kitchen and business from one installable app." />
+    <meta name="theme-color" content="#0b1120" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Installable, full-screen standalone experience -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Delivery" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="application-name" content="Delivery System" />
+    <meta name="msapplication-TileColor" content="#0b1120" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-2048-2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-1668-2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-1536-2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-1290-2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-1179-2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-1170-2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-1125-2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-828-1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-750-1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+
+    <style>
+      /* Prevents a white flash before the app shell paints and powers the splash. */
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        background-color: #0b1120;
+      }
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 18px;
+        background: radial-gradient(circle at 50% 20%, #16264a 0%, #0b1120 60%);
+        color: #e2e8f0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        z-index: 9999;
+      }
+      #boot-splash img {
+        width: 84px;
+        height: 84px;
+        filter: drop-shadow(0 12px 24px rgba(34, 211, 238, 0.35));
+        animation: boot-pulse 1.6s ease-in-out infinite;
+      }
+      #boot-splash span {
+        font-size: 13px;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: #94a3b8;
+      }
+      @keyframes boot-pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.92;
+        }
+        50% {
+          transform: scale(1.06);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot-splash" role="status" aria-live="polite">
+      <img src="/logo.svg" alt="" />
+      <span>Delivery System</span>
+    </div>
+    <script>
+      // Fallback that runs even if the app bundle fails to load or hangs:
+      // the boot splash must never stay on screen forever. The app itself
+      // removes the splash much earlier (src/lib/boot-splash.ts).
+      (function () {
+        var splash = document.getElementById('boot-splash');
+        if (!splash) return;
+        var gone = false;
+        var dismiss = function () {
+          if (gone) return;
+          gone = true;
+          try {
+            splash.style.transition = 'opacity 180ms ease-out';
+            splash.style.opacity = '0';
+            window.setTimeout(function () { splash.remove(); }, 220);
+          } catch (e) {
+            splash.remove();
+          }
+        };
+        window.setTimeout(dismiss, 8000);
+        window.addEventListener('error', dismiss);
+      })();
+    </script>
+    <div id="root"></div>
+    <noscript>
+      <p style="color: #e2e8f0; font-family: system-ui, sans-serif; padding: 24px">
+        Delivery System needs JavaScript enabled to run.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
