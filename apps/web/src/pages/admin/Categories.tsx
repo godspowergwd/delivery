@@ -4,6 +4,7 @@ import type { CategoryDTO, Paginated } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useRealtimeSync } from '../../lib/realtime';
 import { Button, Card, EmptyState, Field, Input, Modal, Spinner, Textarea } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { toast } from '../../lib/realtime';
 
 export function AdminCategories() {
@@ -36,8 +37,16 @@ export function AdminCategories() {
     }
   };
 
+  const [pendingDelete, setPendingDelete] = useState<CategoryDTO | null>(null);
+
   const remove = async (category: CategoryDTO) => {
-    if (!confirm(`Delete "${category.name}"? Categories that still have products may be rejected.`)) return;
+    setPendingDelete(category);
+  };
+
+  const confirmDelete = async () => {
+    const category = pendingDelete;
+    if (!category) return;
+    setPendingDelete(null);
     try {
       await api.del(`/categories/${category.id}`);
       await queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
@@ -76,7 +85,7 @@ export function AdminCategories() {
                   <Button size="sm" variant="ghost" onClick={() => setEditing(category)}>
                     Edit
                   </Button>
-                  <Button size="sm" variant="ghost" className="text-red-700" onClick={() => remove(category)}>
+                  <Button size="sm" variant="ghost" className="text-red-700" onClick={() => setPendingDelete(category)}>
                     Delete
                   </Button>
                 </div>
@@ -98,6 +107,16 @@ export function AdminCategories() {
           onSave={save}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete category"
+        message={`Delete "${pendingDelete?.name ?? ''}"? This may fail if the category still has products.`}
+        confirmLabel="Delete"
+        tone="danger"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

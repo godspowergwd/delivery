@@ -4,6 +4,7 @@ import type { AuthUser, Paginated } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useRealtimeSync } from '../../lib/realtime';
 import { Badge, Button, Card, EmptyState, Input, Select, Spinner } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { toast } from '../../lib/realtime';
 
 export function AdminUsers() {
@@ -38,8 +39,16 @@ export function AdminUsers() {
     }
   };
 
+  const [pendingDisable, setPendingDisable] = useState<AuthUser | null>(null);
+
   const disable = async (user: AuthUser) => {
-    if (!confirm(`Disable ${user.name}? They will not be able to sign in.`)) return;
+    setPendingDisable(user);
+  };
+
+  const confirmDisable = async () => {
+    const user = pendingDisable;
+    if (!user) return;
+    setPendingDisable(null);
     try {
       await api.post(`/users/${user.id}/disable`);
       void queryClient.invalidateQueries({ queryKey: ['admin-users'] });

@@ -170,7 +170,7 @@ function KitchenStat({ label, value, icon: Icon, tile }: {
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-slate-500">{label}</p>
-          <p className="truncate text-xsl font-extrabold text-slate-900">{value}</p>
+          <p className="truncate text-xs font-extrabold text-slate-900">{value}</p>
         </div>
       </div>
     </Card>
