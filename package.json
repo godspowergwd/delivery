@@ -27,6 +27,9 @@
     "db:seed": "npm run db:seed -w @delivery/api",
     "test": "npm run test -w @delivery/api",
     "verify:startup": "node scripts/verify-startup.mjs",
+    "verify:backend": "node scripts/verify-backend.mjs",
+    "perf:login": "node scripts/perf-login.mjs",
+    "db:inspect": "node scripts/db-tables.mjs",
     "setup": "npm install && npm run db:up && npm run db:migrate && npm run db:seed",
     "verify": "npm run build && npm run db:up && npm run db:migrate && npm run test"
   },

@@ -7,6 +7,8 @@ import { unauthorized } from './errors';
 export interface AccessTokenPayload {
   sub: string;
   role: Role;
+  /** Optional, so sign-out can be audited without reading the account again. */
+  email?: string;
   sessionId: string;
   type: 'access';
 }

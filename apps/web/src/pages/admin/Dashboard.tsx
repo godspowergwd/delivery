@@ -5,6 +5,17 @@ import type { AnalyticsCharts, AnalyticsOverview, OrderDTO, Paginated, SettingsD
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useRealtimeSync } from '../../lib/realtime';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { Badge, Card, EmptyState, Spinner, StatusPill } from '../../components/ui';
 import {
   WalletIcon,
@@ -101,6 +112,50 @@ export function AdminDashboard() {
           </Card>
         ))}
       </div>
+
+      {chartsData?.charts.series && chartsData.charts.series.length > 0 && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card>
+            <p className="mb-3 text-sm font-bold text-slate-600">Revenue trend</p>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartsData.charts.series} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="onyxRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#e30613" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="#e30613" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9ef" vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6a7383' }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6a7383' }} width={44} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 16, border: '1px solid #e5e9ef', boxShadow: '0 12px 32px -16px rgba(19,26,38,0.14)' }}
+                    formatter={(value: unknown) => formatMoney(Number(value))}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="#e30613" strokeWidth={2.5} fill="url(#onyxRevenue)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+          <Card>
+            <p className="mb-3 text-sm font-bold text-slate-600">Orders per day</p>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartsData.charts.series} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9ef" vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6a7383' }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6a7383' }} width={30} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 16, border: '1px solid #e5e9ef', boxShadow: '0 12px 32px -16px rgba(19,26,38,0.14)' }}
+                  />
+                  <Bar dataKey="orders" fill="#0b9663" radius={[8, 8, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {(overview?.lowStockProducts.length ?? 0) > 0 && (
         <Card className="border-red-200 bg-red-50">

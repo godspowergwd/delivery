@@ -1,31 +1,34 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import CustomerHome from './pages/customer/Home';
-import DriverDeliveries from './pages/driver/Deliveries';
-import DriverMap from './pages/driver/Map';
-import DriverProfile from './pages/driver/Profile';
+import { LazyRoute } from './components/LazyRoute';
+import {
+  AccountSettings,
+  AdminCategories,
+  AdminDashboard,
+  AdminLogs,
+  AdminOrders,
+  AdminProducts,
+  AdminReports,
+  AdminSettings,
+  AdminUsers,
+  Cart,
+  Checkout,
+  CustomerHome,
+  DriverDeliveries,
+  DriverMap,
+  DriverProfile,
+  KitchenHistory,
+  KitchenQueue,
+  Menu,
+  OrderDetail,
+  Orders,
+  ProductPage,
+  Profile,
+} from './components/lazy';
 import { AppShell } from './components/Layout';
 import { ProtectedRoute, RoleHome } from './components/guards';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Verify } from './pages/Verify';
-import { AccountSettings } from './pages/Settings';
-import { Menu } from './pages/customer/Menu';
-import { ProductPage } from './pages/customer/Product';
-import { Cart } from './pages/customer/Cart';
-import { Checkout } from './pages/customer/Checkout';
-import { Orders } from './pages/customer/Orders';
-import { OrderDetail } from './pages/customer/OrderDetail';
-import { Profile } from './pages/customer/Profile';
-import { KitchenQueue } from './pages/kitchen/Kitchen';
-import { KitchenHistory } from './pages/kitchen/KitchenHistory';
-import { AdminDashboard } from './pages/admin/Dashboard';
-import { AdminProducts } from './pages/admin/Products';
-import { AdminCategories } from './pages/admin/Categories';
-import { AdminOrders } from './pages/admin/Orders';
-import { AdminUsers } from './pages/admin/Users';
-import { AdminReports } from './pages/admin/Reports';
-import { AdminSettings } from './pages/admin/Settings';
-import { AdminLogs } from './pages/admin/Logs';
 
 export function App() {
   return (
@@ -38,50 +41,50 @@ export function App() {
       <Route element={<ProtectedRoute roles={['CUSTOMER']} />}>
         <Route element={<AppShell />}>
           <Route path="/app" element={<Navigate to="/app/home" replace />} />
-          <Route path="/app/home" element={<CustomerHome />} />
-          <Route path="/app/search" element={<Menu />} />
-          <Route path="/app/menu" element={<Menu />} />
-          <Route path="/app/product/:id" element={<ProductPage />} />
-          <Route path="/app/cart" element={<Cart />} />
-          <Route path="/app/checkout" element={<Checkout />} />
-          <Route path="/app/orders" element={<Orders />} />
-          <Route path="/app/orders/:id" element={<OrderDetail />} />
-          <Route path="/app/profile" element={<Profile />} />
+          <Route path="/app/home" element={<LazyRoute><CustomerHome /></LazyRoute>} />
+          <Route path="/app/search" element={<LazyRoute><Menu /></LazyRoute>} />
+          <Route path="/app/menu" element={<LazyRoute><Menu /></LazyRoute>} />
+          <Route path="/app/product/:id" element={<LazyRoute><ProductPage /></LazyRoute>} />
+          <Route path="/app/cart" element={<LazyRoute><Cart /></LazyRoute>} />
+          <Route path="/app/checkout" element={<LazyRoute><Checkout /></LazyRoute>} />
+          <Route path="/app/orders" element={<LazyRoute><Orders /></LazyRoute>} />
+          <Route path="/app/orders/:id" element={<LazyRoute><OrderDetail /></LazyRoute>} />
+          <Route path="/app/profile" element={<LazyRoute><Profile /></LazyRoute>} />
         </Route>
       </Route>
 
       <Route element={<ProtectedRoute roles={['KITCHEN', 'ADMIN']} />}>
         <Route element={<AppShell />}>
-          <Route path="/kitchen" element={<KitchenQueue />} />
-          <Route path="/kitchen/history" element={<KitchenHistory />} />
+          <Route path="/kitchen" element={<LazyRoute><KitchenQueue /></LazyRoute>} />
+          <Route path="/kitchen/history" element={<LazyRoute><KitchenHistory /></LazyRoute>} />
         </Route>
       </Route>
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
-          <Route path="/settings" element={<AccountSettings />} />
+          <Route path="/settings" element={<LazyRoute><AccountSettings /></LazyRoute>} />
         </Route>
       </Route>
 
       <Route element={<ProtectedRoute roles={['DRIVER']} />}>
         <Route element={<AppShell />}>
           <Route path="/driver" element={<Navigate to="/driver/deliveries" replace />} />
-          <Route path="/driver/deliveries" element={<DriverDeliveries />} />
-          <Route path="/driver/map" element={<DriverMap />} />
-          <Route path="/driver/profile" element={<DriverProfile />} />
+          <Route path="/driver/deliveries" element={<LazyRoute><DriverDeliveries /></LazyRoute>} />
+          <Route path="/driver/map" element={<LazyRoute><DriverMap /></LazyRoute>} />
+          <Route path="/driver/profile" element={<LazyRoute><DriverProfile /></LazyRoute>} />
         </Route>
       </Route>
 
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<AppShell />}>
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/products" element={<AdminProducts />} />
-          <Route path="/admin/categories" element={<AdminCategories />} />
-          <Route path="/admin/orders" element={<AdminOrders />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/reports" element={<AdminReports />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-          <Route path="/admin/logs" element={<AdminLogs />} />
+          <Route path="/admin" element={<LazyRoute><AdminDashboard /></LazyRoute>} />
+          <Route path="/admin/products" element={<LazyRoute><AdminProducts /></LazyRoute>} />
+          <Route path="/admin/categories" element={<LazyRoute><AdminCategories /></LazyRoute>} />
+          <Route path="/admin/orders" element={<LazyRoute><AdminOrders /></LazyRoute>} />
+          <Route path="/admin/users" element={<LazyRoute><AdminUsers /></LazyRoute>} />
+          <Route path="/admin/reports" element={<LazyRoute><AdminReports /></LazyRoute>} />
+          <Route path="/admin/settings" element={<LazyRoute><AdminSettings /></LazyRoute>} />
+          <Route path="/admin/logs" element={<LazyRoute><AdminLogs /></LazyRoute>} />
         </Route>
       </Route>
 

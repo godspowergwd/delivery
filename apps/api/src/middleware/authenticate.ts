@@ -43,30 +43,36 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
     if (!token) throw unauthorized('Missing authentication token.');
 
     const payload = verifyAccessToken(token);
-    const session = await prisma.session.findUnique({
-      where: { id: payload.sessionId },
-      select: { id: true, revokedAt: true, expiresAt: true, userId: true },
-    });
+
+    // The session row and the account row are independent, so read them in a
+    // single database round-trip instead of two: every protected request gets
+    // faster without weakening any of the checks below.
+    const [session, user] = await Promise.all([
+      prisma.session.findUnique({
+        where: { id: payload.sessionId },
+        select: { id: true, revokedAt: true, expiresAt: true, userId: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          isProtected: true,
+          avatarUrl: true,
+        },
+      }),
+    ]);
+
     if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
       throw unauthorized('Your session has expired. Please sign in again.');
     }
     if (session.userId !== payload.sub) {
       throw unauthorized('Your session is no longer valid. Please sign in again.');
     }
-
-    const user = await prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        isProtected: true,
-        avatarUrl: true,
-      },
-    });
     if (!user) throw unauthorized('Account not found.');
     if (!user.isActive) throw forbidden('Your account has been disabled. Contact support.');
 

@@ -1,14 +1,26 @@
 /**
- * Database seed: protected admin + kitchen accounts, a demo customer with a
- * saved address, business settings and a realistic starter catalogue.
+ * Database seed - default staff accounts, business settings and (outside
+ * production) a demo catalogue.
+ *
+ * Rules this file follows:
+ *  1. Credentials live here, in source, and never in environment variables.
+ *  2. Every write is create-if-missing. An existing account keeps its password,
+ *     role, name and activation state; existing settings, categories and products
+ *     are never overwritten. Re-running the seed against the live database is safe.
+ *  3. Every password is hashed with bcrypt (same work factor as the API) before it
+ *     reaches PostgreSQL.
  *
  *   npm run db:seed
+ *   npm run db:seed -- --admin-password="..." --cashier-password="..." --inventory-password="..."
+ *   npm run db:seed -- --link-usernames   # attach short usernames to existing default accounts
+ *   npm run db:seed -- --with-demo-data   # also seed the demo catalogue + demo accounts
  */
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
-import bcrypt from 'bcryptjs';
+import { DEFAULT_SETTINGS } from '../src/config/defaults';
+import { hashPassword } from '../src/lib/password';
 
 loadEnv({ path: path.resolve(__dirname, '../.env') });
 
@@ -202,136 +214,277 @@ const PRODUCTS: SeedProduct[] = [
   },
 ];
 
-const SETTING_SEEDS: Array<{ key: string; value: unknown }> = [
-  { key: 'businessName', value: 'Delivery System' },
-  { key: 'businessAddress', value: '1 Market Street, Accra' },
-  { key: 'businessPhone', value: '+233000000000' },
-  { key: 'businessEmail', value: 'support@deliverysystem.app' },
-  { key: 'currencyCode', value: 'GHS' },
-  { key: 'currencySymbol', value: 'GH\u20b5' },
-  { key: 'deliveryFee', value: 8 },
-  { key: 'taxRate', value: 2.5 },
-  { key: 'minOrderTotal', value: 10 },
-  { key: 'acceptingOrders', value: true },
-  { key: 'supportPhone', value: '+233000000000' },
-  { key: 'supportEmail', value: 'support@deliverysystem.app' },
-  { key: 'lowStockThreshold', value: 10 },
-];
+/**
+ * Settings are seeded from the same constants the API falls back to, so code and
+ * database can never drift apart. `update: {}` keeps an existing - possibly
+ * already edited - value untouched.
+ */
+const SETTING_SEEDS = Object.entries(DEFAULT_SETTINGS).map(([key, value]) => ({ key, value }));
 
-async function upsertUser(
-  email: string,
-  name: string,
-  role: 'CUSTOMER' | 'KITCHEN' | 'DRIVER' | 'ADMIN',
-  password: string,
-  isProtected: boolean,
-): Promise<void> {
-  const passwordHash = await bcrypt.hash(password, 12);
-  await prisma.user.upsert({
-    where: { email },
-    update: { name, role, isActive: true, isProtected, passwordHash },
-    create: { email, name, role, passwordHash, isProtected, isActive: true, phone: '+233000000000' },
-  });
-  console.log(`[seed] user ready: ${email} (${role})`);
+type SeedRole = 'CUSTOMER' | 'KITCHEN' | 'DRIVER' | 'ADMIN';
+
+interface SeedAccount {
+  /** Also the CLI flag name for the password, for example `--admin-password`. */
+  key: string;
+  username: string;
+  email: string;
+  name: string;
+  role: SeedRole;
+  password: string;
+  /** Protected accounts cannot be deleted or demoted from the admin UI. */
+  isProtected: boolean;
 }
 
-async function main(): Promise<void> {
-  console.log('[seed] starting...');
+/** Default staff accounts. Override a password with `--<key>-password="..."`. */
+const STAFF_ACCOUNTS: SeedAccount[] = [
+  {
+    key: 'admin',
+    username: 'admin',
+    email: 'admin@deliverysystem.app',
+    name: 'Business Owner',
+    role: 'ADMIN',
+    password: 'Admin@12345',
+    isProtected: true,
+  },
+  {
+    key: 'cashier',
+    username: 'cashier',
+    email: 'cashier@deliverysystem.app',
+    name: 'Front Counter',
+    role: 'KITCHEN',
+    password: 'Cashier@12345',
+    isProtected: false,
+  },
+  {
+    key: 'inventory',
+    username: 'inventory',
+    email: 'inventory@deliverysystem.app',
+    name: 'Inventory Desk',
+    // The platform ships four roles (CUSTOMER / KITCHEN / DRIVER / ADMIN), so the
+    // inventory desk gets the operations role. Switch this to 'ADMIN' if that
+    // person must also manage the catalogue, stock levels and prices.
+    role: 'KITCHEN',
+    password: 'Inventory@12345',
+    isProtected: false,
+  },
+];
 
-  await upsertUser(
-    process.env.SEED_ADMIN_EMAIL ?? 'admin@deliverysystem.app',
-    'Business Owner',
-    'ADMIN',
-    process.env.SEED_ADMIN_PASSWORD ?? 'Admin@12345',
-    true,
-  );
-  await upsertUser(
-    process.env.SEED_KITCHEN_EMAIL ?? 'kitchen@deliverysystem.app',
-    'Kitchen Station',
-    'KITCHEN',
-    process.env.SEED_KITCHEN_PASSWORD ?? 'Kitchen@12345',
-    false,
-  );
-  await upsertUser(
-    process.env.SEED_CUSTOMER_EMAIL ?? 'customer@deliverysystem.app',
-    'Ama Mensah',
-    'CUSTOMER',
-    process.env.SEED_CUSTOMER_PASSWORD ?? 'Customer@12345',
-    false,
-  );
-  await upsertUser(
-    process.env.SEED_DRIVER_EMAIL ?? 'driver@deliverysystem.app',
-    'Kwame Rider',
-    'DRIVER',
-    process.env.SEED_DRIVER_PASSWORD ?? 'Driver@12345',
-    false,
-  );
+/** Demo accounts: seeded locally (or with --with-demo-data), never required in production. */
+const DEMO_ACCOUNTS: SeedAccount[] = [
+  {
+    key: 'kitchen',
+    username: 'kitchen',
+    email: 'kitchen@deliverysystem.app',
+    name: 'Kitchen Station',
+    role: 'KITCHEN',
+    password: 'Kitchen@12345',
+    isProtected: false,
+  },
+  {
+    key: 'driver',
+    username: 'driver',
+    email: 'driver@deliverysystem.app',
+    name: 'Kwame Rider',
+    role: 'DRIVER',
+    password: 'Driver@12345',
+    isProtected: false,
+  },
+  {
+    key: 'customer',
+    username: 'customer',
+    email: 'customer@deliverysystem.app',
+    name: 'Ama Mensah',
+    role: 'CUSTOMER',
+    password: 'Customer@12345',
+    isProtected: false,
+  },
+];
 
-  for (const setting of SETTING_SEEDS) {
-    await prisma.setting.upsert({
-      where: { key: setting.key },
-      update: {},
-      create: { key: setting.key, value: setting.value as object },
-    });
+/** `--flag`, `--key=value` command line parsing (no environment variables needed). */
+function parseFlags(argv: string[]): Map<string, string> {
+  const flags = new Map<string, string>();
+  for (const arg of argv) {
+    const match = /^--([a-z][a-z0-9-]*)(?:=(.*))?$/.exec(arg);
+    if (match) flags.set(match[1], match[2] ?? 'true');
   }
-  console.log(`[seed] ${SETTING_SEEDS.length} settings ready`);
+  return flags;
+}
 
+/** Prisma reports unique violations with code P2002 (older paths only carry the message). */
+function isUniqueViolation(error: unknown): boolean {
+  const code = (error as { code?: string }).code;
+  return code === 'P2002' || (error instanceof Error && error.message.includes('Unique constraint'));
+}
+
+/**
+ * Creates the account only when neither its email nor its username exists yet.
+ * Existing rows are never modified - not even to reset a forgotten password.
+ */
+async function seedAccount(account: SeedAccount, password: string): Promise<'created' | 'kept'> {
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ email: account.email }, { username: account.username }] },
+    select: { email: true },
+  });
+  if (existing) {
+    console.log(`[seed] kept existing ${account.role} account: ${existing.email}`);
+    return 'kept';
+  }
+
+  const data = {
+    email: account.email,
+    name: account.name,
+    username: account.username,
+    role: account.role,
+    isProtected: account.isProtected,
+    isActive: true,
+    passwordHash: await hashPassword(password),
+  };
+
+  try {
+    await prisma.user.create({ data });
+    console.log(`[seed] created ${account.role} account: ${account.username} / ${account.email}`);
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    // Another account already owns that username: keep the email-only sign-in.
+    await prisma.user.create({ data: { ...data, username: null } });
+    console.log(
+      `[seed] created ${account.role} account: ${account.email} (username "${account.username}" was taken)`,
+    );
+  }
+  return 'created';
+}
+
+/**
+ * Opt-in backfill (`--link-usernames`) for accounts created before usernames
+ * existed: only rows that match a default email AND have no username are touched.
+ */
+async function linkUsernames(accounts: SeedAccount[]): Promise<void> {
+  for (const account of accounts) {
+    const taken = await prisma.user.findUnique({
+      where: { username: account.username },
+      select: { id: true },
+    });
+    if (taken) continue;
+    const result = await prisma.user.updateMany({
+      where: { email: account.email, username: null },
+      data: { username: account.username },
+    });
+    if (result.count > 0) {
+      console.log(`[seed] linked username "${account.username}" to ${account.email}`);
+    }
+  }
+}
+
+/** Business settings: create-only, one batched transaction, existing values win. */
+async function seedSettings(): Promise<void> {
+  await prisma.$transaction(
+    SETTING_SEEDS.map((setting) =>
+      prisma.setting.upsert({
+        where: { key: setting.key },
+        update: {},
+        create: { key: setting.key, value: setting.value as never },
+      }),
+    ),
+  );
+  console.log(`[seed] ${SETTING_SEEDS.length} settings ready (existing values untouched)`);
+}
+
+/** Demo catalogue: only ever creates missing rows, never rewrites a price or stock level. */
+async function seedDemoCatalogue(): Promise<void> {
   const categoriesBySlug = new Map<string, string>();
   for (const category of CATEGORIES) {
-    const row = await prisma.category.upsert({
-      where: { slug: category.slug },
-      update: {
-        name: category.name,
-        description: category.description,
-        sortOrder: category.sortOrder,
-      },
-      create: category,
-    });
+    const existing = await prisma.category.findUnique({ where: { slug: category.slug } });
+    const row = existing ?? (await prisma.category.create({ data: category }));
     categoriesBySlug.set(category.slug, row.id);
   }
-  console.log(`[seed] ${CATEGORIES.length} categories ready`);
 
+  let createdProducts = 0;
   for (const product of PRODUCTS) {
     const categoryId = categoriesBySlug.get(product.category);
     if (!categoryId) throw new Error(`Missing category for product ${product.name}`);
-    const data = {
-      description: product.description,
-      price: product.price,
-      ingredients: product.ingredients,
-      prepTimeMinutes: product.prepTimeMinutes,
-      stock: product.stock,
-      categoryId,
-      imageUrl: product.imageUrl,
-      isPopular: product.isPopular ?? false,
-      isNew: product.isNew ?? false,
-    };
-    const existing = await prisma.product.findFirst({ where: { name: product.name } });
-    if (existing) {
-      await prisma.product.update({ where: { id: existing.id }, data });
-    } else {
-      await prisma.product.create({ data: { ...data, name: product.name } });
-    }
-  }
-  console.log(`[seed] ${PRODUCTS.length} products ready`);
 
-  const customer = await prisma.user.findUniqueOrThrow({
-    where: { email: process.env.SEED_CUSTOMER_EMAIL ?? 'customer@deliverysystem.app' },
-  });
-  const existingAddress = await prisma.address.findFirst({ where: { userId: customer.id } });
-  if (!existingAddress) {
-    await prisma.address.create({
+    const existing = await prisma.product.findFirst({
+      where: { name: product.name, categoryId },
+      select: { id: true },
+    });
+    if (existing) continue;
+
+    await prisma.product.create({
       data: {
-        userId: customer.id,
-        label: 'Home',
-        line1: '12 Independence Avenue',
-        area: 'Osu',
-        city: 'Accra',
-        isDefault: true,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        ingredients: product.ingredients,
+        prepTimeMinutes: product.prepTimeMinutes,
+        stock: product.stock,
+        categoryId,
+        imageUrl: product.imageUrl,
+        isPopular: product.isPopular ?? false,
+        isNew: product.isNew ?? false,
       },
     });
-    console.log('[seed] demo customer address created');
+    createdProducts += 1;
   }
 
-  console.log('[seed] done');
+  console.log(
+    `[seed] demo catalogue ready (${CATEGORIES.length} categories, ${createdProducts} products created, ${
+      PRODUCTS.length - createdProducts
+    } kept)`,
+  );
+}
+
+/** A saved address for the demo customer so checkout can be exercised locally. */
+async function seedDemoAddress(): Promise<void> {
+  const customer = await prisma.user.findUnique({
+    where: { email: 'customer@deliverysystem.app' },
+    select: { id: true },
+  });
+  if (!customer) return;
+
+  const existing = await prisma.address.findFirst({ where: { userId: customer.id } });
+  if (existing) return;
+
+  await prisma.address.create({
+    data: {
+      userId: customer.id,
+      label: 'Home',
+      line1: '12 Independence Avenue',
+      area: 'Osu',
+      city: 'Accra',
+      isDefault: true,
+    },
+  });
+  console.log('[seed] demo customer address created');
+}
+
+async function main(): Promise<void> {
+  const flags = parseFlags(process.argv.slice(2));
+  const withDemo = flags.has('with-demo-data') || process.env.NODE_ENV !== 'production';
+
+  console.log(`[seed] starting (${withDemo ? 'staff accounts + demo data' : 'staff accounts only'})`);
+
+  let created = 0;
+  const accounts = withDemo ? [...STAFF_ACCOUNTS, ...DEMO_ACCOUNTS] : STAFF_ACCOUNTS;
+  for (const account of accounts) {
+    const password = flags.get(`${account.key}-password`) ?? account.password;
+    if ((await seedAccount(account, password)) === 'created') created += 1;
+  }
+
+  if (flags.has('link-usernames')) {
+    await linkUsernames(accounts);
+  }
+
+  await seedSettings();
+
+  if (withDemo) {
+    await seedDemoCatalogue();
+    await seedDemoAddress();
+  }
+
+  console.log(`[seed] done - ${created} account(s) created, existing rows left untouched`);
+  if (created > 0) {
+    console.log('[seed] sign in and change every default password from the profile screen.');
+  }
 }
 
 main()

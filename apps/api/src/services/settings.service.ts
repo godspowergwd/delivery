@@ -1,24 +1,16 @@
 import type { SettingsDTO } from '@delivery/shared';
-import { env } from '../config/env';
+import { DEFAULT_SETTINGS, PUBLIC_SETTING_KEYS, type PublicSettings } from '../config/defaults';
 import { prisma } from '../lib/prisma';
 
 type SettingKey = keyof Omit<SettingsDTO, 'updatedAt'>;
 
-const DEFAULTS: Omit<SettingsDTO, 'updatedAt'> = {
-  businessName: env.BUSINESS_NAME,
-  businessAddress: '1 Market Street, Accra',
-  businessPhone: env.SUPPORT_PHONE,
-  businessEmail: env.SUPPORT_EMAIL,
-  currencyCode: env.CURRENCY_CODE,
-  currencySymbol: env.CURRENCY_SYMBOL,
-  deliveryFee: env.DELIVERY_FEE,
-  taxRate: env.TAX_RATE,
-  minOrderTotal: env.MIN_ORDER_TOTAL,
-  acceptingOrders: true,
-  supportPhone: env.SUPPORT_PHONE,
-  supportEmail: env.SUPPORT_EMAIL,
-  lowStockThreshold: 10,
-};
+/**
+ * Business configuration is always read from PostgreSQL; these constants are the
+ * fallback for values that have never been stored. Nothing here (and in
+ * particular no support phone number) comes from the environment, so contact
+ * details can change from Admin > Settings without a redeploy.
+ */
+const DEFAULTS: Omit<SettingsDTO, 'updatedAt'> = { ...DEFAULT_SETTINGS };
 
 const NUMERIC_KEYS: SettingKey[] = ['deliveryFee', 'taxRate', 'minOrderTotal', 'lowStockThreshold'];
 const BOOLEAN_KEYS: SettingKey[] = ['acceptingOrders'];
@@ -71,15 +63,36 @@ export async function updateSettings(
   const entries = Object.entries(patch).filter(([key, value]) => value !== undefined && key in DEFAULTS);
   if (entries.length === 0) return getSettings();
 
-  for (const [key, value] of entries) {
-    await prisma.setting.upsert({
-      where: { key },
-      create: { key, value: value as never, updatedById: updatedById ?? null },
-      update: { value: value as never, updatedById: updatedById ?? null },
-    });
-  }
+  // One batched transaction instead of one round-trip per changed field.
+  await prisma.$transaction(
+    entries.map(([key, value]) =>
+      prisma.setting.upsert({
+        where: { key },
+        create: { key, value: value as never, updatedById: updatedById ?? null },
+        update: { value: value as never, updatedById: updatedById ?? null },
+      }),
+    ),
+  );
   invalidateSettingsCache();
   return getSettings();
+}
+
+/** Projects the full settings document down to the publicly readable fields. */
+export function toPublicSettings(settings: SettingsDTO): PublicSettings {
+  const source = settings as unknown as Record<string, unknown>;
+  const projected: Record<string, unknown> = {};
+  for (const key of PUBLIC_SETTING_KEYS) projected[key] = source[key];
+  return projected as PublicSettings;
+}
+
+/**
+ * The settings anyone may read: storefront pricing/currency plus the support
+ * contact block, with the timestamp of the latest change so a client can display
+ * "support number updated ..." without extra requests.
+ */
+export async function getPublicSettings(): Promise<PublicSettings & { updatedAt: string | null }> {
+  const settings = await getSettings();
+  return { ...toPublicSettings(settings), updatedAt: settings.updatedAt };
 }
 
 export const defaultSettings = DEFAULTS;

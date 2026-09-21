@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import type { OrderDTO, Paginated } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { api } from '../../lib/api';
-import { useRealtimeSync } from '../../lib/realtime';
+import { toast, useRealtimeSync } from '../../lib/realtime';
 import { Button, Card, EmptyState, Modal, Spinner, StatusPill } from '../../components/ui';
 import {
   InboxIcon,
@@ -16,6 +16,7 @@ import {
   WalletIcon,
 } from '../../components/icons';
 import type { ComponentType } from 'react';
+import { PrepTimer } from '../../components/PrepTimer';
 
 const LIVE_STATUSES = ['RECEIVED', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'] as const;
 const STATUS_FILTERS = ['all', ...LIVE_STATUSES] as const;
@@ -60,7 +61,7 @@ export function KitchenQueue() {
       void queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] });
       void queryClient.invalidateQueries({ queryKey: ['kitchen-summary'] });
     } catch (error: any) {
-      alert(error.message);
+      toast(error instanceof Error ? error.message : 'Action failed', 'error');
     }
   }
 
@@ -73,7 +74,7 @@ export function KitchenQueue() {
       setRejectOrder(null);
       setRejectReason('');
     } catch (error: any) {
-      alert(error.message);
+      toast(error instanceof Error ? error.message : 'Action failed', 'error');
     }
   }
   if (isLoading) {
@@ -197,7 +198,12 @@ function KitchenOrderCard({
             {order.customerName} · {formatRelativeTime(order.createdAt)}
           </p>
         </div>
-        <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
+        <div className="flex flex-col items-end gap-1.5">
+          <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
+          {isLive && (
+            <PrepTimer startedAt={order.preparingAt ?? order.createdAt} targetMinutes={Math.max(...order.items.map(() => 15))} />
+          )}
+        </div>
       </div>
 
       <div className="space-y-1.5 mb-3">

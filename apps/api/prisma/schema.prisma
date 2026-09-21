@@ -67,6 +67,9 @@ model User {
   id           String    @id @default(cuid())
   name         String
   email        String    @unique
+  /// Optional short sign-in name (POS friendly). Unique when set and nullable so
+  /// existing accounts keep signing in with their email address.
+  username     String?   @unique
   phone        String?
   passwordHash String
   role         Role      @default(CUSTOMER)
@@ -91,8 +94,10 @@ model User {
   statusEvents    OrderStatusEvent[]
   reports         Report[]
 
+  /// Role-first composite index: serves role lookups and role+active filters.
   @@index([role, isActive])
   @@index([createdAt])
+  @@index([lastLoginAt])
 }
 
 model Address {
@@ -125,6 +130,8 @@ model Session {
   createdAt        DateTime  @default(now())
 
   @@index([userId, revokedAt])
+  /// Supports pruning sessions that expired without being revoked.
+  @@index([expiresAt])
 }
 
 model Category {
@@ -311,6 +318,8 @@ model ActivityLog {
   @@index([createdAt])
   @@index([action, createdAt])
   @@index([entity, entityId])
+  /// Per-account audit trail (Admin > Logs filtered by user).
+  @@index([userId, createdAt])
 }
 
 model Product {

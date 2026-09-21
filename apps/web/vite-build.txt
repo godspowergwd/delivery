@@ -1,0 +1,51 @@
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:153:27). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+[36mvite v8.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 161 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/manifest.webmanifest                          1.21 kB
+dist/index.html                                    6.82 kB │ gzip:  2.23 kB
+dist/assets/index-CRpugmss.css                   139.11 kB │ gzip: 21.42 kB
+dist/assets/driver-api-DZCWA0up.js                 0.21 kB │ gzip:  0.16 kB
+dist/assets/types-BL8F5Ozu.js                      0.23 kB │ gzip:  0.20 kB
+dist/assets/money-Di8jvtBy.js                      0.53 kB │ gzip:  0.34 kB
+dist/assets/rolldown-runtime-hePW80VL.js           0.71 kB │ gzip:  0.42 kB
+dist/assets/Settings-B8cwcuM6.js                   1.72 kB │ gzip:  0.71 kB
+dist/assets/Home-kWjpOVlR.js                       1.79 kB │ gzip:  0.82 kB
+dist/assets/KitchenHistory-BT5kdlhw.js             2.15 kB │ gzip:  1.02 kB
+dist/assets/Profile-_AHzXIOi.js                    2.85 kB │ gzip:  0.84 kB
+dist/assets/Orders-E9YL2OUW.js                     2.88 kB │ gzip:  0.96 kB
+dist/assets/Logs-CuxIf7R5.js                       3.33 kB │ gzip:  1.30 kB
+dist/assets/Categories-B4TSXSGx.js                 3.89 kB │ gzip:  1.53 kB
+dist/assets/Map-ByMmdn5M.js                        3.92 kB │ gzip:  1.61 kB
+dist/assets/Product-D4o4Qm2E.js                    4.39 kB │ gzip:  1.60 kB
+dist/assets/Cart-D6nh62qw.js                       4.47 kB │ gzip:  1.55 kB
+dist/assets/Dashboard-DpeK993k.js                  4.83 kB │ gzip:  1.68 kB
+dist/assets/Reports-Dd6NN4D3.js                    5.04 kB │ gzip:  1.85 kB
+dist/assets/Checkout-CG4wyWdK.js                   5.06 kB │ gzip:  1.93 kB
+dist/assets/Users-QTcA0rdf.js                      5.14 kB │ gzip:  1.83 kB
+dist/assets/Deliveries-Byct75lm.js                 5.20 kB │ gzip:  2.05 kB
+dist/assets/Settings-Cn62CG3u.js                   5.43 kB │ gzip:  1.76 kB
+dist/assets/workbox-window.prod.es5-Bd17z0YL.js    5.65 kB │ gzip:  2.20 kB
+dist/assets/Menu-BkPId8UD.js                       5.78 kB │ gzip:  2.24 kB
+dist/assets/Kitchen-Dt8yWMGr.js                    6.39 kB │ gzip:  2.25 kB
+dist/assets/Profile-B-byu7W2.js                    6.83 kB │ gzip:  2.07 kB
+dist/assets/Products-CzLrlENo.js                   7.88 kB │ gzip:  2.62 kB
+dist/assets/Orders-C-IzlqLb.js                     7.89 kB │ gzip:  2.77 kB
+dist/assets/OrderDetail-Dmt6CJ1z.js                8.10 kB │ gzip:  2.66 kB
+dist/assets/api-DfIp0BMG.js                       18.27 kB │ gzip:  6.31 kB
+dist/assets/query-kk5vCLWu.js                     40.62 kB │ gzip: 12.48 kB
+dist/assets/index-Bi0r_yhT.js                     83.97 kB │ gzip: 24.94 kB
+dist/assets/react-BSvVM-c6.js                    251.18 kB │ gzip: 79.74 kB
+
+[32m✓ built in 2.84s[39m
+
+PWA v1.3.0
+mode      generateSW
+precache  53 entries (692.57 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-5b3f2944.js

@@ -8,6 +8,7 @@ import { useCart } from '../../lib/cart';
 import { toast } from '../../lib/realtime';
 import { ArrowLeftIcon, CheckIcon } from '../../components/icons';
 import { Button, Card, Modal, Spinner, StatusPill } from '../../components/ui';
+import { OrderTracking } from '../../components/OrderTracking';
 
 export function OrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -204,6 +205,8 @@ function OrderDetailBody({
           </p>
         )}
       </Card>
+
+      <OrderTracking order={data} />
 
       <Card className="space-y-3">
         <p className="text-sm font-bold text-slate-800">Items</p>

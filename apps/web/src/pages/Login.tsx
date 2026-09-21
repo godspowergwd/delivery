@@ -43,15 +43,17 @@ export function Login() {
       </div>
       <Card>
         <form onSubmit={submit} className="space-y-4">
-          <Field label="Email">
+          <Field label="Email or username">
             <Input
-              type="email"
+              type="text"
               required
-              autoComplete="email"
+              autoComplete="username"
               inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
+              placeholder="you@example.com or admin"
             />
           </Field>
           <Field label="Password">

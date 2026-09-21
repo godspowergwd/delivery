@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth';
 import { useCart } from '../../lib/cart';
 import { toast } from '../../lib/realtime';
 import { Button, Card, ErrorText, Field, Input, Textarea } from '../../components/ui';
+import { MapPreview } from '../../components/MapPreview';
 
 export function Checkout() {
   const { lines, itemCount, subtotal, clear } = useCart();
@@ -161,6 +162,10 @@ function CheckoutForm({
           />
         </Field>
       </Card>
+
+      {form.deliveryAddress.trim().length >= 6 && (
+        <MapPreview address={form.deliveryAddress} label="Delivery location preview" />
+      )}
 
       <Card className="space-y-2">
         <p className="text-sm font-bold text-slate-800">Payment method</p>

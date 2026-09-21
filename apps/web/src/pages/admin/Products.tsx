@@ -6,6 +6,7 @@ import { api, mediaUrl } from '../../lib/api';
 import { useRealtimeSync } from '../../lib/realtime';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Textarea } from '../../components/ui';
 import { toast } from '../../lib/realtime';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ImageIcon } from '../../components/icons';
 
 export function AdminProducts() {
@@ -15,6 +16,7 @@ export function AdminProducts() {
   const [showArchived, setShowArchived] = useState(true);
   const [editing, setEditing] = useState<ProductDTO | null>(null);
   const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<ProductDTO | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products', search, showArchived],
@@ -38,7 +40,7 @@ export function AdminProducts() {
   };
 
   const remove = async (product: ProductDTO) => {
-    if (!confirm(`Permanently delete "${product.name}"? Products tied to active orders cannot be deleted.`)) return;
+    setPendingDelete(null);
     try {
       await api.del(`/products/${product.id}`);
       void queryClient.invalidateQueries({ queryKey: ['admin-products'] });
@@ -122,7 +124,7 @@ export function AdminProducts() {
                     Archive
                   </Button>
                 )}
-                <Button size="sm" variant="ghost" className="text-red-700" onClick={() => remove(product)}>
+                <Button size="sm" variant="ghost" className="text-red-700" onClick={() => setPendingDelete(product)}>
                   Delete
                 </Button>
               </div>
@@ -130,6 +132,19 @@ export function AdminProducts() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete product"
+        message={`Permanently delete "${pendingDelete?.name ?? ''}"? Products tied to active orders cannot be deleted.`}
+        confirmLabel="Delete forever"
+        busy={false}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const product = pendingDelete;
+          if (product) void remove(product);
+        }}
+      />
 
       {(creating || editing) && (
         <ProductDialog

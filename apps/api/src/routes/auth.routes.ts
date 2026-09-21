@@ -4,6 +4,7 @@ import { asyncHandler } from '../lib/http';
 import {
   emailSchema,
   idParamSchema,
+  loginIdentifierSchema,
   nameSchema,
   passwordSchema,
   phoneSchema,
@@ -33,6 +34,7 @@ import {
   type SessionTokens,
 } from '../services/auth.service';
 import { prisma } from '../lib/prisma';
+import { getPublicSettings } from '../services/settings.service';
 
 export const authRouter = Router();
 
@@ -44,7 +46,8 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: emailSchema,
+  // Accepts an email address or a username; the API resolves either form.
+  email: loginIdentifierSchema,
   password: z.string().min(1, 'Enter your password'),
   rememberMe: z.boolean().optional().default(false),
 });
@@ -118,6 +121,7 @@ authRouter.get(
         id: true,
         name: true,
         email: true,
+        username: true,
         phone: true,
         role: true,
         isActive: true,
@@ -179,19 +183,15 @@ authRouter.post(
     let role = null;
     let sessionId: string | null = null;
 
+    // The verified access token already carries the identity, so no database read
+    // is needed before revoking the session: sign-out returns immediately.
     if (header.toLowerCase().startsWith('bearer ')) {
       try {
         const payload = verifyAccessToken(header.slice(7).trim());
         sessionId = payload.sessionId;
-        const user = await prisma.user.findUnique({
-          where: { id: payload.sub },
-          select: { id: true, email: true, role: true },
-        });
-        if (user) {
-          userId = user.id;
-          email = user.email;
-          role = user.role;
-        }
+        userId = payload.sub;
+        email = payload.email ?? null;
+        role = payload.role;
       } catch {
         // An expired access token must never block signing out.
       }
@@ -216,15 +216,22 @@ authRouter.post(
   }),
 );
 
-/** GET /api/auth/config - public bootstrap payload for the client. */
+/**
+ * GET /api/auth/config - public bootstrap payload for the client. Business and
+ * support details come from PostgreSQL (Admin > Settings), so a changed support
+ * phone is visible to clients without a redeploy.
+ */
 authRouter.get(
   '/config',
   asyncHandler(async (_req, res) => {
+    const settings = await getPublicSettings();
     res.json({
       accessTokenTtlMs: durationToMs(env.JWT_ACCESS_TTL, 30 * 60_000),
       rememberTtlMs: refreshTtlMs(true),
-      appName: env.BUSINESS_NAME,
-      supportEmail: env.SUPPORT_EMAIL,
+      appName: settings.businessName,
+      supportPhone: settings.supportPhone,
+      supportEmail: settings.supportEmail,
+      settingsUpdatedAt: settings.updatedAt,
     });
   }),
 );

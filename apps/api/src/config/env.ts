@@ -5,6 +5,19 @@ import { z } from 'zod';
 // Load apps/api/.env regardless of whether we run from src (tsx) or dist (node).
 loadEnv({ path: path.resolve(__dirname, '../../.env') });
 
+/**
+ * Infrastructure configuration only.
+ *
+ * Business configuration (business name, currency, fees, support phone) lives in
+ * PostgreSQL and is editable at runtime from Admin > Settings. Default accounts
+ * are created by `prisma/seed.ts`, which owns its own defaults.
+ *
+ * Rule: no credential - staff email, username or password - may ever be read from
+ * the environment again. See apps/api/prisma/seed.ts.
+ *
+ * `DIRECT_URL` is deliberately not listed here: only prisma.config.ts
+ * (migrations) reads it.
+ */
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -15,20 +28,6 @@ const envSchema = z.object({
   JWT_ACCESS_TTL: z.string().default('30m'),
   JWT_REFRESH_TTL: z.string().default('30d'),
   JWT_REMEMBER_TTL: z.string().default('90d'),
-  BUSINESS_NAME: z.string().default('Delivery System'),
-  CURRENCY_CODE: z.string().default('GHS'),
-  CURRENCY_SYMBOL: z.string().default('GH\u20b5'),
-  DELIVERY_FEE: z.coerce.number().min(0).default(8),
-  TAX_RATE: z.coerce.number().min(0).default(2.5),
-  MIN_ORDER_TOTAL: z.coerce.number().min(0).default(10),
-  SUPPORT_PHONE: z.string().default('+233000000000'),
-  SUPPORT_EMAIL: z.string().default('support@deliverysystem.app'),
-  SEED_ADMIN_EMAIL: z.string().default('admin@deliverysystem.app'),
-  SEED_ADMIN_PASSWORD: z.string().default('Admin@12345'),
-  SEED_KITCHEN_EMAIL: z.string().default('kitchen@deliverysystem.app'),
-  SEED_KITCHEN_PASSWORD: z.string().default('Kitchen@12345'),
-  SEED_CUSTOMER_EMAIL: z.string().default('customer@deliverysystem.app'),
-  SEED_CUSTOMER_PASSWORD: z.string().default('Customer@12345'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -36,8 +35,8 @@ const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
   const details = parsed.error.issues
     .map((issue) => `  - ${issue.path.join('.') || 'env'}: ${issue.message}`)
-    .join('\n');
-  throw new Error(`Invalid environment configuration:\n${details}`);
+    .join('; ');
+  throw new Error(`Invalid environment configuration: ${details}`);
 }
 
 export const env = parsed.data;

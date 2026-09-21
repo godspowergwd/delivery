@@ -1,7 +1,13 @@
 import type { AuthUser, Role } from '@delivery/shared';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, forbidden, unauthorized } from '../lib/errors';
-import { generateTemporaryPassword, hashPassword, verifyPassword } from '../lib/password';
+import { logger } from '../lib/logger';
+import {
+  generateTemporaryPassword,
+  hashPassword,
+  needsRehash,
+  verifyPassword,
+} from '../lib/password';
 import {
   generateRefreshToken,
   hashToken,
@@ -17,6 +23,8 @@ type UserRow = {
   id: string;
   name: string;
   email: string;
+  /** Optional POS friendly sign-in name; undefined when the query did not select it. */
+  username?: string | null;
   phone: string | null;
   role: Role;
   isActive: boolean;
@@ -31,6 +39,7 @@ export function toAuthUser(user: UserRow): AuthUser {
     id: user.id,
     name: user.name,
     email: user.email,
+    username: user.username ?? null,
     phone: user.phone,
     role: user.role,
     isActive: user.isActive,
@@ -53,32 +62,73 @@ function randomCsrf(): string {
   return generateRefreshToken().token.slice(0, 32);
 }
 
-/** Creates a session row and the matching access/refresh token pair. */
-export async function issueSession(
+interface PreparedSession {
+  /** Row payload for `prisma.session.create`. */
+  data: {
+    userId: string;
+    refreshTokenHash: string;
+    rememberMe: boolean;
+    expiresAt: Date;
+    userAgent: string | null;
+    ip: string | null;
+  };
+  refreshToken: string;
+  csrfToken: string;
+  expiresAt: Date;
+}
+
+/**
+ * Builds the session row payload and its token material *without* touching the
+ * database, so a caller can write the row inside a batched transaction together
+ * with its own writes (one database round-trip instead of several).
+ */
+function prepareSession(
   user: UserRow,
   options: { rememberMe?: boolean; request?: Request } = {},
-): Promise<SessionTokens> {
+): PreparedSession {
+  const { request } = options;
   const rememberMe = Boolean(options.rememberMe);
-  const ttl = refreshTtlMs(rememberMe);
+  const expiresAt = new Date(Date.now() + refreshTtlMs(rememberMe));
   const { token: refreshToken, hash } = generateRefreshToken();
-  const csrfToken = randomCsrf();
-  const expiresAt = new Date(Date.now() + ttl);
 
-  const session = await prisma.session.create({
+  return {
     data: {
       userId: user.id,
       refreshTokenHash: hash,
       rememberMe,
       expiresAt,
-      userAgent: options.request?.headers['user-agent'] ?? null,
-      ip: options.request?.ip ?? null,
+      userAgent: request?.headers['user-agent'] ?? null,
+      ip: request?.ip ?? null,
     },
-    select: { id: true },
-  });
+    refreshToken,
+    csrfToken: randomCsrf(),
+    expiresAt,
+  };
+}
 
-  const accessToken = signAccessToken({ sub: user.id, role: user.role, sessionId: session.id });
+/** Signs the access token for a session row that was just persisted. */
+function finalizeSession(
+  prepared: PreparedSession,
+  sessionId: string,
+  user: Pick<UserRow, 'id' | 'role' | 'email'>,
+): SessionTokens {
+  return {
+    accessToken: signAccessToken({ sub: user.id, role: user.role, email: user.email, sessionId }),
+    refreshToken: prepared.refreshToken,
+    csrfToken: prepared.csrfToken,
+    sessionId,
+    expiresAt: prepared.expiresAt,
+  };
+}
 
-  return { accessToken, refreshToken, csrfToken, sessionId: session.id, expiresAt };
+/** Creates a session row and the matching access/refresh token pair. */
+export async function issueSession(
+  user: UserRow,
+  options: { rememberMe?: boolean; request?: Request } = {},
+): Promise<SessionTokens> {
+  const prepared = prepareSession(user, options);
+  const session = await prisma.session.create({ data: prepared.data, select: { id: true } });
+  return finalizeSession(prepared, session.id, user);
 }
 
 export interface RegisterInput {
@@ -147,22 +197,59 @@ export async function registerCustomer(
 }
 
 export interface LoginInput {
+  /** Email address or username: both resolve to the same account. */
   email: string;
   password: string;
   rememberMe?: boolean;
 }
 
+const LOGIN_ERROR = 'That email and password combination is not correct.';
+
+/**
+ * Re-hashes a stored password when it was created with a slower bcrypt cost than
+ * the configured work factor. Runs after the response payload is ready and never
+ * throws, so it can neither slow down nor break a sign-in.
+ */
+function upgradeLegacyPasswordHash(userId: string, storedHash: string, plain: string): void {
+  if (!needsRehash(storedHash)) return;
+  void (async () => {
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash: await hashPassword(plain) },
+      });
+      logger.info('[auth] password hash upgraded to the configured bcrypt cost');
+    } catch (error) {
+      logger.warn('[auth] could not upgrade a legacy password hash', {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  })();
+}
+
+/**
+ * Verifies credentials against PostgreSQL and issues a session.
+ *
+ * The hot path is exactly one SELECT, one bcrypt compare and one batched
+ * transaction. The audit row and any legacy hash upgrade are written after the
+ * response payload is built, so they never add latency to a sign-in.
+ */
 export async function login(
   input: LoginInput,
   request?: Request,
 ): Promise<{ user: AuthUser; tokens: SessionTokens }> {
-  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  const identifier = input.email.trim().toLowerCase();
+  const user = await prisma.user.findUnique({
+    where: identifier.includes('@') ? { email: identifier } : { username: identifier },
+    select: { ...SESSION_USER_SELECT, passwordHash: true },
+  });
   if (!user) {
-    throw unauthorized('That email and password combination is not correct.');
+    throw unauthorized(LOGIN_ERROR);
   }
+
   const valid = await verifyPassword(input.password, user.passwordHash);
   if (!valid) {
-    await logActivity({
+    void logActivity({
       action: 'LOGIN_FAILED',
       entity: 'User',
       entityId: user.id,
@@ -171,32 +258,26 @@ export async function login(
       actorRole: user.role,
       request: request ?? null,
     });
-    throw unauthorized('That email and password combination is not correct.');
+    throw unauthorized(LOGIN_ERROR);
   }
   if (!user.isActive) {
     throw forbidden('This account has been disabled. Please contact an administrator.');
   }
 
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      role: true,
-      isActive: true,
-      isProtected: true,
-      avatarUrl: true,
-      createdAt: true,
-      lastLoginAt: true,
-    },
-  });
+  const prepared = prepareSession(user, { rememberMe: input.rememberMe, request });
+  // Session row + "last signed in" stamp in a single database round-trip.
+  const [session, updated] = await prisma.$transaction([
+    prisma.session.create({ data: prepared.data, select: { id: true } }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+      select: SESSION_USER_SELECT,
+    }),
+  ]);
+  const tokens = finalizeSession(prepared, session.id, updated);
 
-  const tokens = await issueSession(updated, { rememberMe: input.rememberMe, request });
-
-  await logActivity({
+  // Deliberately not awaited: neither write may delay the sign-in response.
+  void logActivity({
     action: 'LOGIN',
     entity: 'User',
     entityId: user.id,
@@ -206,6 +287,7 @@ export async function login(
     actorRole: user.role,
     request: request ?? null,
   });
+  upgradeLegacyPasswordHash(user.id, user.passwordHash, input.password);
 
   return { user: toAuthUser(updated), tokens };
 }
@@ -214,6 +296,7 @@ const SESSION_USER_SELECT = {
   id: true,
   name: true,
   email: true,
+  username: true,
   phone: true,
   role: true,
   isActive: true,
@@ -240,13 +323,21 @@ export async function refreshSession(
     throw forbidden('This account has been disabled. Please contact an administrator.');
   }
 
-  await prisma.session.update({
-    where: { id: session.id },
-    data: { revokedAt: new Date(), lastUsedAt: new Date() },
-  });
+  const prepared = prepareSession(session.user, { rememberMe: session.rememberMe, request });
+  // Rotate in one round-trip: revoke the used token and store its replacement.
+  const [, fresh] = await prisma.$transaction([
+    prisma.session.update({
+      where: { id: session.id },
+      data: { revokedAt: new Date(), lastUsedAt: new Date() },
+      select: { id: true },
+    }),
+    prisma.session.create({ data: prepared.data, select: { id: true } }),
+  ]);
 
-  const tokens = await issueSession(session.user, { rememberMe: session.rememberMe, request });
-  return { user: toAuthUser(session.user), tokens };
+  return {
+    user: toAuthUser(session.user),
+    tokens: finalizeSession(prepared, fresh.id, session.user),
+  };
 }
 
 export async function logout(options: {
@@ -269,7 +360,8 @@ export async function logout(options: {
     data: { revokedAt: new Date() },
   });
 
-  await logActivity({
+  // Non-blocking: signing out finishes as soon as the session row is revoked.
+  void logActivity({
     action: 'LOGOUT',
     entity: 'User',
     entityId: options.userId ?? null,
@@ -286,7 +378,7 @@ export async function logoutAllSessions(userId: string, request?: Request): Prom
     where: { userId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
-  await logActivity({
+  void logActivity({
     action: 'LOGOUT_ALL',
     entity: 'User',
     entityId: userId,

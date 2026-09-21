@@ -30,17 +30,17 @@ export default defineConfig(({ mode }) => {
 
   const manifest = {
     id: base,
-    name: process.env.VITE_APP_NAME || 'Delivery System',
-    short_name: 'Delivery',
+    name: process.env.VITE_APP_NAME || 'ONYX',
+    short_name: 'ONYX',
     description:
-      'Order food, follow every order live, and run the whole kitchen and business from one installable app.',
+      'ONYX — order food, follow every delivery live on the map and run the whole kitchen from one installable app.',
     start_url: `${base}?source=pwa`,
     scope: base,
     display: 'standalone',
     display_override: ['fullscreen', 'standalone', 'minimal-ui'],
     orientation: 'any',
-    theme_color: '#0b1120',
-    background_color: '#0b1120',
+    theme_color: '#ffffff',
+    background_color: '#ffffff',
     lang: 'en',
     dir: 'ltr',
     categories: ['food', 'shopping', 'business'],

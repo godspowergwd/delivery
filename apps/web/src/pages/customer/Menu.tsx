@@ -8,6 +8,13 @@ import { useCart } from '../../lib/cart';
 import { toast } from '../../lib/realtime';
 import { HeartIcon, ImageIcon } from '../../components/icons';
 import { EmptyState, Input, Select, Spinner } from '../../components/ui';
+import {
+  TRENDING_SEARCHES,
+  clearRecentSearches,
+  loadRecentSearches,
+  pushRecentSearch,
+  type RecentSearch,
+} from '../../lib/prefs';
 
 type Sort = 'newest' | 'popular' | 'price_asc' | 'price_desc' | 'name_asc';
 
@@ -24,6 +31,11 @@ export function Menu() {
     const timer = window.setTimeout(() => setDebounced(search.trim()), 350);
     return () => window.clearTimeout(timer);
   }, [search]);
+
+  // Remember settled searches so the empty state can offer them back.
+  useEffect(() => {
+    if (debounced.length >= 2) pushRecentSearch(debounced);
+  }, [debounced]);
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -110,6 +122,9 @@ export function Menu() {
         </div>
       </div>
 
+      {/* Recent + trending suggestions while browsing */}
+      {debounced.length === 0 && <SearchSuggestions onPick={setSearch} />}
+
       {products.isLoading ? (
         <div className="flex justify-center py-16">
           <Spinner className="h-8 w-8" />
@@ -188,6 +203,60 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
         {soldOut && <p className="text-sm font-semibold text-red-700">Sold out</p>}
       </div>
     </div>
+  );
+}
+
+/** Recent + trending search suggestions shown while the search box is empty. */
+function SearchSuggestions({ onPick }: { onPick: (term: string) => void }) {
+  const [recents, setRecents] = useState<RecentSearch[]>(() => loadRecentSearches());
+
+  return (
+    <section className="space-y-3 rounded-card bg-white p-4 shadow-card ring-1 ring-inset ring-slate-200/60">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-extrabold uppercase tracking-wide text-slate-500">Trending now</p>
+        {recents.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              clearRecentSearches();
+              setRecents([]);
+            }}
+            className="text-[13px] font-bold text-slate-500 hover:text-red-600"
+          >
+            Clear history
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {TRENDING_SEARCHES.map((term) => (
+          <button
+            key={term}
+            type="button"
+            onClick={() => onPick(term)}
+            className="rounded-full bg-red-50 px-3.5 py-2 text-[13px] font-bold text-red-700 transition hover:bg-red-100 active:scale-95"
+          >
+            {term}
+          </button>
+        ))}
+      </div>
+      {recents.length > 0 && (
+        <>
+          <p className="pt-1 text-[13px] font-extrabold uppercase tracking-wide text-slate-500">Recent searches</p>
+          <div className="flex flex-wrap gap-2">
+            {recents.map((entry) => (
+              <button
+                key={entry.term}
+                type="button"
+                onClick={() => onPick(entry.term)}
+                className="rounded-full bg-slate-100 px-3.5 py-2 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-200 active:scale-95"
+              >
+                {entry.term}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { SettingsDTO } from '@delivery/shared';
 import { asyncHandler } from '../lib/http';
-import { percentSchema } from '../lib/validation';
+import { emailSchema, percentSchema, phoneSchema } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
-import { getSettings, updateSettings } from '../services/settings.service';
+import { getPublicSettings, getSettings, updateSettings } from '../services/settings.service';
 import { logActivity } from '../services/activity-log.service';
 import { emitToRole } from '../realtime/socket';
 
@@ -13,16 +13,17 @@ export const settingsRouter = Router();
 const updateSettingsSchema = z.object({
   businessName: z.string().trim().min(2).max(120).optional(),
   businessAddress: z.string().trim().min(4).max(240).optional(),
-  businessPhone: z.string().trim().min(6).max(30).optional(),
-  businessEmail: z.string().trim().min(5).max(160).optional(),
+  businessPhone: phoneSchema.optional(),
+  businessEmail: emailSchema.optional(),
   currencyCode: z.string().trim().min(2).max(6).optional(),
   currencySymbol: z.string().trim().min(1).max(6).optional(),
   deliveryFee: z.coerce.number().min(0).max(1000).optional(),
   taxRate: percentSchema.optional(),
   minOrderTotal: z.coerce.number().min(0).max(10_000).optional(),
   acceptingOrders: z.boolean().optional(),
-  supportPhone: z.string().trim().min(6).max(30).optional(),
-  supportEmail: z.string().trim().min(5).max(160).optional(),
+  // Support contact block - stored in PostgreSQL and live the moment it is saved.
+  supportPhone: phoneSchema.optional(),
+  supportEmail: emailSchema.optional(),
   lowStockThreshold: z.coerce.number().int().min(0).max(10_000).optional(),
 });
 
@@ -41,6 +42,25 @@ settingsRouter.get(
   asyncHandler(async (_req, res) => {
     const settings = await getSettings();
     res.json({ settings });
+  }),
+);
+
+/**
+ * GET /api/settings/support - public support contact block only. Small and
+ * cacheable, so even an anonymous client can show the current support phone.
+ */
+settingsRouter.get(
+  '/support',
+  asyncHandler(async (_req, res) => {
+    const settings = await getPublicSettings();
+    res.json({
+      support: {
+        businessName: settings.businessName,
+        supportPhone: settings.supportPhone,
+        supportEmail: settings.supportEmail,
+        updatedAt: settings.updatedAt,
+      },
+    });
   }),
 );
 

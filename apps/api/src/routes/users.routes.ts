@@ -2,7 +2,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
-import { emailSchema, idParamSchema, paginationSchema, passwordSchema, phoneSchema } from '../lib/validation';
+import {
+  emailSchema,
+  idParamSchema,
+  paginationSchema,
+  passwordSchema,
+  phoneSchema,
+  usernameSchema,
+} from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
@@ -32,6 +39,8 @@ const listUsersSchema = paginationSchema.extend({
 const createUserSchema = z.object({
   name: z.string().trim().min(2, 'Name is too short').max(120),
   email: emailSchema,
+  /** Optional short sign-in name (POS friendly), unique across all accounts. */
+  username: usernameSchema.optional(),
   phone: phoneSchema.optional(),
   password: passwordSchema,
   role: z.enum(ROLE_VALUES),
@@ -40,6 +49,7 @@ const createUserSchema = z.object({
 const adminUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   email: emailSchema.optional(),
+  username: usernameSchema.nullable().optional(),
   phone: phoneSchema.nullable().optional(),
   role: z.enum(ROLE_VALUES).optional(),
   isActive: z.boolean().optional(),
@@ -60,6 +70,7 @@ usersRouter.get(
         id: true,
         name: true,
         email: true,
+        username: true,
         phone: true,
         role: true,
         isActive: true,
@@ -99,6 +110,7 @@ usersRouter.patch(
         id: true,
         name: true,
         email: true,
+        username: true,
         phone: true,
         role: true,
         isActive: true,
@@ -157,6 +169,7 @@ usersRouter.get(
           id: true,
           name: true,
           email: true,
+          username: true,
           phone: true,
           role: true,
           isActive: true,
@@ -188,13 +201,25 @@ usersRouter.post(
   asyncHandler(async (req, res) => {
     const body = createUserSchema.parse(req.body);
 
-    const duplicate = await prisma.user.findUnique({ where: { email: body.email } });
-    if (duplicate) throw conflict('An account with that email already exists.');
+    const duplicate = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: body.email }, ...(body.username ? [{ username: body.username }] : [])],
+      },
+      select: { email: true, username: true },
+    });
+    if (duplicate) {
+      throw conflict(
+        body.username && duplicate.username === body.username
+          ? 'Another account already uses that username.'
+          : 'An account with that email already exists.',
+      );
+    }
 
     const created = await prisma.user.create({
       data: {
         name: body.name,
         email: body.email,
+        username: body.username ?? null,
         phone: body.phone ?? null,
         role: body.role,
         passwordHash: await hashPassword(body.password),
@@ -268,12 +293,20 @@ usersRouter.patch(
       const duplicate = await prisma.user.findUnique({ where: { email: body.email } });
       if (duplicate) throw conflict('Another account already uses that email.');
     }
+    if (body.username && body.username !== target.username) {
+      const taken = await prisma.user.findUnique({
+        where: { username: body.username },
+        select: { id: true },
+      });
+      if (taken) throw conflict('Another account already uses that username.');
+    }
 
     const updated = await prisma.user.update({
       where: { id },
       data: {
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.email !== undefined ? { email: body.email } : {}),
+        ...(body.username !== undefined ? { username: body.username } : {}),
         ...(body.phone !== undefined ? { phone: body.phone } : {}),
         ...(body.role !== undefined ? { role: body.role } : {}),
         ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),

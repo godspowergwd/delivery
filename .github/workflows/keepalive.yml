@@ -1,0 +1,25 @@
+name: Keep the API awake
+
+# Render suspends a free service after ~15 minutes without traffic. The next
+# request - a sign-in, for example - then waits for a full cold start, which is
+# the usual cause of "login takes minutes". This scheduled ping keeps the API
+# warm so sign-in stays instant.
+#
+# Update the URL below if the Render service URL ever changes.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping the API health endpoint
+        run: |
+          curl --fail --silent --show-error --max-time 90 \
+            "https://delivery-2xbo.onrender.com/api/health"

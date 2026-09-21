@@ -6,9 +6,9 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover"
     />
-    <title>Delivery System</title>
-    <meta name="description" content="Order food, track every order live and run the kitchen and business from one installable app." />
-    <meta name="theme-color" content="#0b1120" />
+    <title>ONYX — Food delivery</title>
+    <meta name="description" content="ONYX — order food, follow every delivery live on the map and run the whole kitchen from one installable app." />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="%BASE_URL%favicon.ico" sizes="48x48" />
     <link rel="icon" href="%BASE_URL%logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon-180x180.png" />
@@ -17,10 +17,10 @@
     <!-- Installable, full-screen standalone experience -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Delivery" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="application-name" content="Delivery System" />
-    <meta name="msapplication-TileColor" content="#0b1120" />
+    <meta name="apple-mobile-web-app-title" content="ONYX" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="application-name" content="ONYX" />
+    <meta name="msapplication-TileColor" content="#e30613" />
     <meta name="format-detection" content="telephone=no" />
     <link rel="apple-touch-startup-image" href="/apple-splash-2048-2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
     <link rel="apple-touch-startup-image" href="/apple-splash-1668-2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
@@ -33,13 +33,15 @@
     <link rel="apple-touch-startup-image" href="/apple-splash-750-1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
 
     <style>
-      /* Prevents a white flash before the app shell paints and powers the splash. */
+      /* Returns to a white canvas immediately: no white flash, no dark shell.
+         The splash below is painted by plain HTML so the very first frame is
+         already branded, and the ONYX logo sits inside a soft red glow. */
       html,
       body,
       #root {
         height: 100%;
         margin: 0;
-        background-color: #0b1120;
+        background-color: #ffffff;
       }
       #boot-splash {
         position: fixed;
@@ -48,41 +50,88 @@
         align-items: center;
         justify-content: center;
         flex-direction: column;
-        gap: 18px;
-        background: radial-gradient(circle at 50% 20%, #16264a 0%, #0b1120 60%);
-        color: #e2e8f0;
-        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        gap: 22px;
+        background: #ffffff;
+        color: #131a26;
+        font-family: "Inter var", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         z-index: 9999;
+        transition: opacity 320ms var(--ease-premium);
+      }
+      #boot-splash .glow {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 168px;
+        height: 168px;
+      }
+      #boot-splash .glow::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(227, 6, 19, 0.22) 0%, rgba(227, 6, 19, 0) 68%);
+        animation: boot-breathe 2.6s ease-in-out infinite;
       }
       #boot-splash img {
-        width: 84px;
-        height: 84px;
-        filter: drop-shadow(0 12px 24px rgba(34, 211, 238, 0.35));
-        animation: boot-pulse 1.6s ease-in-out infinite;
+        position: relative;
+        width: 92px;
+        height: 92px;
+        border-radius: 26px;
+        box-shadow: 0 18px 40px -18px rgba(227, 6, 19, 0.55);
+        animation: boot-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
       }
-      #boot-splash span {
-        font-size: 13px;
-        letter-spacing: 0.28em;
+      #boot-splash .word {
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0.42em;
         text-transform: uppercase;
-        color: #94a3b8;
+        color: #131a26;
+        animation: boot-in 700ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
       }
-      @keyframes boot-pulse {
-        0%,
-        100% {
-          transform: scale(1);
-          opacity: 0.92;
-        }
-        50% {
-          transform: scale(1.06);
-          opacity: 1;
-        }
+      #boot-splash .track {
+        position: relative;
+        width: 132px;
+        height: 4px;
+        border-radius: 999px;
+        background: #f1f3f7;
+        overflow: hidden;
+        animation: boot-in 700ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      #boot-splash .track::after {
+        content: "";
+        position: absolute;
+        inset-block: 0;
+        width: 42%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #e30613, #f5253a);
+        animation: boot-progress 1.25s ease-in-out infinite;
+      }
+      @keyframes boot-in {
+        from { opacity: 0; transform: translateY(12px) scale(0.96); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes boot-breathe {
+        0%, 100% { transform: scale(0.92); opacity: 0.75; }
+        50% { transform: scale(1.06); opacity: 1; }
+      }
+      @keyframes boot-progress {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(320%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash .glow::before,
+        #boot-splash img,
+        #boot-splash .word,
+        #boot-splash .track,
+        #boot-splash .track::after { animation: none; }
       }
     </style>
   </head>
   <body>
     <div id="boot-splash" role="status" aria-live="polite">
-      <img src="%BASE_URL%logo.svg" alt="" />
-      <span>Delivery System</span>
+      <span class="glow"><img src="%BASE_URL%logo.svg" alt="ONYX" /></span>
+      <span class="word">ONYX</span>
+      <span class="track" aria-hidden="true"></span>
     </div>
     <script>
       // Fallback that runs even if the app bundle fails to load or hangs:

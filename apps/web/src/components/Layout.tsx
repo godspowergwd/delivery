@@ -248,7 +248,7 @@ export function AppShell() {
         <div className="flex items-center gap-3 px-5 pb-5 pt-6">
           <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-11 w-11 rounded-2xl" />
           <div className="min-w-0">
-            <p className="truncate text-base font-extrabold text-slate-900">Delivery System</p>
+            <p className="truncate text-base font-extrabold text-slate-900">ONYX</p>
             <p className="truncate text-xs font-medium text-slate-500">
               {roleLabel}
               {user ? ` · ${user.name}` : ''}
@@ -281,7 +281,7 @@ export function AppShell() {
             <Link to="/" className="flex min-w-0 items-center gap-2.5">
               <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-10 w-10 rounded-xl" />
               <div className="min-w-0">
-                <p className="truncate text-[15px] font-extrabold leading-tight text-slate-900">Delivery System</p>
+                <p className="truncate text-[15px] font-extrabold leading-tight text-slate-900">ONYX</p>
                 <p className="truncate text-xs leading-tight text-slate-500">
                   {user ? `${roleLabel} · ${user.name}` : 'Fresh food, delivered fast'}
                 </p>

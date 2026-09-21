@@ -11,8 +11,8 @@ async function bootstrap(): Promise<void> {
   ensureUploadDir();
   ensureReportDir();
 
+  // One connectivity probe (connectDatabase logs its own timing), then listen.
   await connectDatabase();
-  logger.info('Database connection established');
 
   const app = createApp();
   const server = http.createServer(app);

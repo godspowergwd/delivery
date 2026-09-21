@@ -78,3 +78,24 @@ export function formatZodError(error: z.ZodError): Array<{ path: string; message
     message: issue.message,
   }));
 }
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+
+/** Optional short sign-in name for staff accounts. Always stored lowercase. */
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, 'Username must be at least 3 characters')
+  .max(32, 'Username must be at most 32 characters')
+  .regex(USERNAME_PATTERN, 'Use letters, numbers, dots, dashes or underscores')
+  .transform((value) => value.toLowerCase());
+
+/**
+ * Sign-in identifier: an email address or a username. Deliberately looser than
+ * `emailSchema` so the very same login field can carry either form.
+ */
+export const loginIdentifierSchema = z
+  .string()
+  .trim()
+  .min(3, 'Enter your email or username')
+  .max(200, 'That value is too long')
+  .transform((value) => value.toLowerCase());

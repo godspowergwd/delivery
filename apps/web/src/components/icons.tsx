@@ -407,6 +407,69 @@ export const CameraIcon = (p: IconProps) => (
   </Base>
 );
 
+/* ------------------------- brand + delivery extras ---------------------- */
+
+export const StarIcon = (p: IconProps & { filled?: boolean }) => (
+  <Base {...p} filled={p.filled}>
+    <path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.2-4.1 5.8-.8Z" />
+  </Base>
+);
+
+export const BikeIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="5.5" cy="17.5" r="3" />
+    <circle cx="18.5" cy="17.5" r="3" />
+    <path d="M6.5 17.5h6l3-7h3" />
+    <path d="M12.5 10.5 11 6h-2" />
+    <path d="M14.5 6h2.5" />
+  </Base>
+);
+
+export const CreditCardIcon = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="2.5" y="5" width="19" height="14" rx="3" />
+    <path d="M2.5 10h19" />
+    <path d="M6.5 14.5h3" />
+  </Base>
+);
+
+export const PercentIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M19 5 5 19" />
+    <circle cx="7.5" cy="7.5" r="2.5" />
+    <circle cx="16.5" cy="16.5" r="2.5" />
+  </Base>
+);
+
+export const LocateIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="3.2" />
+    <circle cx="12" cy="12" r="7.5" />
+    <path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22" />
+  </Base>
+);
+
+export const ShieldIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6Z" />
+    <path d="m9 12 2 2 4-4" />
+  </Base>
+);
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="m6 9.5 6 6 6-6" />
+  </Base>
+);
+
+export const RouteIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="6" cy="19" r="2.5" />
+    <circle cx="18" cy="5" r="2.5" />
+    <path d="M8.5 19h5a4 4 0 0 0 0-8h-3a4 4 0 0 1 0-8h5" />
+  </Base>
+);
+
 export const LockIcon = (p: IconProps) => (
   <Base {...p}>
     <rect x="4.5" y="10.5" width="15" height="9.5" rx="2" />

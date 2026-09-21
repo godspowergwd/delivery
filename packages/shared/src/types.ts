@@ -28,6 +28,8 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
+  /** Short sign-in name for staff accounts; absent for email-only accounts. */
+  username?: string | null;
   phone: string | null;
   role: Role;
   isActive: boolean;
