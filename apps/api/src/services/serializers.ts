@@ -139,6 +139,8 @@ export function serializeOrder(order: OrderWithRelations): OrderDTO {
     estimatedReadyAt: order.estimatedReadyAt?.toISOString() ?? null,
     driverId: order.driverId,
     driverName: order.driver?.name ?? null,
+    deliveryLatitude: order.deliveryLatitude,
+    deliveryLongitude: order.deliveryLongitude,
     hasReceipt: Boolean(order.receipt),
   };
 }

@@ -1,6 +1,7 @@
 import type { NotificationDTO, OrderDTO, ProductDTO, CategoryDTO, AnalyticsOverview } from './types';
 import type { OrderStatus } from './order-status';
 import type { Role } from './roles';
+import type { DriverLocationDTO, DriverLocationInput } from './tracking';
 
 export type { Role } from './roles';
 export type { OrderStatus } from './order-status';
@@ -35,11 +36,22 @@ export interface ServerToClientEvents {
   'analytics:refresh': (payload?: { overview?: AnalyticsOverview }) => void;
   'stock:low': (payload: { productId: string; name: string; stock: number }) => void;
   'receipt:generated': (payload: { orderId: string; receiptNumber: string }) => void;
+  /**
+   * Real device GPS position of a driver, fanned out only to the driver's own
+   * devices, the customers of that driver's active orders and the admins.
+   */
+  'driver:location': (payload: { location: DriverLocationDTO; orderIds: string[] }) => void;
+  /** The driver stopped sharing their position (end of shift / left the map). */
+  'driver:offline': (payload: { driverId: string; orderIds: string[] }) => void;
 }
 
 export interface ClientToServerEvents {
   'order:subscribe': (orderId: string, ack?: (ok: boolean) => void) => void;
   'order:unsubscribe': (orderId: string) => void;
+  /** Driver devices stream their own GPS position; the server validates it. */
+  'driver:location': (input: DriverLocationInput, ack?: (ok: boolean) => void) => void;
+  /** Driver devices announce that tracking has stopped. */
+  'driver:offline': (ack?: (ok: boolean) => void) => void;
 }
 
 export interface InterServerEvents {

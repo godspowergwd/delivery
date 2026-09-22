@@ -93,6 +93,8 @@ model User {
   activityLogs    ActivityLog[]
   statusEvents    OrderStatusEvent[]
   reports         Report[]
+  /// Latest device GPS position of this driver (streamed while on duty).
+  driverLocation  DriverLocation?
 
   /// Role-first composite index: serves role lookups and role+active filters.
   @@index([role, isActive])
@@ -189,6 +191,12 @@ model Order {
   /// Driver assigned to deliver this order (set by admin dispatch or driver claim).
   driverId  String?
   driver    User?   @relation("OrderDriver", fields: [driverId], references: [id], onDelete: SetNull)
+
+  /// Delivery coordinates captured from the customer's device at checkout.
+  /// Nullable on purpose: orders placed before GPS capture fall back to an
+  /// address estimate, so no existing row is rewritten or invalidated.
+  deliveryLatitude  Float?
+  deliveryLongitude Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -320,6 +328,36 @@ model ActivityLog {
   @@index([entity, entityId])
   /// Per-account audit trail (Admin > Logs filtered by user).
   @@index([userId, createdAt])
+}
+
+/// Latest known device GPS position of an employed driver.
+///
+/// One row per driver (upserted while they are on duty) so live tracking never
+/// grows unbounded and a single indexed read returns the newest fix. Values are
+/// only ever written from that driver's own authenticated device.
+model DriverLocation {
+  id       String @id @default(cuid())
+  driverId String @unique
+  driver   User   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  latitude  Float
+  longitude Float
+  /// Accuracy radius in metres as reported by the device.
+  accuracy Float?
+  /// Heading in degrees.
+  heading Float?
+  /// Speed in metres per second.
+  speed Float?
+
+  /// False once the driver stops sharing (end of shift / left the map).
+  isOnline Boolean @default(true)
+  /// When the device recorded the fix.
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([updatedAt])
+  @@index([isOnline])
 }
 
 model Product {

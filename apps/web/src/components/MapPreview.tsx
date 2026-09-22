@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { geocodeAddress, mapStyleUrl } from '../lib/live-map';
+import { estimateAddressCoordinates, mapStyleUrl } from '../lib/live-map';
 import * as maplibregl from 'maplibre-gl';
 
 /**
@@ -18,7 +18,7 @@ export function MapPreview({
   label?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const position = useMemo(() => geocodeAddress(address, area), [address, area]);
+  const position = useMemo(() => estimateAddressCoordinates(address, area), [address, area]);
 
   useEffect(() => {
     const host = hostRef.current;

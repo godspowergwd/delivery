@@ -7,6 +7,12 @@ import { writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { ORDER_INCLUDE, serializeOrder, type OrderWithRelations } from '../services/serializers';
+import {
+  driverLocationInputSchema,
+  publishDriverLocation,
+  serializeDriverLocation,
+  stopDriverLocation,
+} from '../services/tracking.service';
 import { changeOrderStatus, statusLabel } from '../services/order.service';
 import { logActivity } from '../services/activity-log.service';
 import { notifyAdmins } from '../services/notification.service';
@@ -181,6 +187,46 @@ driverRouter.post(
       request: req,
     });
     res.json({ data: serializeOrder(updated) });
+  }),
+);
+
+/**
+ * POST /api/driver/location - publish the driver's own device position.
+ *
+ * Used as the REST fallback whenever the live socket is unavailable (weak
+ * network, background tab) so tracking never silently stops. The socket event
+ * and this endpoint call the exact same service, so fan-out and authorisation
+ * behave identically.
+ */
+driverRouter.post(
+  '/location',
+  writeLimiter,
+  asyncHandler(async (req, res) => {
+    const driver = getAuth(req).user;
+    const input = driverLocationInputSchema.parse(req.body);
+    const result = await publishDriverLocation({ driver, input });
+    res.json({ location: result.location, orderIds: result.orderIds });
+  }),
+);
+
+/** DELETE /api/driver/location - stop sharing (end of shift / left the map). */
+driverRouter.delete(
+  '/location',
+  writeLimiter,
+  asyncHandler(async (req, res) => {
+    const driver = getAuth(req).user;
+    const result = await stopDriverLocation({ id: driver.id });
+    res.json({ ok: true, orderIds: result.orderIds });
+  }),
+);
+
+/** GET /api/driver/location - the driver's own last known position. */
+driverRouter.get(
+  '/location',
+  asyncHandler(async (req, res) => {
+    const driver = getAuth(req).user;
+    const row = await prisma.driverLocation.findUnique({ where: { driverId: driver.id } });
+    res.json({ location: row ? serializeDriverLocation(row, driver.name) : null });
   }),
 );
 

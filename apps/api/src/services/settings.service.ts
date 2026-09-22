@@ -12,7 +12,14 @@ type SettingKey = keyof Omit<SettingsDTO, 'updatedAt'>;
  */
 const DEFAULTS: Omit<SettingsDTO, 'updatedAt'> = { ...DEFAULT_SETTINGS };
 
-const NUMERIC_KEYS: SettingKey[] = ['deliveryFee', 'taxRate', 'minOrderTotal', 'lowStockThreshold'];
+const NUMERIC_KEYS: SettingKey[] = [
+  'deliveryFee',
+  'taxRate',
+  'minOrderTotal',
+  'lowStockThreshold',
+  'businessLatitude',
+  'businessLongitude',
+];
 const BOOLEAN_KEYS: SettingKey[] = ['acceptingOrders'];
 
 /** Short-lived cache so pricing does not hit the database on every request. */

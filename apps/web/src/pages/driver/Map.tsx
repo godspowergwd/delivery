@@ -1,197 +1,618 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OrderDTO } from '@delivery/shared';
-import { ORDER_STATUS_LABELS, formatMoney } from '@delivery/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { OrderDTO, SettingsDTO } from '@delivery/shared';
+import { ORDER_STATUS_LABELS, distanceKm, etaText, formatDistance, formatMoney } from '@delivery/shared';
+import { api } from '../../lib/api';
 import { fetchDriverDeliveries, postDriverAction } from '../../lib/driver-api';
-import { useRealtimeSync } from '../../lib/realtime';
-import { distanceKm, etaText, formatDistance, geocodeAddress, KITCHEN_ANCHOR } from '../../lib/live-map';
+import { useRealtimeSync, toast } from '../../lib/realtime';
+import { useDeviceLocation } from '../../lib/geolocation';
+import { useLocationPublisher } from '../../lib/tracking';
+import { estimateAddressCoordinates, MALAM_CENTER } from '../../lib/live-map';
 import { fetchRoadRoute, type RoadRoute } from '../../lib/route';
-import { positionAlongRoute, useAnimatedProgress } from '../../lib/driver-sim';
-import { useLiveMap } from '../../components/LiveMap';
-import { Button, EmptyState, Spinner, StatusPill } from '../../components/ui';
-import { BikeIcon, MapPinIcon, WalletIcon } from '../../components/icons';
+import { LiveMap, useLiveMap } from '../../components/LiveMap';
+import {
+  ArrowLeftIcon,
+  BikeIcon,
+  LocateIcon,
+  MapPinIcon,
+  NavigationIcon,
+  PhoneIcon,
+  RouteIcon,
+  StoreIcon,
+} from '../../components/icons';
+import { Button, Modal, Spinner, StatusPill, Textarea } from '../../components/ui';
+
+/**
+ * Driver navigation screen.
+ *
+ * A full-screen live map, exactly like a professional driver app: the position
+ * on the map is always the driver's own device GPS (never simulated), the route
+ * is a real road route to the next stop, and every delivery action stays within
+ * one thumb's reach.
+ */
+
+const ACTIVE_STATUSES = 'ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY';
+const ROUTE_REFRESH_MS = 60_000;
+const ROUTE_REFRESH_METRES = 250;
 
 export default function DriverMap() {
   useRealtimeSync();
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const mapHostRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useLiveMap(mapHostRef);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(true);
+  const [permissionDismissed, setPermissionDismissed] = useState(false);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [route, setRoute] = useState<RoadRoute | null>(null);
+  const [isFollowing, setIsFollowing] = useState(true);
+
+  const location = useDeviceLocation({ enabled: true, watch: true });
+  const publisher = useLocationPublisher();
+  const mapRef = useLiveMap(mapHostRef, {
+    center: MALAM_CENTER,
+    zoom: 15,
+    onUserInteract: () => setIsFollowing(false),
+  });
 
   const { data: orders = [], isLoading, isError, error } = useQuery({
     queryKey: ['driver-deliveries', 'map'],
-    queryFn: () => fetchDriverDeliveries('/driver/deliveries?status=ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY'),
-    refetchInterval: 15_000,
+    queryFn: () => fetchDriverDeliveries(`/driver/deliveries?status=${ACTIVE_STATUSES}`),
   });
 
-  const selected = useMemo(
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
+    staleTime: 5 * 60_000,
+  });
+
+  const restaurant = useMemo(() => {
+    const settings = settingsData?.settings;
+    const lat = settings?.businessLatitude;
+    const lng = settings?.businessLongitude;
+    if (typeof lat === 'number' && typeof lng === 'number' && Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng };
+    }
+    return MALAM_CENTER;
+  }, [settingsData]);
+
+  const selected: OrderDTO | null = useMemo(
     () => orders.find((order) => order.id === selectedId) ?? orders[0] ?? null,
     [orders, selectedId],
   );
 
-  const pickup = KITCHEN_ANCHOR;
-  const dropoff = useMemo(
-    () => geocodeAddress(selected?.deliveryAddress, selected?.deliveryArea),
-    [selected?.deliveryAddress, selected?.deliveryArea],
-  );
+  /** Delivery point: real checkout GPS when captured, otherwise a labelled estimate. */
+  const destination = useMemo(() => {
+    if (!selected) return null;
+    if (typeof selected.deliveryLatitude === 'number' && typeof selected.deliveryLongitude === 'number') {
+      return { lat: selected.deliveryLatitude, lng: selected.deliveryLongitude, exact: true };
+    }
+    const estimate = estimateAddressCoordinates(selected.deliveryAddress, selected.deliveryArea);
+    return { lat: estimate.lat, lng: estimate.lng, exact: false };
+  }, [selected]);
 
-  const [route, setRoute] = useState<RoadRoute | null>(null);
+  const delivering = selected?.status === 'OUT_FOR_DELIVERY';
+  const target = delivering ? destination : restaurant;
+
+  // Publish the driver's own GPS whenever the device reports a new fix.
+  const { publish } = publisher;
   useEffect(() => {
-    if (!selected) return;
+    if (!location.position) return;
+    mapRef.current.setDriver(
+      { lat: location.position.lat, lng: location.position.lng },
+      { animate: true, accuracyMetres: location.position.accuracy },
+    );
+    publish(location.position);
+  }, [location.position, mapRef, publish]);
+
+  useEffect(() => {
+    mapRef.current.setRestaurant(restaurant);
+  }, [restaurant, mapRef]);
+
+  useEffect(() => {
+    if (!destination) return;
+    mapRef.current.setDestination({ lat: destination.lat, lng: destination.lng });
+  }, [destination, mapRef]);
+
+  // Route from the driver's real position to the next stop, refreshed on
+  // movement instead of on a timer so we never burn data while parked.
+  const routeKeyRef = useRef<{ at: number; lat: number; lng: number; target: string } | null>(null);
+  useEffect(() => {
+    if (!target || !location.position) return;
+    const targetKey = `${target.lat.toFixed(5)},${target.lng.toFixed(5)}`;
+    const previous = routeKeyRef.current;
+    const movedMetres = previous
+      ? distanceKm(
+          { lat: previous.lat, lng: previous.lng },
+          { lat: location.position.lat, lng: location.position.lng },
+        ) * 1000
+      : Number.POSITIVE_INFINITY;
+    const stale = previous ? Date.now() - previous.at > ROUTE_REFRESH_MS : true;
+    if (previous && previous.target === targetKey && movedMetres < ROUTE_REFRESH_METRES && !stale) return;
+    routeKeyRef.current = {
+      at: Date.now(),
+      lat: location.position.lat,
+      lng: location.position.lng,
+      target: targetKey,
+    };
+
     const controller = new AbortController();
-    setRoute(null);
-    fetchRoadRoute(pickup, dropoff, controller.signal)
-      .then((next) => setRoute(next))
+    fetchRoadRoute(
+      { lat: location.position.lat, lng: location.position.lng },
+      { lat: target.lat, lng: target.lng },
+      controller.signal,
+    )
+      .then((next) => {
+        setRoute(next);
+        mapRef.current.setRoute(next.coordinates, { fit: false });
+      })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [selected?.id, pickup.lat, pickup.lng, dropoff.lat, dropoff.lng]);
+  }, [location.position, target, mapRef]);
 
-  // Simulated delivery leg until real GPS streams from the backend: the driver
-  // glides from the kitchen along the actual road route with zero jumps.
-  const legActive = selected?.status === 'OUT_FOR_DELIVERY';
-  const progress = useAnimatedProgress(route ? Math.max(30, route.durationMin * 1200) : 60_000, legActive);
-  const driverPosition = useMemo(
-    () => (route ? positionAlongRoute(route.coordinates, progress) : pickup),
-    [route, progress, pickup.lat, pickup.lng],
-  );
-  const remainingKm = route ? route.distanceKm * (1 - progress) : distanceKm(pickup, dropoff);
+  const action = useMutation({
+    mutationFn: ({ id, verb }: { id: string; verb: 'pickup' | 'complete' }) =>
+      postDriverAction(`/driver/deliveries/${id}/${verb}`),
+    onSuccess: (order) => {
+      void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
+      void queryClient.invalidateQueries({ queryKey: ['driver-summary'] });
+      toast(`Order ${order.orderNumber} → ${ORDER_STATUS_LABELS[order.status]}`, 'success');
+    },
+    onError: (err: Error) => toast(err.message, 'error'),
+  });
 
-  useEffect(() => {
-    if (!route) return;
-    mapRef.current.setRoute(route.coordinates);
-  }, [route, mapRef]);
-
-  useEffect(() => {
-    mapRef.current.moveDriver(driverPosition);
-  }, [driverPosition, mapRef]);
-
-  useEffect(() => {
-    mapRef.current.moveDestination(dropoff);
-  }, [dropoff, mapRef]);
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner className="h-8 w-8" />
-      </div>
+  const remainingKm = useMemo(() => {
+    if (!location.position || !target) return null;
+    const direct = distanceKm(
+      { lat: location.position.lat, lng: location.position.lng },
+      { lat: target.lat, lng: target.lng },
     );
-  }
-  if (isError) {
-    return <EmptyState title="Something went wrong" hint={error instanceof Error ? error.message : 'Could not load the map.'} />;
-  }
-  if (!selected) {
-    return (
-      <EmptyState title="No active delivery to navigate" hint="Accept a delivery first and its live route will appear here." />
-    );
-  }
+    // Follow the road distance while it is plausible, else the straight line.
+    return route ? Math.min(route.distanceKm, direct * 1.5) : direct;
+  }, [location.position, target, route]);
+
+  const recenter = useCallback(() => {
+    if (!location.position) {
+      location.request();
+      return;
+    }
+    setIsFollowing(true);
+    mapRef.current.setFollow(true);
+  }, [location, mapRef]);
+
+  const focusDestination = useCallback(() => {
+    if (!target) return;
+    setIsFollowing(false);
+    mapRef.current.focus({ lat: target.lat, lng: target.lng }, { zoom: 16 });
+  }, [target, mapRef]);
+
+  const fitRoute = useCallback(() => {
+    const points = [
+      location.position ? { lat: location.position.lat, lng: location.position.lng } : null,
+      target ? { lat: target.lat, lng: target.lng } : null,
+    ].filter((point): point is { lat: number; lng: number } => Boolean(point));
+    if (points.length === 0) return;
+    setIsFollowing(false);
+    mapRef.current.fit(points, { maxZoom: 15 });
+  }, [location.position, target, mapRef]);
+
+  // Keep the canvas correctly sized when the sheet opens/closes on mobile.
+  useEffect(() => {
+    const id = window.setTimeout(() => mapRef.current.resize(), 280);
+    return () => window.clearTimeout(id);
+  }, [sheetOpen, mapRef]);
+
+  const showPermissionCard =
+    !permissionDismissed &&
+    ['idle', 'denied', 'unavailable', 'timeout', 'insecure', 'unsupported'].includes(location.status);
 
   return (
-    <div className="space-y-4">
-      <header>
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Live navigation</h1>
-        <p className="text-sm text-slate-500">Real Accra roads, live route and ETA — no app switching.</p>
-      </header>
-
-      {orders.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {orders.map((order) => (
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
+      <LiveMap mapRef={mapHostRef} ariaLabel="Live driver navigation map">
+        <div className="map-top-bar">
+          <Link to="/driver/deliveries" className="map-control-btn" aria-label="Back to deliveries">
+            <ArrowLeftIcon className="h-5 w-5" />
+          </Link>
+          <TrackingPill
+            status={location.status}
+            accuracy={location.position?.accuracy ?? null}
+            transport={publisher.transport}
+            lastSentAt={publisher.lastSentAt}
+          />
+          {orders.length > 1 && (
             <button
-              key={order.id}
-              onClick={() => setSelectedId(order.id)}
-              aria-pressed={selected.id === order.id}
-              className={
-                selected.id === order.id
-                  ? 'rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-brand-soft'
-                  : 'rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-soft ring-1 ring-inset ring-slate-200 hover:text-slate-900'
-              }
+              type="button"
+              className="map-control-btn gap-1 px-3 text-sm font-bold"
+              onClick={() => setSheetOpen(true)}
             >
-              {order.orderNumber}
+              <BikeIcon className="h-4 w-4" />
+              {orders.length}
             </button>
-          ))}
+          )}
+        </div>
+
+        {/* Floating map controls, within one-thumb reach */}
+        <div className="absolute right-3 z-20 flex flex-col gap-2" style={{ bottom: '15rem' }}>
+          <button
+            type="button"
+            className={`map-control-btn ${isFollowing ? 'map-control-btn-active' : ''}`}
+            onClick={recenter}
+            aria-label="Centre on my location"
+            title="Centre on my location"
+          >
+            <LocateIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="map-control-btn"
+            onClick={fitRoute}
+            aria-label="Show the whole route"
+            title="Show the whole route"
+          >
+            <RouteIcon className="h-5 w-5" />
+          </button>
+          {target && (
+            <button
+              type="button"
+              className="map-control-btn"
+              onClick={focusDestination}
+              aria-label={delivering ? 'Centre on the customer' : 'Centre on the restaurant'}
+              title={delivering ? 'Centre on the customer' : 'Centre on the restaurant'}
+            >
+              {delivering ? <MapPinIcon className="h-5 w-5" /> : <StoreIcon className="h-5 w-5" />}
+            </button>
+          )}
+        </div>
+
+        {showPermissionCard && (
+          <LocationPermissionCard
+            status={location.status}
+            title={location.message?.title}
+            detail={location.message?.detail}
+            requesting={location.requesting}
+            onAllow={() => {
+              setPermissionDismissed(false);
+              location.request();
+            }}
+            onDismiss={() => setPermissionDismissed(true)}
+          />
+        )}
+      </LiveMap>
+
+      {isError && (
+        <div className="absolute inset-x-3 top-20 z-20 rounded-2xl border border-red-200 bg-white p-4 shadow-lift">
+          <p className="text-sm font-bold text-red-700">Deliveries could not be loaded</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {error instanceof Error ? error.message : 'Check your connection and try again.'}
+          </p>
         </div>
       )}
 
-      <div className="map-shell h-[46dvh] min-h-72">
-        <div ref={mapHostRef} className="map-canvas" data-testid="driver-live-map" />
-        <div className="map-overlay-card left-3 top-3 flex items-center gap-3 px-4 py-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-green-700">
-            <BikeIcon className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-[13px] font-semibold text-slate-500">Arriving in</p>
-            <p className="text-lg font-extrabold leading-tight text-slate-900">
-              {legActive ? etaText(remainingKm) : 'Awaiting pickup'}
-            </p>
-          </div>
-        </div>
-        <div className="map-overlay-card bottom-3 left-3 right-3 flex items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold text-slate-500">Remaining</p>
-            <p className="text-lg font-extrabold leading-tight text-slate-900">{formatDistance(remainingKm)}</p>
-          </div>
-          <StatusPill status={selected.status} label={ORDER_STATUS_LABELS[selected.status]} />
+      {/* Delivery bottom sheet */}
+      <div
+        className={`absolute inset-x-0 bottom-0 z-30 transition-transform duration-300 ease-out ${
+          sheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-4.25rem)]'
+        }`}
+      >
+        <div className="rounded-t-3xl border border-slate-200 bg-white pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-[0_-12px_40px_-24px_rgba(19,26,38,0.45)]">
+          <button
+            type="button"
+            onClick={() => setSheetOpen((open) => !open)}
+            className="flex w-full items-center justify-center px-5 pb-1 pt-3"
+            aria-label={sheetOpen ? 'Collapse delivery details' : 'Expand delivery details'}
+          >
+            <span className="h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
+          </button>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="h-7 w-7" />
+            </div>
+          ) : !selected ? (
+            <EmptyDelivery />
+          ) : (
+            <DeliverySheet
+              order={selected}
+              remainingKm={remainingKm}
+              delivering={Boolean(delivering)}
+              destinationExact={destination?.exact ?? false}
+              routeReady={Boolean(route)}
+              busy={action.isPending}
+              deliveryCount={orders.length}
+              onPickup={() => action.mutate({ id: selected.id, verb: 'pickup' })}
+              onComplete={() => action.mutate({ id: selected.id, verb: 'complete' })}
+              onIssue={() => setIssueOpen(true)}
+              onSelectOther={() => {
+                const index = orders.findIndex((order) => order.id === selected.id);
+                const next = orders[(index + 1) % orders.length];
+                if (next) setSelectedId(next.id);
+              }}
+            />
+          )}
         </div>
       </div>
 
-      <div className="rounded-card bg-white p-4 shadow-card ring-1 ring-inset ring-slate-200/60">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-sm text-slate-800">{selected.orderNumber}</p>
-            <p className="text-sm font-semibold text-slate-900">{selected.customerName}</p>
-            <p className="text-sm text-slate-600">{selected.deliveryPhone}</p>
-          </div>
-          <StatusPill status={selected.status} label={ORDER_STATUS_LABELS[selected.status]} />
-        </div>
+      {issueOpen && selected && <IssueDialog order={selected} onClose={() => setIssueOpen(false)} />}
+    </div>
+  );
+}
 
-        <div className="mt-3 space-y-1.5 text-sm text-slate-600">
-          <p className="flex items-start gap-2">
-            <MapPinIcon className="mt-0.5 h-3.5 w-3.5 flex-none text-red-600" aria-hidden="true" />
-            <span>
-              {selected.deliveryAddress}
-              {selected.deliveryArea ? ` · ${selected.deliveryArea}` : ''}
-            </span>
-          </p>
-          {selected.notes ? <p className="font-semibold text-red-700">Note: {selected.notes}</p> : null}
-          <p className="flex items-center gap-2">
-            <WalletIcon className="h-3.5 w-3.5 flex-none text-slate-500" aria-hidden="true" />
-            <span>
-              {formatMoney(selected.total)} · {selected.paymentMethod.replace('_', ' ')} · {selected.itemCount} item(s)
-            </span>
-          </p>
-        </div>
+/* ------------------------------------------------------------------ pieces */
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          {selected.status === 'READY' && (
-            <Button
-              size="sm"
-              onClick={async () => {
-                try {
-                  await postDriverAction(`/driver/deliveries/${selected.id}/pickup`);
-                  void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
-                } catch {
-                  // surfaced by toast in Deliveries; keep map usable on failure
-                }
-              }}
-            >
-              Start delivery
-            </Button>
-          )}
-          <a
-            href={`tel:${selected.deliveryPhone}`}
-            className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-200"
-          >
-            Call customer
-          </a>
-          <a
-            href={`https://www.openstreetmap.org/directions?to=${dropoff.lat},${dropoff.lng}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
-          >
-            Turn-by-turn ↗
-          </a>
+/** Live GPS health: what the driver needs to know at a glance. */
+function TrackingPill({
+  status,
+  accuracy,
+  transport,
+  lastSentAt,
+}: {
+  status: string;
+  accuracy: number | null;
+  transport: 'socket' | 'rest' | 'idle';
+  lastSentAt: string | null;
+}) {
+  const live = status === 'granted';
+  const label = live
+    ? accuracy && accuracy > 60
+      ? `Live · ±${Math.round(accuracy)} m`
+      : 'Live location on'
+    : status === 'requesting'
+      ? 'Finding your location…'
+      : 'Location off';
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-2 shadow-soft">
+      <span
+        className={`relative flex h-2.5 w-2.5 flex-none rounded-full ${live ? 'bg-green-600' : 'bg-slate-400'}`}
+      >
+        {live && <span className="pulse-ring absolute inset-0 rounded-full bg-green-600/60" />}
+      </span>
+      <span className="min-w-0 truncate text-[13px] font-bold text-slate-800">{label}</span>
+      {live && lastSentAt && (
+        <span className="hidden flex-none text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:inline">
+          {transport === 'socket' ? 'streaming' : transport === 'rest' ? 'synced' : 'sent'}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Explains why GPS is needed and never blocks the rest of the screen. */
+function LocationPermissionCard({
+  status,
+  title,
+  detail,
+  requesting,
+  onAllow,
+  onDismiss,
+}: {
+  status: string;
+  title?: string;
+  detail?: string;
+  requesting: boolean;
+  onAllow: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="absolute inset-x-3 top-20 z-30 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-lift backdrop-blur">
+      <div className="flex items-start gap-3">
+        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-red-50 text-red-600">
+          <LocateIcon className="h-6 w-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-extrabold text-slate-900">
+            {title ?? 'Share your location to navigate'}
+          </p>
+          <p className="mt-1 text-sm leading-snug text-slate-600">
+            {detail ??
+              'Your live position is what lets the customer follow the delivery and lets the restaurant see you arriving.'}
+          </p>
+          <p className="mt-2 text-[13px] font-semibold text-slate-500">
+            {status === 'denied'
+              ? 'Browser menu → Site settings → Location → Allow.'
+              : 'Only used while you are on duty.'}
+          </p>
         </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button size="sm" loading={requesting} onClick={onAllow}>
+          Allow location
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDismiss}>
+          Not now
+        </Button>
       </div>
     </div>
   );
 }
+
+function DeliverySheet({
+  order,
+  remainingKm,
+  delivering,
+  destinationExact,
+  routeReady,
+  busy,
+  deliveryCount,
+  onPickup,
+  onComplete,
+  onIssue,
+  onSelectOther,
+}: {
+  order: OrderDTO;
+  remainingKm: number | null;
+  delivering: boolean;
+  destinationExact: boolean;
+  routeReady: boolean;
+  busy: boolean;
+  deliveryCount: number;
+  onPickup: () => void;
+  onComplete: () => void;
+  onIssue: () => void;
+  onSelectOther: () => void;
+}) {
+  const eta = remainingKm !== null ? etaText(remainingKm) : null;
+  const targetLabel = delivering ? 'Customer' : 'Restaurant';
+
+  return (
+    <div className="px-5 pb-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-bold uppercase tracking-wide text-slate-400">
+            {delivering ? 'Delivering now' : 'Next stop · pickup'}
+          </p>
+          <p className="truncate font-mono text-sm text-slate-700">{order.orderNumber}</p>
+        </div>
+        <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Arriving in</p>
+          <p className="text-xl font-extrabold leading-tight text-slate-900">
+            {eta ?? (routeReady ? '—' : 'Waiting for GPS')}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-green-50 px-3 py-2.5">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-green-700/70">
+            {delivering ? 'To customer' : 'To pickup'}
+          </p>
+          <p className="text-xl font-extrabold leading-tight text-green-800">
+            {remainingKm !== null ? formatDistance(remainingKm) : '—'}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-start gap-2 rounded-2xl border border-slate-200 px-3 py-2.5">
+        <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-xl bg-red-50 text-red-600">
+          <MapPinIcon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-bold uppercase tracking-wide text-slate-400">{targetLabel}</p>
+          <p className="text-[15px] font-bold text-slate-900">{order.customerName}</p>
+          <p className="text-sm leading-snug text-slate-600">
+            {order.deliveryAddress}
+            {order.deliveryArea ? ` · ${order.deliveryArea}` : ''}
+          </p>
+          {!destinationExact && (
+            <p className="mt-1 text-[12px] font-semibold text-amber-700">
+              Approximate point — the customer did not share GPS at checkout.
+            </p>
+          )}
+          {order.notes && (
+            <p className="mt-1 rounded-xl bg-amber-50 px-2 py-1 text-[13px] font-semibold text-amber-800">
+              Note: {order.notes}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-2 text-[13px] font-semibold text-slate-500">
+        <span>
+          {order.itemCount} item(s) · {formatMoney(order.total)} · {order.paymentMethod.replace('_', ' ')}
+        </span>
+        {deliveryCount > 1 && (
+          <button type="button" onClick={onSelectOther} className="font-bold text-red-700 underline">
+            Next delivery
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {order.status === 'READY' && (
+          <Button loading={busy} onClick={onPickup}>
+            Start delivery
+          </Button>
+        )}
+        {delivering && (
+          <Button variant="success" loading={busy} onClick={onComplete}>
+            Mark delivered
+          </Button>
+        )}
+        <a
+          href={`tel:${order.deliveryPhone}`}
+          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-semibold text-slate-800 transition hover:bg-slate-50"
+        >
+          <PhoneIcon className="h-4 w-4 text-green-700" />
+          Call
+        </a>
+        <a
+          href={`https://www.openstreetmap.org/directions?to=${order.deliveryLatitude ?? ''},${
+            order.deliveryLongitude ?? ''
+          }`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-semibold text-slate-800 transition hover:bg-slate-50"
+        >
+          <NavigationIcon className="h-4 w-4 text-red-600" />
+          Navigate
+        </a>
+        <Button variant="ghost" size="md" onClick={onIssue}>
+          Report issue
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function EmptyDelivery() {
+  return (
+    <div className="px-5 pb-2 pt-3">
+      <p className="text-base font-extrabold text-slate-900">No active delivery to navigate</p>
+      <p className="mt-1 text-sm text-slate-600">
+        Accept a delivery from the list and the full route appears here automatically.
+      </p>
+      <div className="mt-3">
+        <Link
+          to="/driver/deliveries"
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-red-600 px-4 text-[15px] font-semibold text-white shadow-brand-soft"
+        >
+          Go to deliveries
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function IssueDialog({ order, onClose }: { order: OrderDTO; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [note, setNote] = useState('');
+  const [working, setWorking] = useState(false);
+
+  const submit = async () => {
+    setWorking(true);
+    try {
+      await postDriverAction(`/driver/deliveries/${order.id}/issue`, { note: note.trim() });
+      toast('The issue was reported to the administrators.', 'success');
+      void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
+      onClose();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not report the issue.', 'error');
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <Modal open title={`Report issue · ${order.orderNumber}`} onClose={onClose}>
+      <p className="text-sm text-slate-700">Describe what happened so the administrators can help.</p>
+      <Textarea
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        rows={4}
+        placeholder="e.g. Customer is not answering the phone at the gate…"
+        className="mt-3"
+      />
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose} disabled={working}>
+          Cancel
+        </Button>
+        <Button loading={working} disabled={note.trim().length < 5} onClick={() => void submit()}>
+          Send report
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+

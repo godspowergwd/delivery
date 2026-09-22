@@ -11,7 +11,7 @@ import type { SettingsDTO } from '@delivery/shared';
  */
 export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
   businessName: 'Delivery System',
-  businessAddress: '1 Market Street, Accra',
+  businessAddress: 'Mallam Interchange, Accra',
   businessPhone: '+233000000000',
   businessEmail: 'support@deliverysystem.app',
   currencyCode: 'GHS',
@@ -24,6 +24,10 @@ export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
   supportPhone: '+233000000000',
   supportEmail: 'support@deliverysystem.app',
   lowStockThreshold: 10,
+  // Kitchen / pickup anchor: Mallam Interchange, Greater Accra. Admins can move
+  // it from Admin > Settings; it is the map focus and the route origin.
+  businessLatitude: 5.571264,
+  businessLongitude: -0.284093,
 };
 
 /** Settings that may be read without authenticating (storefront + support contact). */

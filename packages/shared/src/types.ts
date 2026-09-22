@@ -134,6 +134,13 @@ export interface OrderDTO {
   estimatedReadyAt: string | null;
   driverId: string | null;
   driverName: string | null;
+  /**
+   * Delivery coordinates captured from the customer's device at checkout.
+   * Null for orders placed before GPS capture was introduced — those fall back
+   * to a clearly-labelled address estimate on the map.
+   */
+  deliveryLatitude: number | null;
+  deliveryLongitude: number | null;
   hasReceipt?: boolean;
 }
 
@@ -189,6 +196,9 @@ export interface SettingsDTO {
   supportPhone: string;
   supportEmail: string;
   lowStockThreshold: number;
+  /** Kitchen / pickup coordinates used as the map anchor and route origin. */
+  businessLatitude: number;
+  businessLongitude: number;
   updatedAt: string | null;
 }
 

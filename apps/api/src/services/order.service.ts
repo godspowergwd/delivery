@@ -2,6 +2,8 @@ import { Prisma, OrderStatus } from '@prisma/client';
 import {
   ORDER_STATUS_LABELS,
   computeTotals,
+  isValidLatitude,
+  isValidLongitude,
   type OrderStatus as OrderStatusType,
   type PaymentMethod,
 } from '@delivery/shared';
@@ -28,6 +30,9 @@ export interface CreateOrderInput {
   deliveryPhone: string;
   notes?: string | null;
   paymentMethod: PaymentMethod;
+  /** Device GPS captured at checkout; omitted when the customer declines. */
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
 }
 
 interface LineDraft {
@@ -172,6 +177,8 @@ async function persistOrder(params: {
             deliveryArea: input.deliveryArea?.trim() || null,
             deliveryPhone: input.deliveryPhone.trim(),
             notes: input.notes?.trim() || null,
+            deliveryLatitude: isValidLatitude(input.deliveryLatitude) ? input.deliveryLatitude : null,
+            deliveryLongitude: isValidLongitude(input.deliveryLongitude) ? input.deliveryLongitude : null,
             subtotal: new Prisma.Decimal(draft.totals.subtotal),
             deliveryFee: new Prisma.Decimal(draft.totals.deliveryFee),
             tax: new Prisma.Decimal(draft.totals.tax),

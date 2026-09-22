@@ -25,6 +25,9 @@ const updateSettingsSchema = z.object({
   supportPhone: phoneSchema.optional(),
   supportEmail: emailSchema.optional(),
   lowStockThreshold: z.coerce.number().int().min(0).max(10_000).optional(),
+  // Kitchen / pickup anchor used by the live maps (Mallam, Accra by default).
+  businessLatitude: z.coerce.number().min(-90).max(90).optional(),
+  businessLongitude: z.coerce.number().min(-180).max(180).optional(),
 });
 
 function broadcastSettingsChange(): void {

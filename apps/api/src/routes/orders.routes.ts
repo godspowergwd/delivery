@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { PAYMENT_METHODS, type OrderStatus as OrderStatusType } from '@delivery/shared';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { csvSchema, idParamSchema, optionalBooleanQuery, paginationSchema } from '../lib/validation';
-import { authenticate, getAuth } from '../middleware/authenticate';
+import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
 import { writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest, forbidden, notFound } from '../lib/errors';
@@ -19,6 +19,7 @@ import {
   getOrderByNumber,
 } from '../services/order.service';
 import { ORDER_INCLUDE, serializeOrder } from '../services/serializers';
+import { buildTrackingSnapshot, listLiveDrivers } from '../services/tracking.service';
 
 export const ordersRouter = Router();
 
@@ -37,6 +38,10 @@ const createOrderSchema = z.object({
   deliveryPhone: z.string().trim().min(7, 'Enter a contact phone number').max(20),
   notes: z.string().trim().max(300).optional(),
   paymentMethod: z.enum(PAYMENT_METHODS),
+  // Optional device GPS captured at checkout — makes live delivery tracking
+  // accurate. Supplying them is never required and never blocks an order.
+  deliveryLatitude: z.coerce.number().min(-90).max(90).optional(),
+  deliveryLongitude: z.coerce.number().min(-180).max(180).optional(),
 });
 
 const listOrderQuerySchema = paginationSchema.extend({
@@ -148,6 +153,19 @@ ordersRouter.get(
   }),
 );
 
+/**
+ * GET /api/orders/live-drivers - every driver currently sharing a position.
+ * Operations view for administrators (dispatch + customer service).
+ */
+ordersRouter.get(
+  '/live-drivers',
+  authenticate,
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    res.json({ drivers: await listLiveDrivers() });
+  }),
+);
+
 /** GET /api/orders/:id */
 ordersRouter.get(
   '/:id',
@@ -158,6 +176,28 @@ ordersRouter.get(
     const { user } = getAuth(req);
     assertCanViewOrder(order, user);
     res.json({ order: serializeOrder(order) });
+  }),
+);
+
+/**
+ * GET /api/orders/:id/tracking - live driver position for one order.
+ *
+ * Permission-checked: a customer sees only their own order, a driver only a
+ * delivery assigned to them, and kitchen/admin accounts may look up any order.
+ */
+ordersRouter.get(
+  '/:id/tracking',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const { id } = idParamSchema.parse(req.params);
+    const { user } = getAuth(req);
+    const order = await getOrderById(id);
+
+    if (user.role === 'DRIVER' && order.driverId !== user.id) {
+      throw forbidden('That delivery is not assigned to you.');
+    }
+
+    res.json({ tracking: await buildTrackingSnapshot(order, user) });
   }),
 );
 

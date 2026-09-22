@@ -1,70 +1,88 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { OrderDTO } from '@delivery/shared';
 import { ORDER_STATUS_FLOW, ORDER_STATUS_LABELS } from '@delivery/shared';
-import { distanceKm, etaText, formatDistance, geocodeAddress, KITCHEN_ANCHOR } from '../lib/live-map';
-import { fetchRoadRoute, type RoadRoute } from '../lib/route';
-import { positionAlongRoute, useAnimatedProgress } from '../lib/driver-sim';
+import { estimateAddressCoordinates, KITCHEN_ANCHOR, formatDistance, etaText, distanceKm } from '../lib/live-map';
+import { fetchRoadRoute } from '../lib/route';
 import { useLiveMap } from './LiveMap';
+import { useOrderTracking } from '../lib/tracking';
+import { useQueryClient } from '@tanstack/react-query';
 
 /**
  * Live tracking section for the customer order page: real Accra roads,
- * animated driver marker along the route, live remaining distance + ETA.
+ * the driver's actual device GPS, live remaining distance + ETA.
  * Runs while the order is out for delivery; quiet otherwise.
  */
 export function OrderTracking({ order }: { order: OrderDTO }) {
+  const queryClient = useQueryClient();
   const mapHostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useLiveMap(mapHostRef);
+  const tracking = useOrderTracking(order.id);
 
   const pickup = KITCHEN_ANCHOR;
   const dropoff = useMemo(
-    () => geocodeAddress(order.deliveryAddress, order.deliveryArea),
+    () => estimateAddressCoordinates(order.deliveryAddress, order.deliveryArea),
     [order.deliveryAddress, order.deliveryArea],
   );
 
-  const [route, setRoute] = useState<RoadRoute | null>(null);
-  useEffect(() => {
-    if (order.status !== 'OUT_FOR_DELIVERY') return;
-    const controller = new AbortController();
-    setRoute(null);
-    fetchRoadRoute(pickup, dropoff, controller.signal)
-      .then(setRoute)
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [order.id, order.status, pickup.lat, pickup.lng, dropoff.lat, dropoff.lng]);
-
-  const legActive = order.status === 'OUT_FOR_DELIVERY';
-  const progress = useAnimatedProgress(route ? Math.max(30, route.durationMin * 1200) : 60_000, legActive);
-  const driverPosition = useMemo(
-    () => (route ? positionAlongRoute(route.coordinates, progress) : pickup),
-    [route, progress, pickup.lat, pickup.lng],
+  const orderTracking = tracking.data?.tracking;
+  const driverLocation = orderTracking?.driver?.location ?? null;
+  const destinationLatLng = useMemo(
+    () => ({ lat: dropoff.lat, lng: dropoff.lng }),
+    [dropoff],
   );
-  const remainingKm = route ? route.distanceKm * (1 - progress) : distanceKm(pickup, dropoff);
 
   useEffect(() => {
-    if (!route) return;
-    mapRef.current.setRoute(route.coordinates);
-  }, [route, mapRef]);
+    if (!orderTracking?.driver?.location) return;
+    mapRef.current.setDriver(
+      { lat: orderTracking.driver.location.latitude, lng: orderTracking.driver.location.longitude },
+      { accuracyMetres: orderTracking.driver.location.accuracy },
+    );
+  }, [orderTracking, mapRef]);
 
   useEffect(() => {
-    mapRef.current.moveDriver(driverPosition);
-  }, [driverPosition, mapRef]);
+    mapRef.current.setDestination(destinationLatLng);
+  }, [destinationLatLng, mapRef]);
 
+  const routeKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    mapRef.current.moveDestination(dropoff);
-  }, [dropoff, mapRef]);
+    if (order.status !== 'OUT_FOR_DELIVERY' || !driverLocation) return;
+    const key = `${driverLocation.latitude.toFixed(5)},${driverLocation.longitude.toFixed(5)}`;
+    if (routeKeyRef.current === key) return;
+    routeKeyRef.current = key;
+
+    const controller = new AbortController();
+    fetchRoadRoute(
+      { lat: driverLocation.latitude, lng: driverLocation.longitude },
+      { lat: destinationLatLng.lat, lng: destinationLatLng.lng },
+      controller.signal,
+    ).then((route) => {
+      mapRef.current.setRoute(route.coordinates, { fit: false });
+    }).catch(() => undefined);
+    return () => controller.abort();
+  }, [order.status, driverLocation, destinationLatLng, mapRef]);
+
+  const remainingKm =
+    driverLocation && destinationLatLng
+      ? distanceKm(
+          { lat: driverLocation.latitude, lng: driverLocation.longitude },
+          { lat: destinationLatLng.lat, lng: destinationLatLng.lng },
+        )
+      : null;
 
   const stepIndex = ORDER_STATUS_FLOW.indexOf(order.status);
   if (order.status === 'CANCELLED') return null;
 
+  const isLive = order.status === 'OUT_FOR_DELIVERY';
+
   return (
     <section className="overflow-hidden rounded-card bg-white shadow-card ring-1 ring-inset ring-slate-200/60">
-      {legActive && (
+      {isLive && (
         <div className="map-shell !rounded-b-none border-0 ring-0 h-64">
           <div ref={mapHostRef} className="map-canvas" data-testid="order-live-map" />
           <div className="map-overlay-card left-3 top-3 px-4 py-3">
             <p className="text-[13px] font-semibold text-slate-500">Your courier is on the way</p>
             <p className="text-lg font-extrabold leading-tight text-slate-900">
-              {etaText(remainingKm)} · {formatDistance(remainingKm)}
+              {remainingKm !== null ? `${etaText(remainingKm)} · ${formatDistance(remainingKm)}` : '—'}
             </p>
           </div>
         </div>
@@ -80,14 +98,12 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
           {ORDER_STATUS_FLOW.map((status, index) => (
             <span
               key={status}
-              className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${
-                index <= stepIndex ? 'bg-red-600' : 'bg-slate-200'
-              }`}
+              className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${index <= stepIndex ? 'bg-red-600' : 'bg-slate-200'}`}
             />
           ))}
         </div>
         <p className="text-[13px] font-semibold text-slate-600">{ORDER_STATUS_LABELS[order.status]}</p>
-        {!legActive && (
+        {!isLive && (
           <p className="text-sm text-slate-500">
             Live map tracking starts the moment your courier leaves the kitchen.
           </p>

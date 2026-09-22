@@ -9,6 +9,7 @@ import {
 import { prisma } from '../lib/prisma';
 import { verifyAccessToken } from '../lib/tokens';
 import { logger } from '../lib/logger';
+import { driverLocationInputSchema, publishDriverLocation, stopDriverLocation } from '../services/tracking.service';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
@@ -79,6 +80,44 @@ export function initRealtime(server: HttpServer): AppServer {
 
     socket.on('order:unsubscribe', (orderId: string) => {
       socket.leave(SOCKET_ROOMS.order(orderId));
+    });
+
+    /**
+     * Live GPS from a driver device. Only DRIVER accounts may publish, the
+     * payload is validated, and the fix is only fanned out to the people allowed
+     * to see it (own devices, the customers of that driver's active orders,
+     * administrators) — never to the public room.
+     */
+    socket.on('driver:location', (input, ack) => {
+      if (role !== 'DRIVER') {
+        ack?.(false);
+        return;
+      }
+      const parsed = driverLocationInputSchema.safeParse(input);
+      if (!parsed.success) {
+        ack?.(false);
+        return;
+      }
+      void publishDriverLocation({
+        driver: { id: userId, name },
+        input: parsed.data,
+      })
+        .then(() => ack?.(true))
+        .catch((error: unknown) => {
+          logger.warn('driver location rejected', { userId, error: (error as Error)?.message });
+          ack?.(false);
+        });
+    });
+
+    /** Driver stopped sharing (end of shift / left the map screen). */
+    socket.on('driver:offline', (ack) => {
+      if (role !== 'DRIVER') {
+        ack?.(false);
+        return;
+      }
+      void stopDriverLocation({ id: userId })
+        .then(() => ack?.(true))
+        .catch(() => ack?.(false));
     });
 
     socket.on('disconnect', (reason) => {
