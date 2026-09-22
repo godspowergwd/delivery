@@ -14,6 +14,7 @@ import {
   Checkout,
   CustomerHome,
   DriverDeliveries,
+  DriverEarnings,
   DriverMap,
   DriverProfile,
   KitchenHistory,
@@ -71,6 +72,7 @@ export function App() {
           <Route path="/driver" element={<Navigate to="/driver/deliveries" replace />} />
           <Route path="/driver/deliveries" element={<LazyRoute><DriverDeliveries /></LazyRoute>} />
           <Route path="/driver/map" element={<LazyRoute><DriverMap /></LazyRoute>} />
+          <Route path="/driver/earnings" element={<LazyRoute><DriverEarnings /></LazyRoute>} />
           <Route path="/driver/profile" element={<LazyRoute><DriverProfile /></LazyRoute>} />
         </Route>
       </Route>

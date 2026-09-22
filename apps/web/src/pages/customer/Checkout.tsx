@@ -1,217 +1,48 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AddressDTO, OrderDTO, SettingsDTO } from '@delivery/shared';
-import { PAYMENT_METHOD_LABELS, computeTotals, formatMoney } from '@delivery/shared';
-import { api } from '../../lib/api';
-import { useAuth } from '../../lib/auth';
-import { useCart } from '../../lib/cart';
-import { toast } from '../../lib/realtime';
-import { Button, Card, ErrorText, Field, Input, Textarea } from '../../components/ui';
-import { MapPreview } from '../../components/MapPreview';
+
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { AddressDTO, OrderDTO, SettingsDTO } from "@delivery/shared";
+import { PAYMENT_METHOD_LABELS, computeTotals, formatMoney } from "@delivery/shared";
+import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { useCart } from "../../lib/cart";
+import { toast } from "../../lib/realtime";
+import { Button, Card, ErrorText, Field, Input, Textarea } from "../../components/ui";
+import { MapPreview } from "../../components/MapPreview";
+import { LocateIcon, MapPinIcon } from "../../components/icons";
+
+interface SelectedAddress { label: string; address: string; latitude: number; longitude: number; }
+
+interface GeoSearchResponse { suggestions: Array<{ label: string; address: string; latitude: number; longitude: number; placeId: string; type: string; }>; }
 
 export function Checkout() {
   const { lines, itemCount, subtotal, clear } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-
-  const [form, setForm] = useState({ deliveryAddress: '', deliveryPhone: '', notes: '', paymentMethod: 'CASH' as 'CASH' | 'MOBILE_MONEY' });
-
-  const { data: settingsData } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
-    staleTime: 60_000,
-  });
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [form, setForm] = useState<{ selectedAddress: SelectedAddress | null; deliveryPhone: string; notes: string; paymentMethod: "CASH" | "MOBILE_MONEY"; showSuggestions: boolean; searchQuery: string; }>({ selectedAddress: null, deliveryPhone: "", notes: "", paymentMethod: "CASH", showSuggestions: false, searchQuery: "", });
+  const { data: settingsData } = useQuery({ queryKey: ["settings"], queryFn: () => api.get<{ settings: SettingsDTO }>("/settings"), staleTime: 60_000 });
   const settings = settingsData?.settings;
-
-  const { data: addressData } = useQuery({
-    queryKey: ['addresses'],
-    queryFn: () => api.get<{ addresses: AddressDTO[] }>('/addresses'),
-  });
-
-  // Pre-fill from the saved default address and profile phone once loaded.
-  useEffect(() => {
-    const saved = addressData?.addresses.find((address) => address.isDefault) ?? addressData?.addresses[0];
-    const phone = user?.phone ?? '';
-    setForm((current) => ({
-      ...current,
-      deliveryAddress: current.deliveryAddress || (saved ? [saved.line1, saved.area, saved.city].filter(Boolean).join(', ') : ''),
-      deliveryPhone: current.deliveryPhone || phone,
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addressData, user?.phone]);
-
-  const totals = computeTotals({
-    items: lines.map((line) => ({ unitPrice: line.unitPrice, quantity: line.quantity })),
-    deliveryFee: settings?.deliveryFee ?? 0,
-    taxRate: settings?.taxRate ?? 0,
-  });
-
-  const placeOrder = useMutation({
-    mutationFn: () =>
-      api.post<{ order: OrderDTO }>('/orders', {
-        items: lines.map((line) => ({ productId: line.productId, quantity: line.quantity, notes: line.notes || undefined })),
-        deliveryAddress: form.deliveryAddress,
-        deliveryPhone: form.deliveryPhone,
-        notes: form.notes || undefined,
-        paymentMethod: form.paymentMethod,
-      }),
-    onSuccess: (data) => {
-      clear();
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      void queryClient.invalidateQueries({ queryKey: ['active-orders'] });
-      toast(`Order ${data.order.orderNumber} sent to the kitchen!`, 'success');
-      navigate(`/app/orders/${data.order.id}`, { replace: true });
-    },
-    onError: (error) => toast(error instanceof Error ? error.message : 'Could not place the order', 'error'),
-  });
-
-  if (lines.length === 0) {
-    return (
-      <Card>
-        <p className="text-center text-sm text-slate-600">Your cart is empty — add items before checking out.</p>
-        <div className="mt-4 flex justify-center">
-          <Button onClick={() => navigate('/app/menu')}>Open the menu</Button>
-        </div>
-      </Card>
-    );
-  }
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!settings?.acceptingOrders) {
-      toast('The kitchen is not accepting orders right now.', 'warning');
-      return;
-    }
-    placeOrder.mutate();
-  };
-
-  return (
-    <CheckoutForm
-      form={form}
-      setForm={setForm}
-      totals={totals}
-      itemCount={itemCount}
-      subtotal={subtotal}
-      accepting={settings?.acceptingOrders ?? true}
-      busy={placeOrder.isPending}
-      onSubmit={submit}
-    />
-  );
-}
-
-interface FormState {
-  deliveryAddress: string;
-  deliveryPhone: string;
-  notes: string;
-  paymentMethod: 'CASH' | 'MOBILE_MONEY';
-}
-
-function CheckoutForm({
-  form,
-  setForm,
-  totals,
-  itemCount,
-  subtotal,
-  accepting,
-  busy,
-  onSubmit,
-}: {
-  form: FormState;
-  setForm: (updater: (current: FormState) => FormState) => void;
-  totals: ReturnType<typeof computeTotals>;
-  itemCount: number;
-  subtotal: number;
-  accepting: boolean;
-  busy: boolean;
-  onSubmit: (event: FormEvent) => void;
-}) {
-  return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-extrabold text-slate-900 lg:text-3xl">Checkout</h1>
-        <p className="mt-1 text-sm text-slate-500">Complete your delivery details.</p>
-      </header>
-
-      <Card className="space-y-4">
-        <Field label="Delivery address">
-          <Input
-            required
-            minLength={6}
-            value={form.deliveryAddress}
-            onChange={(event) => setForm((current) => ({ ...current, deliveryAddress: event.target.value }))}
-            placeholder="Street, area, city"
-          />
-        </Field>
-        <Field label="Contact phone">
-          <Input
-            required
-            inputMode="tel"
-            value={form.deliveryPhone}
-            onChange={(event) => setForm((current) => ({ ...current, deliveryPhone: event.target.value }))}
-            placeholder="+233 20 123 4567"
-          />
-        </Field>
-        <Field label="Order notes (optional)">
-          <Textarea
-            value={form.notes}
-            onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-            placeholder="Gate code, landmark, delivery instructions…"
-            maxLength={300}
-          />
-        </Field>
-      </Card>
-
-      {form.deliveryAddress.trim().length >= 6 && (
-        <MapPreview address={form.deliveryAddress} label="Delivery location preview" />
-      )}
-
-      <Card className="space-y-2">
-        <p className="text-sm font-bold text-slate-800">Payment method</p>
-        {(['CASH', 'MOBILE_MONEY'] as const).map((method) => (
-          <label
-            key={method}
-            className={
-              form.paymentMethod === method
-                ? 'flex cursor-pointer items-center justify-between rounded-2xl border border-red-600/50 bg-red-50 px-4 py-3'
-                : 'flex cursor-pointer items-center justify-between rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3'
-            }
-          >
-            <span className="text-sm font-semibold text-slate-800">{PAYMENT_METHOD_LABELS[method]}</span>
-            <input
-              type="radio"
-              name="payment"
-              checked={form.paymentMethod === method}
-              onChange={() => setForm((current) => ({ ...current, paymentMethod: method }))}
-              className="h-5 w-5 accent-red-600"
-            />
-          </label>
-        ))}
-      </Card>
-
-      <Card className="space-y-2 text-sm">
-        <div className="flex justify-between text-slate-600">
-          <span>Items ({itemCount})</span>
-          <span className="font-semibold text-slate-800">{formatMoney(subtotal)}</span>
-        </div>
-        <div className="flex justify-between text-slate-600">
-          <span>Delivery</span>
-          <span className="font-semibold text-slate-800">{formatMoney(totals.deliveryFee)}</span>
-        </div>
-        <div className="flex justify-between text-slate-600">
-          <span>Tax</span>
-          <span className="font-semibold text-slate-800">{formatMoney(totals.tax)}</span>
-        </div>
-        <div className="flex items-center justify-between border-t border-slate-200 pt-2">
-          <span className="font-bold text-slate-800">Total</span>
-          <span className="text-lg font-extrabold text-red-600">{formatMoney(totals.total)}</span>
-        </div>
-        <ErrorText message={!accepting ? 'The kitchen is currently not accepting orders.' : null} />
-        <Button type="submit" size="lg" className="w-full" loading={busy}>
-          Place order · {formatMoney(totals.total)}
-        </Button>
-      </Card>
-    </form>
-  );
-}
+  const { data: addressData } = useQuery({ queryKey: ["addresses"], queryFn: () => api.get<{ addresses: AddressDTO[] }>("/addresses") });
+  useEffect(() => { const phone = user?.phone ?? ""; setForm(c => ({ ...c, deliveryPhone: c.deliveryPhone || phone })); }, [user?.phone]);
+  useEffect(() => { const saved = addressData?.addresses.find(a => a.isDefault) ?? addressData?.addresses[0]; if (saved && !form.selectedAddress) { const addr = [saved.line1, saved.area, saved.city].filter(Boolean).join(", "); setForm(c => ({ ...c, selectedAddress: { label: addr, address: addr, latitude: 0, longitude: 0 } })); } }, [addressData]);
+  const [suggestions, setSuggestions] = useState<Array<{ label: string; address: string; latitude: number; longitude: number; }>>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const totals = computeTotals({ items: lines.map(l => ({ unitPrice: l.unitPrice, quantity: l.quantity })), deliveryFee: settings?.deliveryFee ?? 0, taxRate: settings?.taxRate ?? 0 });
+  const searchAddresses = async (q: string) => { if (q.trim().length < 3) { setSuggestions([]); setSearchError(null); return; } setSearchLoading(true); setSearchError(null); try { const data = await api.get<GeoSearchResponse>("/geo/search?q=" + encodeURIComponent(q.trim())); setSuggestions(data.suggestions ?? []); } catch (e) { setSearchError(e instanceof Error ? e.message : "Search failed"); setSuggestions([]); } finally { setSearchLoading(false); } };
+  const handleSearchChange = (v: string) => { setForm(c => ({ ...c, searchQuery: v, showSuggestions: v.trim().length >= 3 })); if (debounceRef.current) clearTimeout(debounceRef.current); debounceRef.current = setTimeout(() => searchAddresses(v), 300); };
+  const selectSuggestion = (s: { label: string; address: string; latitude: number; longitude: number; }) => { setForm(c => ({ ...c, selectedAddress: { label: s.label, address: s.address, latitude: s.latitude, longitude: s.longitude }, searchQuery: s.address, showSuggestions: false })); setSuggestions([]); if (searchRef.current) searchRef.current.blur(); };
+  const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => { if (e.key === "Escape") setForm(c => ({ ...c, showSuggestions: false })); if (e.key === "Enter" && suggestions.length > 0) selectSuggestion(suggestions[0]); };
+  useEffect(() => { const h = (e: MouseEvent) => { if (listRef.current && !listRef.current.contains(e.target as Node)) setForm(c => ({ ...c, showSuggestions: false })); }; document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
+  const useCurrentLocation = () => { if (!navigator.geolocation) { toast("Geolocation is not supported by your browser.", "error"); return; } setSearchLoading(true); navigator.geolocation.getCurrentPosition(async (pos) => { setSearchLoading(false); const { latitude: lat, longitude: lng } = pos.coords; const label = "Current location"; const addr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`; setForm(c => ({ ...c, selectedAddress: { label, address: addr, latitude: lat, longitude: lng }, searchQuery: label, showSuggestions: false })); toast("Location detected", "success"); }, (err) => { setSearchLoading(false); const error = err as GeolocationPositionError; if (error.code === error.PERMISSION_DENIED) toast("Location access denied. Please type your address.", "error"); else toast("Could not get location. Please type your address.", "error"); }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }); };
+  const placeOrder = useMutation({ mutationFn: () => api.post<{ order: OrderDTO }>("/orders", { items: lines.map(l => ({ productId: l.productId, quantity: l.quantity, notes: l.notes || undefined })), deliveryAddress: form.selectedAddress?.address ?? form.searchQuery, deliveryPhone: form.deliveryPhone, notes: form.notes || undefined, paymentMethod: form.paymentMethod, deliveryLatitude: form.selectedAddress?.latitude ?? null, deliveryLongitude: form.selectedAddress?.longitude ?? null }), onSuccess: (d) => { clear(); queryClient.invalidateQueries({ queryKey: ["orders"] }); queryClient.invalidateQueries({ queryKey: ["active-orders"] }); toast("Order " + d.order.orderNumber + " sent to the kitchen!", "success"); navigate("/app/orders/" + d.order.id, { replace: true }); }, onError: (e) => toast(e instanceof Error ? e.message : "Could not place the order", "error") });
+  if (lines.length === 0) { return (<Card><p className="text-center text-sm text-slate-600">Your cart is empty — add items before checking out.</p><div className="mt-4 flex justify-center"><Button onClick={() => navigate("/app/menu")}>Open the menu</Button></div></Card>); }
+  const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); if (!settings?.acceptingOrders) { toast("The kitchen is not accepting orders right now.", "error"); return; } if (!form.deliveryPhone.trim()) { toast("Please add a contact phone number.", "error"); return; } if (!form.selectedAddress && !form.searchQuery.trim()) { toast("Please choose a delivery address.", "error"); return; } placeOrder.mutate(); };
+  const accepting = settings?.acceptingOrders ?? true;
+  const busy = placeOrder.isPending;
+  return ( <form onSubmit={submit} className="space-y-5"> <header> <h1 className="text-2xl font-extrabold text-slate-900 lg:text-3xl">Checkout</h1> <p className="mt-1 text-sm text-slate-500">Choose your delivery address and confirm.</p> </header> <Card className="space-y-3"> <div className="flex items-center justify-between gap-2"> <Field label="Delivery address"> <div className="relative" ref={listRef}> <Input ref={searchRef} required value={form.searchQuery} onChange={(e) => handleSearchChange(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Start typing an address…" className="pr-10" /> {form.selectedAddress && ( <button type="button" onClick={() => setForm(c => ({ ...c, selectedAddress: null, searchQuery: "" }))} className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700" aria-label="Clear address"> <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"> <path d="M18 6 6 18M6 6l12 12" /> </svg> </button> )} {searchLoading && ( <div className="absolute left-3 top-1/2 -translate-y-1/2"> <span className="animate-spin rounded-full border-2 border-slate-200 border-t-red-600 h-4 w-4" /> </div> )} </div> </Field> <button type="button" onClick={useCurrentLocation} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-soft transition hover:bg-slate-50 hover:text-slate-900 active:scale-95" aria-label="Use my current location" title="Use my current location"> <LocateIcon className="h-5 w-5" /> </button> </div> {form.showSuggestions && suggestions.length > 0 && ( <div className="relative" ref={listRef}> <div className="absolute z-10 mt-1 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lift divide-y divide-slate-100"> {suggestions.map((s, i) => ( <button key={i} type="button" onClick={() => selectSuggestion(s)} className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50"> <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" /> <div> <p className="text-sm font-semibold text-slate-900">{s.label}</p> <p className="text-xs text-slate-500 truncate">{s.address}</p> </div> </button> ))} </div> </div> )} {searchError && <p className="text-xs text-red-600">{searchError}</p>} {form.selectedAddress ? ( <div className="flex items-start gap-3 rounded-2xl bg-green-50 border border-green-200 px-4 py-3"> <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-green-600" /> <div className="min-w-0"> <p className="text-sm font-semibold text-slate-900">{form.selectedAddress.label}</p> <p className="text-xs text-slate-500 truncate">{form.selectedAddress.address}</p> <p className="text-xs text-green-600 mt-1">{Number.isFinite(form.selectedAddress.latitude) ? "Exact location set" : "Approximate location"}</p> </div> </div> ) : ( <p className="text-xs text-slate-500">Type an address to see suggestions, or tap the location icon to use your current position.</p> )} <Field label="Contact phone"> <Input required inputMode="tel" value={form.deliveryPhone} onChange={(e) => setForm(c => ({ ...c, deliveryPhone: e.target.value }))} placeholder="+233 20 123 4567" /> </Field> <Field label="Order notes (optional)"> <Textarea value={form.notes} onChange={(e) => setForm(c => ({ ...c, notes: e.target.value }))} placeholder="Gate code, landmark, delivery instructions…" maxLength={300} /> </Field> </Card> {form.selectedAddress && Number.isFinite(form.selectedAddress.latitude) && ( <MapPreview address={form.selectedAddress.address} className="h-40" label="Delivery location" /> )} <Card className="space-y-2"> <p className="text-sm font-bold text-slate-800">Payment method</p> {(["CASH", "MOBILE_MONEY"] as const).map((method) => ( <label key={method} className={ form.paymentMethod === method ? "flex cursor-pointer items-center justify-between rounded-2xl border border-red-600/50 bg-red-50 px-4 py-3" : "flex cursor-pointer items-center justify-between rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3" }> <span className="text-sm font-semibold text-slate-800">{PAYMENT_METHOD_LABELS[method]}</span> <input type="radio" name="payment" checked={form.paymentMethod === method} onChange={() => setForm(c => ({ ...c, paymentMethod: method }))} className="h-5 w-5 accent-red-600" /> </label> ))} </Card> <Card className="space-y-2 text-sm"> <div className="flex justify-between text-slate-600"> <span>Items ({itemCount})</span> <span className="font-semibold text-slate-800">{formatMoney(subtotal)}</span> </div> <div className="flex justify-between text-slate-600"> <span>Delivery</span> <span className="font-semibold text-slate-800">{formatMoney(totals.deliveryFee)}</span> </div> <div className="flex justify-between text-slate-600"> <span>Tax</span> <span className="font-semibold text-slate-800">{formatMoney(totals.tax)}</span> </div> <div className="flex items-center justify-between border-t border-slate-200 pt-2"> <span className="font-bold text-slate-800">Total</span> <span className="text-lg font-extrabold text-red-600">{formatMoney(totals.total)}</span> </div> <ErrorText message={!accepting ? "The kitchen is currently not accepting orders." : null} /> <Button type="submit" size="lg" className="w-full" loading={busy}> Place order · {formatMoney(totals.total)} </Button> </Card> </form> ); }

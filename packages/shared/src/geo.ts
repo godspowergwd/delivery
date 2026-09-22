@@ -94,3 +94,17 @@ export function movementMode(speedMetresPerSecond: number | null | undefined): M
   if (speed < 3) return 'walking';
   return 'driving';
 }
+
+/**
+ * A suggestion returned by the address search endpoint.
+ * Consumers show the label in the dropdown and store latitude/longitude
+ * with the order when the customer confirms.
+ */
+export interface AddressSuggestion {
+  label: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  placeId: string;
+  type: string;
+}

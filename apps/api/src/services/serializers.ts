@@ -163,3 +163,14 @@ export function serializeAddress(
 export function serializeNotifications(rows: Parameters<typeof serializeNotification>[0][]): NotificationDTO[] {
   return rows.map(serializeNotification);
 }
+
+export function serializeGeoSuggestion(suggestion: import('../services/geo.service').AddressSuggestion) {
+  return {
+    label: suggestion.label,
+    address: suggestion.address,
+    latitude: suggestion.latitude,
+    longitude: suggestion.longitude,
+    placeId: suggestion.placeId,
+    type: suggestion.type,
+  };
+}

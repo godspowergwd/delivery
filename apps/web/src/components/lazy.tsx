@@ -9,6 +9,7 @@ function interop(loader: () => Promise<object>, name: string) {
 export const CustomerHome: ComponentType = lazy(() => import('../pages/customer/Home'));
 export const DriverDeliveries: ComponentType = lazy(() => import('../pages/driver/Deliveries'));
 export const DriverMap: ComponentType = lazy(() => import('../pages/driver/Map'));
+export const DriverEarnings: ComponentType = lazy(() => import('../pages/driver/Earnings'));
 export const DriverProfile: ComponentType = lazy(() => import('../pages/driver/Profile'));
 export const AccountSettings = interop(() => import('../pages/Settings'), 'AccountSettings');
 export const Menu = interop(() => import('../pages/customer/Menu'), 'Menu');

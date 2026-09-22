@@ -346,6 +346,14 @@ export const StoreIcon = (p: IconProps) => (
   </Base>
 );
 
+export const RestaurantIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 9.5 5.4 4h13.2L20 9.5" />
+    <path d="M5.5 12v7a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-7" />
+    <path d="M10 20v-4.5h4V20" />
+  </Base>
+);
+
 /* ---------------------------- money / stats ---------------------------- */
 
 export const WalletIcon = (p: IconProps) => (
@@ -408,6 +416,12 @@ export const CameraIcon = (p: IconProps) => (
 );
 
 /* ------------------------- brand + delivery extras ---------------------- */
+/** Pie chart icon for driver earnings nav item. */
+export const EarningsIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 2v10.5a2.5 2.5 0 1 0 4-2.4V7a5 5 0 1 0-4 7.8V12h-2V2z" />
+  </Base>
+);
 
 export const StarIcon = (p: IconProps & { filled?: boolean }) => (
   <Base {...p} filled={p.filled}>

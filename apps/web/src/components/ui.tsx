@@ -8,6 +8,7 @@ import {
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
+  forwardRef,
 } from 'react';
 import { ORDER_STATUS_TONE, type OrderStatus } from '@delivery/shared';
 import type { ToastTone } from '../lib/realtime';
@@ -396,9 +397,9 @@ export function RatingChip({
 const FIELD =
   'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-400 shadow-soft outline-none transition focus:border-red-600 focus:ring-4 focus:ring-red-600/10 disabled:bg-slate-50 disabled:text-slate-500';
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...rest} className={clsx(FIELD, className)} />;
-}
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
+  return <input ref={ref} {...rest} className={clsx(FIELD, className)} />;
+});
 
 export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...rest} className={clsx(FIELD, 'min-h-24 resize-y', className)} />;

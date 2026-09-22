@@ -24,6 +24,7 @@ import {
   TruckIcon,
   UserIcon,
   FlameIcon,
+  WalletIcon,
 } from './icons';
 
 /** Shows the native install button once the browser fires beforeinstallprompt. */
@@ -137,6 +138,7 @@ const NAV: Record<Role, NavItem[]> = {
   DRIVER: [
     { to: '/driver/deliveries', label: 'Deliveries', icon: TruckIcon, emphasize: true },
     { to: '/driver/map', label: 'Map', icon: MapIcon },
+    { to: '/driver/earnings', label: 'Earnings', icon: WalletIcon },
     { to: '/driver/profile', label: 'Profile', icon: UserIcon },
   ],
   ADMIN: [
@@ -195,7 +197,7 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
       end={isExactRoute(item.to)}
       className={({ isActive }) =>
         clsx(
-          'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2.5 transition',
+          'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1.5 transition',
           isActive ? 'text-red-600' : 'text-slate-500',
         )
       }
@@ -211,10 +213,10 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
           <span
             className={clsx(
               'relative flex items-center justify-center',
-              item.cart ? 'h-14 w-14 rounded-full bg-red-600 text-white shadow-lg shadow-red-600/25' : 'h-8 w-8',
+              item.cart ? 'h-12 w-12 rounded-full bg-red-600 text-white shadow-lg shadow-red-600/25' : 'h-7 w-7',
             )}
           >
-            <Icon className={clsx(item.cart ? 'h-7 w-7' : item.emphasize ? 'h-10 w-10' : 'h-6 w-6')} />
+            <Icon className={clsx(item.cart ? 'h-6 w-6' : item.emphasize ? 'h-7 w-7' : 'h-5 w-5')} />
             {item.cart && cartCount > 0 && (
               <span className="absolute -right-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-sm font-bold text-white">
                 {cartCount}
@@ -318,7 +320,7 @@ export function AppShell() {
             className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white shadow-[0_-4px_16px_rgba(15,23,42,0.06)] lg:hidden"
             aria-label="Primary navigation"
           >
-            <div className="flex items-stretch justify-around">
+            <div className="mx-auto flex w-full max-w-md items-stretch justify-around">
               {items.slice(0, 5).map((item) => (
                 <BottomLink key={item.to} item={item} cartCount={itemCount} />
               ))}

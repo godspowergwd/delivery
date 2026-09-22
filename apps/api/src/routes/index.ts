@@ -17,6 +17,7 @@ import { analyticsRouter } from './analytics.routes';
 import { settingsRouter } from './settings.routes';
 import { uploadsRouter } from './uploads.routes';
 import { logsRouter } from './logs.routes';
+import { geoRouter } from './geo.routes';
 
 export const apiRouter = Router();
 
@@ -48,3 +49,4 @@ apiRouter.use('/analytics', analyticsRouter);
 apiRouter.use('/settings', settingsRouter);
 apiRouter.use('/uploads', uploadsRouter);
 apiRouter.use('/logs', logsRouter);
+apiRouter.use('/geo', geoRouter);

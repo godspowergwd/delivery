@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { CategoryDTO, Paginated, ProductDTO, SettingsDTO } from '@delivery/shared';
+import type { CategoryDTO, OrderDTO, Paginated, ProductDTO, SettingsDTO } from '@delivery/shared';
+import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useCart } from '../../lib/cart';
 import { Reveal } from '../../components/motion';
 import { FoodCard } from '../../components/FoodCard';
 import { CategoryRail, DeliveryStatusBar, PromoCapture, TrustRow } from '../../components/home';
-import { SearchIcon, SparkleIcon } from '../../components/icons';
-import { Spinner } from '../../components/ui';
+import { SearchIcon, SparkleIcon, TruckIcon } from '../../components/icons';
+import { Card, Spinner, StatusPill } from '../../components/ui';
 
 export default function CustomerHome() {
   const { user } = useAuth();
@@ -35,6 +36,13 @@ export default function CustomerHome() {
     staleTime: 30_000,
   });
 
+  const { data: active } = useQuery({
+    queryKey: ['active-orders'],
+    queryFn: () => api.get<{ orders: OrderDTO[] }>('/orders/active'),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+
   const firstName = user?.name?.split(' ')[0] ?? 'there';
 
   const submitSearch = (event: React.FormEvent) => {
@@ -44,6 +52,28 @@ export default function CustomerHome() {
 
   return (
     <div className="space-y-7">
+      {(active?.orders?.length ?? 0) > 0 && (
+        <Link
+          to={`/app/orders/${active!.orders[0].id}`}
+          className="flex items-center gap-3 rounded-card bg-slate-900 p-4 text-white shadow-card transition hover:shadow-lift"
+        >
+          <span className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-red-600">
+            <TruckIcon className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-extrabold">
+              {active!.orders[0].orderNumber} · {ORDER_STATUS_LABELS[active!.orders[0].status]}
+            </span>
+            <span className="block truncate text-xs font-medium text-slate-300">
+              {active!.orders.length > 1
+                ? `${active!.orders.length} live orders — tap to track`
+                : `${active!.orders[0].itemCount} items · ${formatMoney(active!.orders[0].total)} · ${formatRelativeTime(active!.orders[0].createdAt)}`}
+            </span>
+          </span>
+          <StatusPill status={active!.orders[0].status} label={ORDER_STATUS_LABELS[active!.orders[0].status]} />
+        </Link>
+      )}
+
       {/* ---------- Hero ---------- */}
       <section className="relative overflow-hidden rounded-card bg-white p-5 shadow-card ring-1 ring-inset ring-slate-200/60">
         <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-red-50" />
