@@ -199,6 +199,11 @@ export interface SettingsDTO {
   /** Kitchen / pickup coordinates used as the map anchor and route origin. */
   businessLatitude: number;
   businessLongitude: number;
+  /**
+   * Radius (km) around the kitchen that we deliver to. Orders whose captured
+   * GPS falls outside this boundary are refused by the API.
+   */
+  deliveryRadiusKm: number;
   updatedAt: string | null;
 }
 

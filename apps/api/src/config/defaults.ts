@@ -10,10 +10,10 @@ import type { SettingsDTO } from '@delivery/shared';
  * Admin > Settings, so changing the support phone never requires a redeploy.
  */
 export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
-  businessName: 'Delivery System',
-  businessAddress: 'Mallam Interchange, Accra',
+  businessName: 'Waakye App',
+  businessAddress: 'Malam Junction, Gbawe Road, Accra',
   businessPhone: '+233000000000',
-  businessEmail: 'support@deliverysystem.app',
+  businessEmail: 'support@waakyeapp.com',
   currencyCode: 'GHS',
   // Escaped so the symbol survives any file encoding (GH + cedis sign).
   currencySymbol: 'GH\u20b5',
@@ -22,12 +22,15 @@ export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
   minOrderTotal: 10,
   acceptingOrders: true,
   supportPhone: '+233000000000',
-  supportEmail: 'support@deliverysystem.app',
+  supportEmail: 'support@waakyeapp.com',
   lowStockThreshold: 10,
   // Kitchen / pickup anchor: Mallam Interchange, Greater Accra. Admins can move
   // it from Admin > Settings; it is the map focus and the route origin.
   businessLatitude: 5.571264,
   businessLongitude: -0.284093,
+  // Local delivery only: everything inside this radius of the kitchen is
+  // served (Malam, Gbawe, Weija, McCarthy Hill and the neighbouring streets).
+  deliveryRadiusKm: 12,
 };
 
 /** Settings that may be read without authenticating (storefront + support contact). */
@@ -42,6 +45,7 @@ export const PUBLIC_SETTING_KEYS = [
   'acceptingOrders',
   'supportPhone',
   'supportEmail',
+  'deliveryRadiusKm',
 ] as const satisfies ReadonlyArray<keyof Omit<SettingsDTO, 'updatedAt'>>;
 
 /** The subset of settings every client (including anonymous storefront traffic) may read. */

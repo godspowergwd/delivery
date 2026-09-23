@@ -195,7 +195,7 @@ export function AdminDashboard() {
             ))
           )}
         </div>
-        <Link to="/admin/orders" className="mt-3 block text-center text-sm text-red-600">
+        <Link to="/admin/orders" className="mt-3 block text-center text-sm text-green-700">
           View all orders →
         </Link>
       </Card>

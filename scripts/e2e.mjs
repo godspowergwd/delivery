@@ -277,7 +277,7 @@ async function testKitchenFlow(ctx) {
   const detail = await req(`/kitchen/orders/${oid}`, { token: kitchen });
   check(detail.status === 200, 'GET /kitchen/orders/:id returns 200', `status=${detail.status}`);
 
-  const steps = ['accept', 'preparing', 'ready', 'dispatch', 'complete'];
+  const steps = ['accept', 'preparing', 'dispatch'];
   for (const action of steps) {
     const r = await req(`/kitchen/orders/${oid}/${action}`, { method: 'POST', token: kitchen });
     const okay = r.status === 200 || r.status === 201;
@@ -349,11 +349,11 @@ async function testDriverFlow(ctx) {
     return id;
   };
 
-  const readyForPickup = async (orderId, tag) => {
+  const sendOutForDelivery = async (orderId, tag) => {
     for (const action of ['accept', 'preparing', 'ready']) {
       const r = await req(`/kitchen/orders/${orderId}/${action}`, { method: 'POST', token: kitchen });
       if (!(r.status === 200 || r.status === 201)) {
-        bad(`kitchen could not move ${tag} to READY`, `status=${r.status} at ${action}`);
+        bad(`kitchen could not move ${tag} to OUT_FOR_DELIVERY`, `status=${r.status} at ${action}`);
         return false;
       }
     }
@@ -362,7 +362,7 @@ async function testDriverFlow(ctx) {
 
   // --- Pickup pool: driver claims a ready, unassigned order. ---
   const orderA = await makeOrder('A');
-  if (orderA && (await readyForPickup(orderA, 'order A'))) {
+  if (orderA && (await sendOutForDelivery(orderA, 'order A'))) {
     const available = await req('/driver/available', { token: driver });
     const pool = listOf(available.data);
     check(
@@ -402,16 +402,16 @@ async function testDriverFlow(ctx) {
     check((t.status || t.order?.status) === 'DELIVERED', 'customer sees the delivered status instantly');
   }
 
-  await runDriverDispatchChecks(ctx, { customer, kitchen, admin, driver, makeOrder, readyForPickup });
+  await runDriverDispatchChecks(ctx, { customer, kitchen, admin, driver, makeOrder, sendOutForDelivery });
 }
 
 /** Admin dispatch + issue-reporting checks (split out to keep functions small). */
 async function runDriverDispatchChecks(ctx, helpers) {
-  const { customer, kitchen, admin, driver, makeOrder, readyForPickup } = helpers;
+  const { customer, kitchen, admin, driver, makeOrder, sendOutForDelivery } = helpers;
 
   // --- Admin dispatch: admin assigns a driver, driver runs the delivery. ---
   const orderB = await makeOrder('B');
-  if (orderB && (await readyForPickup(orderB, 'order B'))) {
+  if (orderB && (await sendOutForDelivery(orderB, 'order B'))) {
     const drivers = await req('/users?role=DRIVER&pageSize=100', { token: admin });
     const driverList = listOf(drivers.data);
     const driverId = driverList.find((u) => u.isActive)?.id;
@@ -444,7 +444,7 @@ async function runDriverDispatchChecks(ctx, helpers) {
 
   // --- Issue reporting. ---
   const orderC = await makeOrder('C');
-  if (orderC && (await readyForPickup(orderC, 'order C'))) {
+  if (orderC && (await sendOutForDelivery(orderC, 'order C'))) {
     await req(`/driver/deliveries/${orderC}/accept`, { method: 'POST', token: driver });
     await req(`/driver/deliveries/${orderC}/pickup`, { method: 'POST', token: driver });
     const issue = await req(`/driver/deliveries/${orderC}/issue`, {

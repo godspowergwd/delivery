@@ -17,7 +17,6 @@ import {
   DriverEarnings,
   DriverMap,
   DriverProfile,
-  KitchenHistory,
   KitchenQueue,
   Menu,
   OrderDetail,
@@ -28,6 +27,7 @@ import {
 import { AppShell } from './components/Layout';
 import { ProtectedRoute, RoleHome } from './components/guards';
 import { Login } from './pages/Login';
+import CustomerTracking from './pages/customer/Tracking';
 import { Register } from './pages/Register';
 import { Verify } from './pages/Verify';
 
@@ -52,12 +52,14 @@ export function App() {
           <Route path="/app/orders/:id" element={<LazyRoute><OrderDetail /></LazyRoute>} />
           <Route path="/app/profile" element={<LazyRoute><Profile /></LazyRoute>} />
         </Route>
+        {/* Full-screen live tracking - rendered outside the shell so the map owns the viewport. */}
+        <Route path="/app/track" element={<CustomerTracking />} />
+        <Route path="/app/track/:id" element={<CustomerTracking />} />
       </Route>
 
       <Route element={<ProtectedRoute roles={['KITCHEN', 'ADMIN']} />}>
         <Route element={<AppShell />}>
           <Route path="/kitchen" element={<LazyRoute><KitchenQueue /></LazyRoute>} />
-          <Route path="/kitchen/history" element={<LazyRoute><KitchenHistory /></LazyRoute>} />
         </Route>
       </Route>
 
@@ -71,10 +73,11 @@ export function App() {
         <Route element={<AppShell />}>
           <Route path="/driver" element={<Navigate to="/driver/deliveries" replace />} />
           <Route path="/driver/deliveries" element={<LazyRoute><DriverDeliveries /></LazyRoute>} />
-          <Route path="/driver/map" element={<LazyRoute><DriverMap /></LazyRoute>} />
           <Route path="/driver/earnings" element={<LazyRoute><DriverEarnings /></LazyRoute>} />
           <Route path="/driver/profile" element={<LazyRoute><DriverProfile /></LazyRoute>} />
         </Route>
+        {/* True full-screen delivery map - floating controls only, no shell or bottom nav. */}
+        <Route path="/driver/map" element={<LazyRoute><DriverMap /></LazyRoute>} />
       </Route>
 
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>

@@ -71,7 +71,7 @@ export function Verify() {
         </Card>
       )}
 
-      <Link to="/login" className="mt-6 text-center text-sm font-semibold text-red-600 hover:underline">
+      <Link to="/login" className="mt-6 text-center text-sm font-semibold text-green-700 hover:underline">
         Open the app
       </Link>
     </div>

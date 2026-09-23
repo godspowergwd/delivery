@@ -4,8 +4,8 @@
  * search screen. Everything is defensive — a corrupt value can never break a
  * screen.
  */
-const LOCATION_KEY = 'onyx_delivery_location_v1';
-const RECENT_KEY = 'onyx_recent_searches_v1';
+const LOCATION_KEY = 'waakye_delivery_location_v1';
+const RECENT_KEY = 'waakye_recent_searches_v1';
 const RECENT_LIMIT = 8;
 
 export interface SavedLocation {
@@ -21,7 +21,7 @@ export interface RecentSearch {
   at: number;
 }
 
-/** Default centre of the ONYX delivery zone (Accra). */
+/** Default centre of the Waakye App delivery zone (Malam / Gbawe, Accra). */
 export const ACCRA_CENTER = { lat: 5.6037, lng: -0.187 };
 
 export function loadDeliveryLocation(): SavedLocation | null {
@@ -80,14 +80,14 @@ export function clearRecentSearches(): void {
   }
 }
 
-/** Popular searches surfaced on an empty search screen. */
+/** Popular searches surfaced on an empty search screen (the focused waakye menu). */
 export const TRENDING_SEARCHES = [
-  'Jollof rice',
-  'Shawarma',
-  'Banku & tilapia',
   'Waakye',
+  'Waakye Special',
+  'Jollof rice',
   'Fried rice',
-  'Fresh juice',
-  'Desserts',
-  'Specials',
+  'Sobolo',
+  'Chicken',
+  'Fish',
+  'Sides',
 ] as const;

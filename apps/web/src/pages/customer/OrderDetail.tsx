@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { OrderDTO, ReceiptDTO, ProductDTO } from '@delivery/shared';
-import { ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, formatDateTime, formatMoney } from '@delivery/shared';
+import {
+  ORDER_STATUS_FLOW,
+  ORDER_STATUS_LABELS,
+  formatDateTime,
+  formatMoney,
+  orderStatusIndex,
+} from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useCart } from '../../lib/cart';
 import { toast } from '../../lib/realtime';
@@ -92,7 +98,7 @@ export function OrderDetail() {
       <Card>
         <p className="text-center text-sm text-slate-600">Order not found.</p>
         <div className="mt-4 flex justify-center">
-          <Link to="/app/orders" className="text-sm font-semibold text-red-600 hover:underline">
+          <Link to="/app/orders" className="text-sm font-semibold text-green-700 hover:underline">
             Back to orders
           </Link>
         </div>
@@ -101,7 +107,7 @@ export function OrderDetail() {
   }
 
   const cancellable = ['RECEIVED', 'ACCEPTED'].includes(data.status);
-  const currentStep = ORDER_STATUS_FLOW.indexOf(data.status);
+  const currentStep = orderStatusIndex(data.status);
 
   return (
     <OrderDetailBody
@@ -178,11 +184,11 @@ function OrderDetailBody({
               return (
                 <li key={status} className="relative flex gap-3 pb-5 last:pb-0">
                   {index < ORDER_STATUS_FLOW.length - 1 && (
-                    <span className={`absolute left-[11px] top-6 h-full w-0.5 ${index < currentStep ? 'bg-red-600/60' : 'bg-slate-200'}`} />
+                    <span className={`absolute left-[11px] top-6 h-full w-0.5 ${index < currentStep ? 'bg-green-600/60' : 'bg-slate-200'}`} />
                   )}
                   <span
                     className={`relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${
-                      done ? 'bg-red-600 text-white' : 'border border-slate-300 bg-white text-slate-500'
+                      done ? 'bg-green-600 text-white' : 'border border-slate-300 bg-white text-slate-500'
                     } ${isCurrent ? 'pulse-ring' : ''}`}
                   >
                     {done ? <CheckIcon className="h-3.5 w-3.5" /> : index + 1}
@@ -190,7 +196,7 @@ function OrderDetailBody({
                   <div>
                     <p className={`text-sm font-bold ${done ? 'text-slate-900' : 'text-slate-500'}`}>{ORDER_STATUS_LABELS[status]}</p>
                     {isCurrent && data.estimatedReadyAt && (
-                      <p className="text-xs text-red-600">Estimated ready {formatDateTime(data.estimatedReadyAt)}</p>
+                      <p className="text-xs font-semibold text-green-700">Estimated ready {formatDateTime(data.estimatedReadyAt)}</p>
                     )}
                   </div>
                 </li>

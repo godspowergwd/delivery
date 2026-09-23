@@ -130,6 +130,16 @@ export function AdminSettings() {
               onChange={(event) => update({ minOrderTotal: Number(event.target.value) })}
             />
           </Field>
+          <Field label="Delivery radius (km)" hint="Orders outside this radius of the kitchen are refused.">
+            <Input
+              type="number"
+              min="1"
+              max="50"
+              step="0.5"
+              value={form.deliveryRadiusKm ?? 0}
+              onChange={(event) => update({ deliveryRadiusKm: Number(event.target.value) })}
+            />
+          </Field>
           <Field label="Low stock alert at">
             <Input
               type="number"

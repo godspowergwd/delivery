@@ -20,6 +20,9 @@ apps/api/uploads/*
 apps/api/storage/
 !apps/api/storage/.gitkeep
 
+# TypeScript incremental build info
+*.tsbuildinfo
+
 # editor / OS
 .vscode/*
 !.vscode/extensions.json

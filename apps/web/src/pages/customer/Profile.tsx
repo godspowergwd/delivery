@@ -73,7 +73,7 @@ export function Profile() {
       <Card className="space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-slate-800">Saved addresses</p>
-          <button onClick={() => setShowAddressForm((value) => !value)} className="text-sm font-semibold text-red-600 hover:underline">
+          <button onClick={() => setShowAddressForm((value) => !value)} className="text-sm font-semibold text-green-700 hover:underline">
             {showAddressForm ? 'Hide form' : 'Add new'}
           </button>
         </div>
@@ -140,11 +140,11 @@ function AddressRow({ address, onChanged }: { address: AddressDTO; onChanged: ()
         </div>
         <div className="flex shrink-0 gap-2">
           {!address.isDefault && (
-            <button onClick={() => setDefault.mutate()} className="text-sm font-semibold text-red-600 hover:underline">
+            <button onClick={() => setDefault.mutate()} className="text-sm font-semibold text-green-700 hover:underline">
               Default
             </button>
           )}
-          <button onClick={() => remove.mutate()} className="text-sm font-semibold text-red-700 hover:underline">
+          <button onClick={() => remove.mutate()} className="text-sm font-semibold text-green-700 hover:underline">
             Delete
           </button>
         </div>

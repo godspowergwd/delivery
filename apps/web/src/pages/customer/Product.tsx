@@ -34,7 +34,7 @@ export function ProductPage() {
       <Card>
         <p className="text-center text-sm text-slate-600">This product is no longer available.</p>
         <div className="mt-4 flex justify-center">
-          <Link to="/app/menu" className="text-sm font-semibold text-red-600 hover:underline">
+          <Link to="/app/menu" className="text-sm font-semibold text-green-700 hover:underline">
             Back to menu
           </Link>
         </div>
@@ -84,7 +84,7 @@ export function ProductPage() {
               {soldOut ? 'Sold out' : `${data.stock} in stock`}
             </span>
             {data.isPopular && <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">Popular</span>}
-            {data.isNew && <span className="rounded-full bg-red-600/20 px-3 py-1 text-red-600">New</span>}
+            {data.isNew && <span className="rounded-full bg-green-700/20 px-3 py-1 text-red-600">New</span>}
           </div>
           {data.ingredients.length > 0 && (
             <div>
@@ -122,7 +122,7 @@ export function ProductPage() {
           onChange={(event) => setNotes(event.target.value)}
           placeholder="Any special requests for the kitchen? (optional)"
           maxLength={200}
-          className="min-h-20 w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-500 outline-none focus:border-red-500"
+          className="min-h-20 w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-500 outline-none focus:border-green-600"
         />
       </Card>
 

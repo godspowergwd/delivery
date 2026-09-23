@@ -20,7 +20,6 @@ export const Orders = interop(() => import('../pages/customer/Orders'), 'Orders'
 export const OrderDetail = interop(() => import('../pages/customer/OrderDetail'), 'OrderDetail');
 export const Profile = interop(() => import('../pages/customer/Profile'), 'Profile');
 export const KitchenQueue = interop(() => import('../pages/kitchen/Kitchen'), 'KitchenQueue');
-export const KitchenHistory = interop(() => import('../pages/kitchen/KitchenHistory'), 'KitchenHistory');
 export const AdminDashboard = interop(() => import('../pages/admin/Dashboard'), 'AdminDashboard');
 export const AdminProducts = interop(() => import('../pages/admin/Products'), 'AdminProducts');
 export const AdminCategories = interop(() => import('../pages/admin/Categories'), 'AdminCategories');

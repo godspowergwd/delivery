@@ -2,24 +2,29 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { OrderDTO } from '@delivery/shared';
-import { ORDER_STATUS_LABELS } from '@delivery/shared';
+import { ORDER_STATUS_DESCRIPTIONS, ORDER_STATUS_LABELS, orderStatusIndex } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useOrderTracking } from '../../lib/tracking';
 import { useDeviceLocation } from '../../lib/geolocation';
 import { useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
-import { NavigationIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
-import { KITCHEN_ANCHOR, etaText, formatDistance } from '../../lib/live-map';
+import { ArrowLeftIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
+import { estimateAddressCoordinates, formatDistance } from '../../lib/live-map';
 
-const STATUS_STEPS = {
-  RECEIVED: [{ label: 'Order placed', short: 'Placed' }],
-  ACCEPTED: [{ label: 'Order placed', short: 'Placed' }, { label: 'Restaurant accepted', short: 'Accepted' }],
-  PREPARING: [{ label: 'Order placed', short: 'Placed' }, { label: 'Restaurant accepted', short: 'Accepted' }, { label: 'Preparing', short: 'Prepping' }],
-  READY: [{ label: 'Order placed', short: 'Placed' }, { label: 'Restaurant accepted', short: 'Accepted' }, { label: 'Preparing', short: 'Prepping' }, { label: 'Ready for pickup', short: 'Ready' }],
-  OUT_FOR_DELIVERY: [{ label: 'Order placed', short: 'Placed' }, { label: 'Restaurant accepted', short: 'Accepted' }, { label: 'Preparing', short: 'Prepping' }, { label: 'Ready for pickup', short: 'Ready' }, { label: 'Driver picked up', short: 'Picked up' }, { label: 'On the way to you', short: 'En route' }],
-  DELIVERED: [{ label: 'Order placed', short: 'Placed' }, { label: 'Restaurant accepted', short: 'Accepted' }, { label: 'Preparing', short: 'Prepping' }, { label: 'Ready for pickup', short: 'Ready' }, { label: 'Driver picked up', short: 'Picked up' }, { label: 'On the way to you', short: 'En route' }, { label: 'Delivered', short: 'Delivered' }],
-  CANCELLED: [{ label: 'Order placed', short: 'Placed' }, { label: 'Cancelled', short: 'Cancelled' }],
-};
+/** The five customer-facing steps of the Waakye App order lifecycle. */
+const TRACK_STEPS = [
+  { label: 'Order placed', short: 'Placed' },
+  { label: 'Order accepted', short: 'Accepted' },
+  { label: 'Serving', short: 'Being prepared' },
+  { label: 'Out for delivery', short: 'On the way' },
+  { label: 'Delivered', short: 'Done' },
+];
+
+/** Shown instead of the delivery flow when an order was cancelled. */
+const CANCELLED_STEPS = [
+  { label: 'Order placed', short: 'Placed' },
+  { label: 'Cancelled', short: 'Stopped' },
+];
 
 function LiveBadge() {
   return (
@@ -46,21 +51,34 @@ export default function CustomerTracking() {
   const navigate = useNavigate();
   const mapHostRef = useRef<HTMLDivElement>(null);
   const mapRef = useLiveMap(mapHostRef);
-  const order = useQuery({
-    queryKey: ['order', id],
-    queryFn: () => api.get<{ order: OrderDTO }>('/orders/' + id),
-    enabled: Boolean(id),
+  const activeLatest = useQuery({
+    queryKey: ['active-orders'],
+    queryFn: () => api.get<{ orders: OrderDTO[] }>('/orders/active'),
+    enabled: !id,
+    refetchInterval: 15_000,
   });
-  const tracking = useOrderTracking(order.data?.order?.id);
+  const effectiveId = id ?? activeLatest.data?.orders?.[0]?.id;
+  const order = useQuery({
+    queryKey: ['order', effectiveId],
+    queryFn: () => api.get<{ order: OrderDTO }>('/orders/' + effectiveId),
+    enabled: Boolean(effectiveId),
+  });
+  const tracking = useOrderTracking(order.data?.order?.id ?? effectiveId);
   const [showDriverDetails, setShowDriverDetails] = useState(false);
 
   const orderData = order.data?.order;
   const trackingData = tracking.data?.tracking;
   const driverLocation = trackingData?.driver?.location;
-  const destination = useMemo(
-    () => ({ lat: orderData?.deliveryLatitude ?? KITCHEN_ANCHOR.lat, lng: orderData?.deliveryLongitude ?? KITCHEN_ANCHOR.lng }),
-    [orderData],
-  );
+  const destination = useMemo(() => {
+    if (!orderData) return null;
+    if (orderData.deliveryLatitude != null && orderData.deliveryLongitude != null) {
+      return { lat: orderData.deliveryLatitude, lng: orderData.deliveryLongitude };
+    }
+    // Fall back to a geocoded estimate of the written address so the driver's
+    // route still points at the right neighbourhood when GPS was declined.
+    const estimate = estimateAddressCoordinates(orderData.deliveryAddress, orderData.deliveryArea);
+    return { lat: estimate.lat, lng: estimate.lng };
+  }, [orderData]);
 
   useEffect(() => {
     if (driverLocation && mapRef.current) {
@@ -72,29 +90,36 @@ export default function CustomerTracking() {
     if (destination && mapRef.current) mapRef.current.setDestination(destination);
   }, [destination, mapRef]);
 
-  useEffect(() => {
-    if (orderData?.deliveryLatitude && orderData?.deliveryLongitude && mapRef.current) {
-      mapRef.current.setDestination({ lat: orderData.deliveryLatitude, lng: orderData.deliveryLongitude });
-    }
-  }, [orderData]);
-
-  const steps = orderData ? (STATUS_STEPS[orderData.status] ?? STATUS_STEPS.RECEIVED) : [];
-  const activeIndex = orderData
-    ? Math.min(steps.length - 1, steps.findIndex((s) => ORDER_STATUS_LABELS[orderData.status] === s.label || ORDER_STATUS_LABELS[orderData.status] === s.short))
-    : 0;
+  const cancelled = orderData?.status === 'CANCELLED';
+  const steps = cancelled ? CANCELLED_STEPS : TRACK_STEPS;
+  const activeIndex = cancelled
+    ? CANCELLED_STEPS.length - 1
+    : Math.max(0, orderData ? orderStatusIndex(orderData.status) : 0);
   const isLive = orderData?.status === 'OUT_FOR_DELIVERY';
   const driver = trackingData?.driver;
   const distanceKm = trackingData?.driverToDestinationKm;
 
   if (!orderData) {
-    return <Card><p className="text-center text-sm text-slate-600">Order not found.</p></Card>;
+    return (
+      <div className="flex h-[100dvh] items-center justify-center bg-white px-6">
+        {order.isPending ? (
+          <Spinner className="h-8 w-8" />
+        ) : (
+          <Card>
+            <p className="text-center text-sm text-slate-600">
+              {order.error instanceof Error ? order.error.message : 'That order could not be found.'}
+            </p>
+          </Card>
+        )}
+      </div>
+    );
   }
 
   return (
-    <div className="flex h-[100dvh] w-full flex-col bg-slate-100 overflow-hidden">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
       <div ref={mapHostRef} className="absolute inset-0" />
 
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between border-b border-white/20 bg-gradient-to-b from-black/50 via-black/30 to-transparent px-4 pt-10 pb-3">
+      <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between border-b border-white/20 bg-gradient-to-b from-black/55 via-black/30 to-transparent px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/90 shadow-sm">
             <TruckIcon className="h-5 w-5 text-slate-800" />
@@ -112,7 +137,7 @@ export default function CustomerTracking() {
             </button>
           )}
           <button onClick={() => navigate(-1)} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/90 shadow-sm text-slate-700">
-            <NavigationIcon className="h-5 w-5" />
+            <ArrowLeftIcon className="h-5 w-5" />
           </button>
         </div>
       </div>
@@ -126,14 +151,20 @@ export default function CustomerTracking() {
               <p className="text-xs text-slate-500">{driver.phone ? 'Contact available' : 'No phone'}</p>
             </div>
           </div>
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" className="flex-1">Call</Button>
-            <Button size="sm" variant="secondary" className="flex-1">Message</Button>
-          </div>
+          {driver.phone ? (
+            <div className="mt-3">
+              <a
+                href={`tel:${driver.phone}`}
+                className="block rounded-2xl bg-green-700 px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-green-800"
+              >
+                Call {driver.name}
+              </a>
+            </div>
+          ) : null}
         </div>
       )}
 
-      <div className="absolute left-4 right-4 bottom-0 z-20 flex flex-col gap-3">
+      <div className="absolute inset-x-4 bottom-[max(env(safe-area-inset-bottom),0.75rem)] z-20 flex flex-col gap-3">
         <div className="rounded-2xl bg-white p-4 shadow-card">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -152,20 +183,18 @@ export default function CustomerTracking() {
                 <span className="text-sm font-semibold text-green-700">Driver is on the way</span>
               </div>
               {distanceKm != null ? (
-                <span className="text-sm font-bold text-white bg-green-600 px-2.5 py-1 rounded-full">{etaText(distanceKm)}</span>
-              ) : (
-                <span className="text-sm font-bold text-white bg-slate-400 px-2.5 py-1 rounded-full">ETA pending</span>
-              )}
+                <span className="text-sm font-bold text-white bg-green-600 px-2.5 py-1 rounded-full">{formatDistance(distanceKm)} to you</span>
+              ) : null}
             </div>
           )}
           {!isLive && (
-            <p className="text-sm text-slate-500">{ORDER_STATUS_LABELS[orderData.status]} — {steps.length} steps</p>
+            <p className="text-sm text-slate-600">{ORDER_STATUS_DESCRIPTIONS[orderData.status]}</p>
           )}
         </div>
 
         <div className="rounded-2xl border border-slate-100 bg-slate-50 divide-y divide-slate-100">
           {steps.map((step, i) => {
-            const done = i <= activeIndex;
+            const done = i < activeIndex;
             const current = i === activeIndex;
             return (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
@@ -181,7 +210,7 @@ export default function CustomerTracking() {
                   {done ? <CheckIcon className="h-4 w-4" /> : <span className="leading-none">{i + 1}</span>}
                 </div>
                 <div className="min-w-0">
-                  <p className={done ? 'text-sm font-semibold text-slate-900' : 'text-sm font-semibold text-slate-400'}>{step.label}</p>
+                  <p className={done || current ? 'text-sm font-semibold text-slate-900' : 'text-sm font-semibold text-slate-400'}>{step.label}</p>
                   <p className="text-[11px] text-slate-400">{step.short}</p>
                 </div>
                 {current && <span className="ml-auto text-[11px] font-bold text-amber-600">Now</span>}

@@ -30,16 +30,16 @@ export default defineConfig(({ mode }) => {
 
   const manifest = {
     id: base,
-    name: process.env.VITE_APP_NAME || 'ONYX',
-    short_name: 'ONYX',
+    name: process.env.VITE_APP_NAME || 'Waakye App',
+    short_name: 'Waakye',
     description:
-      'ONYX — order food, follow every delivery live on the map and run the whole kitchen from one installable app.',
+      'Waakye App - fresh waakye and rice meals, live delivery tracking on the map, and the whole kitchen in one installable app.',
     start_url: `${base}?source=pwa`,
     scope: base,
     display: 'standalone',
     display_override: ['fullscreen', 'standalone', 'minimal-ui'],
     orientation: 'any',
-    theme_color: '#ffffff',
+    theme_color: '#0b9663',
     background_color: '#ffffff',
     lang: 'en',
     dir: 'ltr',

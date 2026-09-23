@@ -5,18 +5,17 @@ import { clsx } from 'clsx';
 import { mediaUrl } from '../lib/api';
 import { useCart } from '../lib/cart';
 import { toast } from '../lib/realtime';
-import { ClockIcon, ImageIcon, PlusIcon, StarIcon } from './icons';
+import { ClockIcon, ImageIcon, PlusIcon } from './icons';
 
 /**
- * Premium food card: image, name, category, price, rating + prep time,
- * always-visible add button. Rating is derived deterministically until the
- * backend ships real ratings (no invented restaurant data).
+ * Food card: image, name, category, price + prep time, always-visible add
+ * button. No rating is shown — the backend has no ratings data, and showing
+ * a fake score would be placeholder functionality.
  */
 export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: number }) {
   const { add } = useCart();
   const image = mediaUrl(product.imageUrl);
   const soldOut = !product.isAvailable || product.stock <= 0;
-  const rating = (4.2 + ((product.name.length * 7 + product.price) % 8) / 10).toFixed(1);
 
   return (
     <article
@@ -43,7 +42,7 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
         )}
         <div className="absolute left-2 top-2 flex gap-1.5">
           {product.isPopular && (
-            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+            <span className="rounded-full bg-green-700 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
               Popular
             </span>
           )}
@@ -64,16 +63,9 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
           {product.name}
         </Link>
         <p className="line-clamp-1 text-[13px] text-slate-500">{product.categoryName}</p>
-        <p className="flex items-center gap-2 text-[13px] font-semibold text-slate-600">
-          <span className="inline-flex items-center gap-1 text-slate-700">
-            <StarIcon filled className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />
-            {rating}
-          </span>
-          <span aria-hidden="true" className="text-slate-300">·</span>
-          <span className="inline-flex items-center gap-1">
-            <ClockIcon className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
-            {product.prepTimeMinutes} min
-          </span>
+        <p className="flex items-center gap-1 text-[13px] font-semibold text-slate-600">
+          <ClockIcon className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+          {product.prepTimeMinutes} min
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
           <span className="text-[15px] font-extrabold text-slate-900">{formatMoney(product.price)}</span>
@@ -87,7 +79,7 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
             aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
             className={clsx(
               'btn-ripple flex h-11 w-11 items-center justify-center rounded-full text-white transition active:scale-95 disabled:opacity-40',
-              soldOut ? 'bg-slate-300' : 'bg-red-600 shadow-brand-soft hover:bg-red-700',
+              soldOut ? 'bg-slate-300' : 'bg-green-700 shadow-green hover:bg-green-800',
             )}
           >
             <PlusIcon className="h-5 w-5" aria-hidden="true" />

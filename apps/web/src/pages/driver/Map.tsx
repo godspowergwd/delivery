@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { OrderDTO, SettingsDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, distanceKm, etaText, formatDistance, formatMoney } from '@delivery/shared';
@@ -40,7 +40,10 @@ export default function DriverMap() {
   useRealtimeSync();
   const queryClient = useQueryClient();
   const mapHostRef = useRef<HTMLDivElement | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Deep link from the deliveries list (`?order=<id>`) selects that delivery immediately. */
+  const [searchParams] = useSearchParams();
+  const requestedOrderId = searchParams.get('order');
+  const [selectedId, setSelectedId] = useState<string | null>(requestedOrderId);
   const [sheetOpen, setSheetOpen] = useState(true);
   const [permissionDismissed, setPermissionDismissed] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
@@ -80,6 +83,11 @@ export default function DriverMap() {
     () => orders.find((order) => order.id === selectedId) ?? orders[0] ?? null,
     [orders, selectedId],
   );
+
+  // Keep the deep-linked delivery selected if the driver navigates back and forth.
+  useEffect(() => {
+    if (requestedOrderId) setSelectedId(requestedOrderId);
+  }, [requestedOrderId]);
 
   /** Delivery point: real checkout GPS when captured, otherwise a labelled estimate. */
   const destination = useMemo(() => {
@@ -151,7 +159,7 @@ export default function DriverMap() {
   }, [location.position, target, mapRef]);
 
   const action = useMutation({
-    mutationFn: ({ id, verb }: { id: string; verb: 'pickup' | 'complete' }) =>
+    mutationFn: ({ id, verb }: { id: string; verb: 'complete' }) =>
       postDriverAction(`/driver/deliveries/${id}/${verb}`),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
@@ -319,7 +327,6 @@ export default function DriverMap() {
               routeReady={Boolean(route)}
               busy={action.isPending}
               deliveryCount={orders.length}
-              onPickup={() => action.mutate({ id: selected.id, verb: 'pickup' })}
               onComplete={() => action.mutate({ id: selected.id, verb: 'complete' })}
               onIssue={() => setIssueOpen(true)}
               onSelectOther={() => {
@@ -434,7 +441,6 @@ function DeliverySheet({
   routeReady,
   busy,
   deliveryCount,
-  onPickup,
   onComplete,
   onIssue,
   onSelectOther,
@@ -446,20 +452,24 @@ function DeliverySheet({
   routeReady: boolean;
   busy: boolean;
   deliveryCount: number;
-  onPickup: () => void;
   onComplete: () => void;
   onIssue: () => void;
   onSelectOther: () => void;
 }) {
-  const eta = remainingKm !== null ? etaText(remainingKm) : null;
+  // An ETA is only ever shown when it comes from a real road route.
+  const eta = routeReady && remainingKm !== null ? etaText(remainingKm) : null;
   const targetLabel = delivering ? 'Customer' : 'Restaurant';
+  const navPoint =
+    typeof order.deliveryLatitude === 'number' && typeof order.deliveryLongitude === 'number'
+      ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude }
+      : null;
 
   return (
     <div className="px-5 pb-1">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[13px] font-bold uppercase tracking-wide text-slate-400">
-            {delivering ? 'Delivering now' : 'Next stop · pickup'}
+            {delivering ? 'Delivering now' : 'Next stop · restaurant'}
           </p>
           <p className="truncate font-mono text-sm text-slate-700">{order.orderNumber}</p>
         </div>
@@ -470,12 +480,12 @@ function DeliverySheet({
         <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Arriving in</p>
           <p className="text-xl font-extrabold leading-tight text-slate-900">
-            {eta ?? (routeReady ? '—' : 'Waiting for GPS')}
+            {eta ?? (remainingKm !== null ? '—' : 'Waiting for GPS')}
           </p>
         </div>
         <div className="rounded-2xl bg-green-50 px-3 py-2.5">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-green-700/70">
-            {delivering ? 'To customer' : 'To pickup'}
+            {delivering ? 'To customer' : 'To restaurant'}
           </p>
           <p className="text-xl font-extrabold leading-tight text-green-800">
             {remainingKm !== null ? formatDistance(remainingKm) : '—'}
@@ -519,14 +529,9 @@ function DeliverySheet({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {order.status === 'READY' && (
-          <Button loading={busy} onClick={onPickup}>
-            Start delivery
-          </Button>
-        )}
         {delivering && (
           <Button variant="success" loading={busy} onClick={onComplete}>
-            Mark delivered
+            Complete delivery
           </Button>
         )}
         <a
@@ -536,17 +541,17 @@ function DeliverySheet({
           <PhoneIcon className="h-4 w-4 text-green-700" />
           Call
         </a>
-        <a
-          href={`https://www.openstreetmap.org/directions?to=${order.deliveryLatitude ?? ''},${
-            order.deliveryLongitude ?? ''
-          }`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-semibold text-slate-800 transition hover:bg-slate-50"
-        >
-          <NavigationIcon className="h-4 w-4 text-red-600" />
-          Navigate
-        </a>
+        {delivering && navPoint && (
+          <a
+            href={`https://www.openstreetmap.org/directions?to=${navPoint.lat},${navPoint.lng}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            <NavigationIcon className="h-4 w-4 text-red-600" />
+            Navigate
+          </a>
+        )}
         <Button variant="ghost" size="md" onClick={onIssue}>
           Report issue
         </Button>
@@ -565,7 +570,7 @@ function EmptyDelivery() {
       <div className="mt-3">
         <Link
           to="/driver/deliveries"
-          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-red-600 px-4 text-[15px] font-semibold text-white shadow-brand-soft"
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-green-700 px-4 text-[15px] font-semibold text-white shadow-green"
         >
           Go to deliveries
         </Link>

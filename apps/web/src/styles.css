@@ -2,20 +2,20 @@
 @import 'maplibre-gl/dist/maplibre-gl.css';
 
 /* ===========================================================================
-   ONYX — premium delivery design system (2026)
+   Waakye App design system (2026)
 
-   The brand palette below is the single source of truth for the whole app. It
-   remaps Tailwind's red/green/slate scales onto the ONYX brand, so existing
-   `bg-red-600`, `text-slate-500`, `bg-emerald-50` utilities all resolve to
-   brand-correct values with zero per-file churn.
+   Brand palette: GREEN primary + RED accent + WHITE surfaces.
 
-   Primary red   #E30613  — sampled from the ONYX logo (see scripts/sample-brand-color.mjs)
-   Brand green   #0B9663  — premium jade, complementary to the logo red
-   White         #FFFFFF  — dominant background
-   Charcoal      #131A26  — text
+   Primary green  #0B9663  — every primary action, selected state, live badge
+   Accent red     #E30613  — highlights, prices, small accents only
+   White          #FFFFFF  — dominant background
+   Charcoal       #131A26  — text
+
+   GREEN is the primary action color everywhere: buttons, active tabs,
+   progress, toggles and live badges. Red is an accent, never a primary.
    =========================================================================== */
 @theme {
-  /* --- Brand red (ONYX) ------------------------------------------------- */
+  /* --- Brand red (accent only) ------------------------------------------ */
   --color-red-50: #fff1f2;
   --color-red-100: #ffe2e4;
   --color-red-200: #ffc7cb;

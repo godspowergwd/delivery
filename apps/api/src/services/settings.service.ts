@@ -19,6 +19,7 @@ const NUMERIC_KEYS: SettingKey[] = [
   'lowStockThreshold',
   'businessLatitude',
   'businessLongitude',
+  'deliveryRadiusKm',
 ];
 const BOOLEAN_KEYS: SettingKey[] = ['acceptingOrders'];
 
@@ -70,7 +71,8 @@ export async function updateSettings(
   const entries = Object.entries(patch).filter(([key, value]) => value !== undefined && key in DEFAULTS);
   if (entries.length === 0) return getSettings();
 
-  // One batched transaction instead of one round-trip per changed field.
+  // One batched transaction instead of one round-trip per changed field, with a
+  // generous timeout so a slow pooled connection cannot abort a full settings save.
   await prisma.$transaction(
     entries.map(([key, value]) =>
       prisma.setting.upsert({
@@ -79,6 +81,7 @@ export async function updateSettings(
         update: { value: value as never, updatedById: updatedById ?? null },
       }),
     ),
+    { maxWait: 15_000, timeout: 30_000 },
   );
   invalidateSettingsCache();
   return getSettings();

@@ -12,7 +12,6 @@ import { NotificationBell } from './NotificationBell';
 import {
   CartIcon,
   ChartIcon,
-  ClockIcon,
   CogIcon,
   GridIcon,
   HomeIcon,
@@ -102,7 +101,7 @@ export function OfflineBar() {
   }, []);
   if (!offline) return null;
   return (
-    <div className="sticky top-0 z-40 bg-red-600 py-1.5 text-center text-sm font-bold text-white">
+    <div className="sticky top-0 z-40 bg-green-700 py-1.5 text-center text-sm font-bold text-white" role="status">
       Offline — showing cached data. Actions will sync when you reconnect.
     </div>
   );
@@ -125,14 +124,14 @@ export interface NavItem {
 const NAV: Record<Role, NavItem[]> = {
   CUSTOMER: [
     { to: '/app/home', label: 'Home', icon: HomeIcon },
-    { to: '/app/search', label: 'Search', icon: SearchIcon },
-    { to: '/app/cart', label: 'Cart', icon: CartIcon, cart: true },
+    { to: '/app/menu', label: 'Menu', icon: SearchIcon },
     { to: '/app/orders', label: 'Orders', icon: ReceiptIcon },
-    { to: '/app/profile', label: 'Settings', icon: CogIcon },
+    { to: '/app/track', label: 'Track', icon: TruckIcon },
+    { to: '/app/cart', label: 'Cart', icon: CartIcon, cart: true },
+    { to: '/app/profile', label: 'Account', icon: UserIcon },
   ],
   KITCHEN: [
     { to: '/kitchen', label: 'Queue', icon: FlameIcon, emphasize: true },
-    { to: '/kitchen/history', label: 'History', icon: ClockIcon },
     { to: '/settings', label: 'Settings', icon: CogIcon },
   ],
   DRIVER: [
@@ -166,19 +165,19 @@ function SidebarLink({ item, cartCount }: { item: NavItem; cartCount: number }) 
           'flex items-center gap-3 rounded-xl px-3.5 transition',
           item.emphasize ? 'py-3.5 text-base font-bold' : 'py-3 text-[15px] font-semibold',
           isActive
-            ? 'bg-red-600 text-white shadow-sm shadow-red-600/25'
+            ? 'bg-green-700 text-white shadow-sm shadow-green-700/25'
             : item.emphasize
-              ? 'text-red-700 hover:bg-red-50'
+              ? 'text-green-800 hover:bg-green-50'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
         )
       }
     >
       {({ isActive }) => (
         <>
-          <Icon className={clsx('flex-none', item.emphasize ? 'h-6 w-6' : 'h-5 w-5', isActive ? 'text-white' : item.emphasize ? 'text-red-600' : 'text-slate-400')} />
+          <Icon className={clsx('flex-none', item.emphasize ? 'h-6 w-6' : 'h-5 w-5', isActive ? 'text-white' : item.emphasize ? 'text-green-700' : 'text-slate-400')} />
           <span className="flex-1 truncate">{item.label}</span>
           {item.cart && cartCount > 0 && (
-            <span className={clsx('rounded-full px-2 py-0.5 text-sm font-bold', isActive ? 'bg-white text-red-700' : 'bg-red-600 text-white')}>
+            <span className={clsx('rounded-full px-2 py-0.5 text-sm font-bold', isActive ? 'bg-white text-green-800' : 'bg-green-700 text-white')}>
               {cartCount}
             </span>
           )}
@@ -198,7 +197,7 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
       className={({ isActive }) =>
         clsx(
           'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1.5 transition',
-          isActive ? 'text-red-600' : 'text-slate-500',
+          isActive ? 'text-green-700' : 'text-slate-500',
         )
       }
     >
@@ -207,18 +206,18 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
           <span
             className={clsx(
               'absolute inset-x-4 top-0 h-0.5 rounded-full',
-              isActive ? 'bg-red-600' : 'bg-transparent',
+              isActive ? 'bg-green-700' : 'bg-transparent',
             )}
           />
           <span
             className={clsx(
               'relative flex items-center justify-center',
-              item.cart ? 'h-12 w-12 rounded-full bg-red-600 text-white shadow-lg shadow-red-600/25' : 'h-7 w-7',
+              item.cart ? 'h-12 w-12 rounded-full bg-green-700 text-white shadow-lg shadow-green-700/25' : 'h-7 w-7',
             )}
           >
             <Icon className={clsx(item.cart ? 'h-6 w-6' : item.emphasize ? 'h-7 w-7' : 'h-5 w-5')} />
             {item.cart && cartCount > 0 && (
-              <span className="absolute -right-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-sm font-bold text-white">
+              <span className="absolute -right-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-green-700 px-1 text-sm font-bold text-white">
                 {cartCount}
               </span>
             )}
@@ -250,7 +249,7 @@ export function AppShell() {
         <div className="flex items-center gap-3 px-5 pb-5 pt-6">
           <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-11 w-11 rounded-2xl" />
           <div className="min-w-0">
-            <p className="truncate text-base font-extrabold text-slate-900">ONYX</p>
+            <p className="truncate text-base font-extrabold text-slate-900">Waakye App</p>
             <p className="truncate text-xs font-medium text-slate-500">
               {roleLabel}
               {user ? ` · ${user.name}` : ''}
@@ -283,7 +282,7 @@ export function AppShell() {
             <Link to="/" className="flex min-w-0 items-center gap-2.5">
               <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-10 w-10 rounded-xl" />
               <div className="min-w-0">
-                <p className="truncate text-[15px] font-extrabold leading-tight text-slate-900">ONYX</p>
+                <p className="truncate text-[15px] font-extrabold leading-tight text-slate-900">Waakye App</p>
                 <p className="truncate text-xs leading-tight text-slate-500">
                   {user ? `${roleLabel} · ${user.name}` : 'Fresh food, delivered fast'}
                 </p>

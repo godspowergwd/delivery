@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { OrderDTO } from '@delivery/shared';
-import { ORDER_STATUS_FLOW, ORDER_STATUS_LABELS } from '@delivery/shared';
-import { estimateAddressCoordinates, KITCHEN_ANCHOR, formatDistance, etaText, distanceKm } from '../lib/live-map';
+import { ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, orderStatusIndex } from '@delivery/shared';
+import { estimateAddressCoordinates, formatDistance, distanceKm } from '../lib/live-map';
 import { fetchRoadRoute } from '../lib/route';
 import { useLiveMap } from './LiveMap';
 import { useOrderTracking } from '../lib/tracking';
@@ -18,10 +18,12 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
   const mapRef = useLiveMap(mapHostRef);
   const tracking = useOrderTracking(order.id);
 
-  const pickup = KITCHEN_ANCHOR;
   const dropoff = useMemo(
-    () => estimateAddressCoordinates(order.deliveryAddress, order.deliveryArea),
-    [order.deliveryAddress, order.deliveryArea],
+    () =>
+      typeof order.deliveryLatitude === 'number' && typeof order.deliveryLongitude === 'number'
+        ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude }
+        : estimateAddressCoordinates(order.deliveryAddress, order.deliveryArea),
+    [order.deliveryLatitude, order.deliveryLongitude, order.deliveryAddress, order.deliveryArea],
   );
 
   const orderTracking = tracking.data?.tracking;
@@ -69,7 +71,7 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
         )
       : null;
 
-  const stepIndex = ORDER_STATUS_FLOW.indexOf(order.status);
+  const stepIndex = orderStatusIndex(order.status);
   if (order.status === 'CANCELLED') return null;
 
   const isLive = order.status === 'OUT_FOR_DELIVERY';
@@ -82,7 +84,7 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
           <div className="map-overlay-card left-3 top-3 px-4 py-3">
             <p className="text-[13px] font-semibold text-slate-500">Your courier is on the way</p>
             <p className="text-lg font-extrabold leading-tight text-slate-900">
-              {remainingKm !== null ? `${etaText(remainingKm)} · ${formatDistance(remainingKm)}` : '—'}
+              {remainingKm !== null ? `${formatDistance(remainingKm)} away` : '—'}
             </p>
           </div>
         </div>
@@ -98,7 +100,7 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
           {ORDER_STATUS_FLOW.map((status, index) => (
             <span
               key={status}
-              className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${index <= stepIndex ? 'bg-red-600' : 'bg-slate-200'}`}
+              className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${index <= stepIndex ? 'bg-green-600' : 'bg-slate-200'}`}
             />
           ))}
         </div>

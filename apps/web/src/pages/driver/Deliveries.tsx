@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
 import type { OrderDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { fetchDriverDeliveries, postDriverAction } from '../../lib/driver-api';
@@ -7,30 +8,38 @@ import { useRealtimeSync, toast } from '../../lib/realtime';
 import { MapPinIcon } from '../../components/icons';
 import { Button, Card, EmptyState, Modal, Spinner, StatusPill, Textarea } from '../../components/ui';
 
-type Tab = 'mine' | 'available' | 'history';
+type Tab = 'available' | 'mine' | 'history';
+const TAB_ORDER: Tab[] = ['available', 'mine', 'history'];
+
+const TAB_LABELS: Record<Tab, string> = {
+  available: 'Available',
+  mine: 'Active',
+  history: 'Completed',
+};
 
 const TAB_PATHS: Record<Tab, string> = {
-  mine: '/driver/deliveries?status=ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY',
   available: '/driver/available',
+  mine: '/driver/deliveries?status=ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY',
   history: '/driver/deliveries?status=DELIVERED',
 };
 
 const EMPTY_HINTS: Record<Tab, string> = {
+  available: 'Orders appear here the moment the kitchen marks them out for delivery.',
   mine: 'Accept a delivery from the Available tab and it will appear here.',
-  available: 'Orders appear here the moment the kitchen marks them ready for pickup.',
   history: 'Deliveries you complete will be listed here.',
 };
 
 const EMPTY_TITLES: Record<Tab, string> = {
+  available: 'No deliveries waiting',
   mine: 'No active deliveries',
-  available: 'Nothing to pick up right now',
   history: 'No completed deliveries yet',
 };
 
 export default function DriverDeliveries() {
   useRealtimeSync();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>('mine');
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>('available');
   const [issueOrder, setIssueOrder] = useState<OrderDTO | null>(null);
 
   const { data: orders = [], isLoading, isError, error } = useQuery({
@@ -40,11 +49,16 @@ export default function DriverDeliveries() {
   });
 
   const action = useMutation({
-    mutationFn: ({ id, verb }: { id: string; verb: 'accept' | 'pickup' | 'complete' }) =>
+    mutationFn: ({ id, verb }: { id: string; verb: 'accept' | 'complete' }) =>
       postDriverAction(`/driver/deliveries/${id}/${verb}`),
-    onSuccess: (order) => {
+    onSuccess: (order, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
       void queryClient.invalidateQueries({ queryKey: ['driver-summary'] });
+      if (variables.verb === 'accept') {
+        toast(`${order.orderNumber} accepted — opening the delivery map`, 'success');
+        navigate(`/driver/map?order=${order.id}`);
+        return;
+      }
       toast(`Order ${order.orderNumber} → ${ORDER_STATUS_LABELS[order.status]}`, 'success');
     },
     onError: (err: Error) => toast(err.message, 'error'),
@@ -54,11 +68,11 @@ export default function DriverDeliveries() {
     <div className="space-y-4">
       <header>
         <h1 className="text-2xl font-extrabold text-slate-900">Deliveries</h1>
-        <p className="text-sm text-slate-500">Touch-first workflow: accept, pick up, deliver.</p>
+        <p className="text-sm text-slate-500">Accept a delivery and the full-screen map opens right away.</p>
       </header>
 
       <div className="flex flex-wrap gap-2" role="tablist">
-        {(['mine', 'available', 'history'] as Tab[]).map((t) => (
+        {TAB_ORDER.map((t) => (
           <button
             key={t}
             role="tab"
@@ -66,11 +80,11 @@ export default function DriverDeliveries() {
             onClick={() => setTab(t)}
             className={
               tab === t
-                ? 'rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white'
+                ? 'rounded-full bg-green-700 px-4 py-2 text-sm font-bold text-white'
                 : 'rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200'
             }
           >
-            {t === 'mine' ? 'My deliveries' : t === 'available' ? 'Available' : 'History'}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
@@ -117,14 +131,13 @@ export default function DriverDeliveries() {
                     Accept delivery
                   </Button>
                 )}
-                {tab === 'mine' && order.status === 'READY' && (
-                  <Button
-                    size="sm"
-                    loading={action.isPending && action.variables?.id === order.id}
-                    onClick={() => action.mutate({ id: order.id, verb: 'pickup' })}
+                {tab === 'mine' && (
+                  <Link
+                    to={`/driver/map?order=${order.id}`}
+                    className="rounded-2xl bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
                   >
-                    Start delivery
-                  </Button>
+                    Open map
+                  </Link>
                 )}
                 {tab === 'mine' && order.status === 'OUT_FOR_DELIVERY' && (
                   <Button
@@ -132,7 +145,7 @@ export default function DriverDeliveries() {
                     loading={action.isPending && action.variables?.id === order.id}
                     onClick={() => action.mutate({ id: order.id, verb: 'complete' })}
                   >
-                    Mark delivered
+                    Complete delivery
                   </Button>
                 )}
                 {tab === 'mine' && (

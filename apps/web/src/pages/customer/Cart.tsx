@@ -43,7 +43,7 @@ export function Cart() {
           <h1 className="text-2xl font-extrabold text-slate-900 lg:text-3xl">
             Cart <span className="ml-2 text-base font-semibold text-slate-500">({itemCount} {itemCount === 1 ? 'item' : 'items'})</span>
           </h1>
-          <button onClick={clear} className="text-sm font-semibold text-red-700 hover:text-red-800 hover:underline">
+          <button onClick={clear} className="text-sm font-semibold text-green-700 hover:text-red-800 hover:underline">
             Clear all
           </button>
         </div>
@@ -77,7 +77,7 @@ export function Cart() {
                   onChange={(event) => setNotes(line.productId, event.target.value)}
                   placeholder="Item note (optional)"
                   maxLength={200}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-800 placeholder:text-slate-500 outline-none focus:border-red-500"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-800 placeholder:text-slate-500 outline-none focus:border-green-600"
                 />
                 <div className="mt-auto flex items-center justify-between">
                   <div className="flex items-center gap-2">

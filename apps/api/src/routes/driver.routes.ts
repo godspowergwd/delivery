@@ -16,6 +16,7 @@ import {
 import { changeOrderStatus, statusLabel } from '../services/order.service';
 import { logActivity } from '../services/activity-log.service';
 import { notifyAdmins } from '../services/notification.service';
+import { emitToRole } from '../realtime/socket';
 
 export const driverRouter = Router();
 
@@ -48,7 +49,7 @@ driverRouter.get(
       prisma.order.count({
         where: { driverId: driver.id, status: { in: ['ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'] } },
       }),
-      prisma.order.count({ where: { status: 'READY', driverId: null } }),
+      prisma.order.count({ where: { status: 'OUT_FOR_DELIVERY', driverId: null } }),
       prisma.order.count({
         where: { driverId: driver.id, status: 'DELIVERED', deliveredAt: { gte: todayStart } },
       }),
@@ -91,13 +92,13 @@ driverRouter.get(
   }),
 );
 
-/** GET /api/driver/available - packed orders waiting for a driver (pickup pool). */
+/** GET /api/driver/available - out-for-delivery orders still unclaimed. */
 driverRouter.get(
   '/available',
   asyncHandler(async (_req, res) => {
     const orders = await prisma.order.findMany({
-      where: { status: 'READY', driverId: null },
-      orderBy: { readyAt: 'asc' },
+      where: { status: 'OUT_FOR_DELIVERY', driverId: null },
+      orderBy: { createdAt: 'asc' },
       include: ORDER_INCLUDE,
       take: 50,
     });
@@ -106,7 +107,13 @@ driverRouter.get(
   }),
 );
 
-/** POST /api/driver/deliveries/:id/accept - claim a ready order (auto dispatch pool). */
+/**
+ * POST /api/driver/deliveries/:id/accept - claim an out-for-delivery order.
+ *
+ * The guarded re-check inside the transaction means two drivers tapping
+ * Accept at the same moment can never both win. On success every open driver
+ * screen is notified so the pool stays in sync without a manual refresh.
+ */
 driverRouter.post(
   '/deliveries/:id/accept',
   writeLimiter,
@@ -119,14 +126,16 @@ driverRouter.post(
     if (existing.driverId && existing.driverId !== driver.id) {
       throw conflict('Another driver already accepted this delivery.');
     }
-    if (existing.status !== 'READY') {
-      throw conflict(`Only orders that are ready for pickup can be accepted (currently "${statusLabel(existing.status)}").`);
+    if (existing.status !== 'OUT_FOR_DELIVERY') {
+      throw conflict(
+        `Only orders out for delivery can be accepted (currently "${statusLabel(existing.status)}").`,
+      );
     }
 
     const order = await prisma.$transaction(async (tx) => {
       // Re-check inside the transaction so two drivers cannot claim the same order.
       const claimable = await tx.order.findFirst({
-        where: { id: existing.id, driverId: null, status: 'READY' },
+        where: { id: existing.id, driverId: null, status: 'OUT_FOR_DELIVERY' },
         select: { id: true },
       });
       if (!claimable) throw conflict('Another driver already accepted this delivery.');
@@ -138,35 +147,30 @@ driverRouter.post(
       await tx.orderStatusEvent.create({
         data: {
           orderId: existing.id,
-          status: 'READY',
+          status: 'OUT_FOR_DELIVERY',
           note: `Accepted for delivery by ${driver.name}`,
           changedById: driver.id,
         },
       });
       return tx.order.findUniqueOrThrow({ where: { id: existing.id }, include: ORDER_INCLUDE });
-    });
+    }, { maxWait: 10_000, timeout: 30_000 });
 
-    res.json({ data: serializeOrder(order) });
-  }),
-);
+    // Every open driver screen drops the order from its pool immediately.
+    const dto = serializeOrder(order);
+    emitToRole('DRIVER', 'order:updated', { order: dto, previousStatus: dto.status });
 
-/** POST /api/driver/deliveries/:id/pickup - READY -> OUT_FOR_DELIVERY ("On the way"). */
-driverRouter.post(
-  '/deliveries/:id/pickup',
-  writeLimiter,
-  asyncHandler(async (req, res) => {
-    const { id } = idParamSchema.parse(req.params);
-    const driver = getAuth(req).user;
-    await requireAssignedOrder(id, driver);
-
-    const updated = await changeOrderStatus({
-      orderId: id,
-      to: 'OUT_FOR_DELIVERY',
-      actor: driver,
-      note: 'Driver picked up the order and is on the way',
+    await logActivity({
+      action: 'DRIVER_ACCEPTED',
+      entity: 'Order',
+      entityId: order.id,
+      description: `Driver ${driver.name} accepted ${order.orderNumber} for delivery`,
+      userId: driver.id,
+      actorEmail: driver.email,
+      actorRole: driver.role,
       request: req,
     });
-    res.json({ data: serializeOrder(updated) });
+
+    res.json({ data: dto });
   }),
 );
 

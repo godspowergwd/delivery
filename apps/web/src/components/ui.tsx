@@ -24,10 +24,10 @@ import {
 } from './icons';
 
 /* ===========================================================================
-   ONYX UI kit — one design language for every screen.
+   Waakye App UI kit — one design language for every screen.
 
-   Rules: white surfaces, soft shadows, large radii, 44px+ touch targets, red
-   primary actions, green confirmations, ripple + lift feedback, no glassmorphism
+   Rules: white surfaces, soft shadows, large radii, 44px+ touch targets, GREEN
+   primary actions, red accents, ripple + lift feedback, no glassmorphism
    and no emoji anywhere.
    =========================================================================== */
 
@@ -39,7 +39,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const BUTTON_VARIANTS: Record<NonNullable<ButtonProps['variant']>, string> = {
-  primary: 'bg-red-600 text-white shadow-brand-soft hover:bg-red-700 hover:shadow-brand active:bg-red-800',
+  primary: 'bg-green-700 text-white shadow-green hover:bg-green-800 active:bg-green-900',
   secondary:
     'border border-slate-200 bg-white text-slate-800 shadow-soft hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100',
   success: 'bg-green-600 text-white shadow-green hover:bg-green-700 active:bg-green-800',
@@ -122,7 +122,7 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <span
       className={clsx(
-        'inline-block animate-spin rounded-full border-2 border-slate-200 border-t-red-600',
+        'inline-block animate-spin rounded-full border-2 border-slate-200 border-t-green-700',
         className ?? 'h-5 w-5',
       )}
       role="status"

@@ -25,14 +25,18 @@ export function setTokens(accessToken: string | null, csrfToken?: string | null)
 }
 
 export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-    readonly details?: Array<{ path: string; message: string }>,
-  ) {
+  readonly status: number;
+  readonly code: string;
+  readonly message: string;
+  readonly details?: Array<{ path: string; message: string }>;
+
+  constructor(status: number, code: string, message: string, details?: Array<{ path: string; message: string }>) {
     super(message);
     this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.message = message;
+    this.details = details;
   }
 }
 
@@ -71,7 +75,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (res.status === 401 && retry && token) {
     const refreshed = await refreshSession();
     if (refreshed) return request<T>(path, { ...options, retry: false });
-    setTokens(null, null);
+    setTokens(null);
     window.dispatchEvent(new Event('ds:session-expired'));
     throw new ApiError(401, 'SESSION_EXPIRED', 'Your session expired. Please sign in again.');
   }

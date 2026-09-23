@@ -1,7 +1,13 @@
 /**
- * Order lifecycle.
+ * Order lifecycle - the single source of truth for every interface.
  *
- * RECEIVED -> ACCEPTED -> PREPARING -> READY -> OUT_FOR_DELIVERY -> DELIVERED
+ * RECEIVED ("ORDER PLACED") -> ACCEPTED ("ORDER ACCEPTED") -> PREPARING
+ *   ("SERVING") -> OUT_FOR_DELIVERY ("OUT FOR DELIVERY") -> DELIVERED
+ *
+ * READY stays only as a legacy technical state for orders packed by the old
+ * workflow: it renders as "Serving" and jumps straight to OUT_FOR_DELIVERY.
+ * New orders never pass through it.
+ *
  * CANCELLED can be reached from any non-terminal status by the customer, the
  * kitchen (rejection) or an administrator (override).
  */
@@ -17,21 +23,20 @@ export const ORDER_STATUSES = [
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-/** The happy-path delivery flow, in order (CANCELLED is excluded on purpose). */
+/** The happy-path delivery flow, in order (CANCELLED/legacy READY excluded). */
 export const ORDER_STATUS_FLOW: OrderStatus[] = [
   'RECEIVED',
   'ACCEPTED',
   'PREPARING',
-  'READY',
   'OUT_FOR_DELIVERY',
   'DELIVERED',
 ];
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  RECEIVED: 'Order Received',
-  ACCEPTED: 'Accepted',
-  PREPARING: 'Preparing',
-  READY: 'Ready',
+  RECEIVED: 'Order Placed',
+  ACCEPTED: 'Order Accepted',
+  PREPARING: 'Serving',
+  READY: 'Serving',
   OUT_FOR_DELIVERY: 'Out for Delivery',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
@@ -39,23 +44,26 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 
 export const ORDER_STATUS_DESCRIPTIONS: Record<OrderStatus, string> = {
   RECEIVED: 'Your order reached the kitchen and is waiting to be accepted.',
-  ACCEPTED: 'The kitchen accepted your order and will start cooking shortly.',
-  PREPARING: 'Your food is being prepared right now.',
-  READY: 'Your order is ready and waiting to be dispatched.',
+  ACCEPTED: 'The kitchen accepted your order and will start serving shortly.',
+  PREPARING: 'Your waakye is being served right now.',
+  READY: 'Your waakye is being served right now.',
   OUT_FOR_DELIVERY: 'Your order is on the way to you.',
   DELIVERED: 'Enjoy your meal! This order has been delivered.',
   CANCELLED: 'This order was cancelled.',
 };
 
-/** Tailwind-friendly status colours (single source of truth for both apps). */
+/**
+ * Status -> StatusPill tone. Values must be keys of STATUS_TONE_CLASSES in
+ * apps/web/src/components/ui.tsx (green/red/white brand palette).
+ */
 export const ORDER_STATUS_TONE: Record<OrderStatus, string> = {
-  RECEIVED: 'amber',
-  ACCEPTED: 'sky',
-  PREPARING: 'violet',
-  READY: 'teal',
-  OUT_FOR_DELIVERY: 'indigo',
-  DELIVERED: 'emerald',
-  CANCELLED: 'rose',
+  RECEIVED: 'warning',
+  ACCEPTED: 'success',
+  PREPARING: 'success',
+  READY: 'success',
+  OUT_FOR_DELIVERY: 'brand',
+  DELIVERED: 'success',
+  CANCELLED: 'danger',
 };
 
 export const TERMINAL_STATUSES: OrderStatus[] = ['DELIVERED', 'CANCELLED'];
@@ -68,7 +76,11 @@ export function isTerminalStatus(status: OrderStatus): boolean {
   return TERMINAL_STATUSES.includes(status);
 }
 
+/** Statuses that render as the "SERVING" step (legacy packed included). */
+const SERVING_EQUIVALENT: OrderStatus[] = ['PREPARING', 'READY'];
+
 export function orderStatusIndex(status: OrderStatus): number {
+  if (SERVING_EQUIVALENT.includes(status)) return ORDER_STATUS_FLOW.indexOf('PREPARING');
   return ORDER_STATUS_FLOW.indexOf(status);
 }
 

@@ -56,7 +56,7 @@ export function Register() {
       </Card>
       <p className="mt-5 text-center text-sm text-slate-500">
         Already registered?{' '}
-        <Link to="/login" className="font-semibold text-red-600 hover:underline">
+        <Link to="/login" className="font-semibold text-green-700 hover:underline">
           Sign in
         </Link>
       </p>

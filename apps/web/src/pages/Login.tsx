@@ -38,8 +38,8 @@ export function Login() {
       )}
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
         <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-16 w-16 rounded-2xl" />
-        <h1 className="text-2xl font-extrabold text-slate-900">Welcome back</h1>
-        <p className="text-sm text-slate-500">Sign in to order, cook and manage — all in one app.</p>
+        <h1 className="text-2xl font-extrabold text-slate-900">Waakye App</h1>
+        <p className="text-sm text-slate-500">Hot waakye around Malam & Gbawe — sign in to order.</p>
       </div>
       <Card>
         <form onSubmit={submit} className="space-y-4">
@@ -71,7 +71,7 @@ export function Login() {
               type="checkbox"
               checked={rememberMe}
               onChange={(event) => setRememberMe(event.target.checked)}
-              className="h-5 w-5 rounded border-slate-300 bg-slate-200 accent-red-600"
+              className="h-5 w-5 rounded border-slate-300 bg-slate-200 accent-green-700"
             />
             Keep me signed in on this device
           </label>

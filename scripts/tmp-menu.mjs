@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+const p = 'C:/Users/user/Downloads/DELIVERY SYSTEM/apps/web/src/pages/customer/Menu.tsx';
+let s = fs.readFileSync(p, 'utf8');
+const a = 'Search meals, drinks, snacks';
+const b = 'Search waakye, rice, sobolo';
+console.log('hasA=' + s.includes(a));
+s = s.split(a).join(b);
+const c = 'Most popular</option>';
+const d = 'Most ordered</option>';
+console.log('hasC=' + s.includes(c));
+s = s.split(c).join(d);
+fs.writeFileSync(p, s);
+console.log('done');

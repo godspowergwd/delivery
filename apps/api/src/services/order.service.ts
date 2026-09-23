@@ -9,8 +9,10 @@ import {
 } from '@delivery/shared';
 import { prisma, decimalToNumber } from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { logger } from '../lib/logger';
 import { logActivity } from './activity-log.service';
 import { getSettings } from './settings.service';
+import { isWithinDeliveryZone } from './geo.service';
 import { notifyAdmins, notifyCustomer, notifyDrivers, notifyKitchen, notifyUser } from './notification.service';
 import { emitToRole, emitToUser } from '../realtime/socket';
 import { ORDER_INCLUDE, serializeOrder, type OrderWithRelations } from './serializers';
@@ -203,7 +205,7 @@ async function persistOrder(params: {
         }
 
         return order.id;
-      });
+      }, { maxWait: 10_000, timeout: 30_000 });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         orderId = null;
@@ -216,12 +218,52 @@ async function persistOrder(params: {
   if (!orderId) throw conflict('Could not allocate an order number. Please try again.');
   return orderId;
 }
+/**
+ * Service-area gate for checkout.
+ *
+ * Coordinates captured on the customer's device are authoritative, so an order
+ * from outside the configured delivery radius is refused here as well as in the
+ * browser. Customers who declined GPS are not blocked — the kitchen confirms
+ * their street address by phone — but they are told up front in the UI.
+ */
+async function assertDeliverableTo(
+  latitude?: number | null,
+  longitude?: number | null,
+): Promise<void> {
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+  // Saved addresses without GPS are stored as 0,0 and must not be read as a real point.
+  if (latitude === 0 && longitude === 0) return;
+
+  const settings = await getSettings();
+  const zone = isWithinDeliveryZone(
+    latitude,
+    longitude,
+    settings.businessLatitude,
+    settings.businessLongitude,
+    settings.deliveryRadiusKm,
+  );
+  if (zone.within) return;
+
+  logger.warn('Order rejected: delivery location outside the service area', {
+    latitude,
+    longitude,
+    distanceKm: Number(zone.distanceKm.toFixed(2)),
+    radiusKm: settings.deliveryRadiusKm,
+  });
+  throw badRequest(
+    zone.message ??
+      `We only deliver within ${settings.deliveryRadiusKm} km of ${settings.businessName}.`,
+  );
+}
+
 export async function createOrder(params: {
   user: SessionUser;
   input: CreateOrderInput;
   request?: Request;
 }): Promise<OrderWithRelations> {
   const { user, input, request } = params;
+  await assertDeliverableTo(input.deliveryLatitude, input.deliveryLongitude);
   const draft = await buildOrderDraft(input);
   const orderId = await persistOrder({ user, input, draft });
   const fullOrder = await getOrderById(orderId);
@@ -309,7 +351,7 @@ const CUSTOMER_MESSAGES: Partial<Record<OrderStatusType, { title: string; body: 
     title: 'Order accepted',
     body: 'The kitchen accepted your order and will start preparing it shortly.',
   },
-  PREPARING: { title: 'Being prepared', body: 'Your food is on the stove right now.' },
+  PREPARING: { title: 'Order being served', body: 'The kitchen is preparing your meal right now.' },
   READY: { title: 'Order ready', body: 'Your order is ready and waiting to be dispatched.' },
   OUT_FOR_DELIVERY: {
     title: 'Out for delivery',
@@ -339,7 +381,7 @@ function assertTransitionAllowed(
     }
     // Drivers may only advance their own assigned deliveries one step at a time.
     const allowedByState: Partial<Record<OrderStatusType, OrderStatusType[]>> = {
-      READY: ['OUT_FOR_DELIVERY'],
+      // Drivers claim out-for-delivery orders, then complete them.
       OUT_FOR_DELIVERY: ['DELIVERED'],
     };
     const allowed = allowedByState[order.status] ?? [];
@@ -363,11 +405,14 @@ export function allowedKitchenTransitions(current: OrderStatus): OrderStatusType
     case OrderStatus.ACCEPTED:
       return ['PREPARING', 'CANCELLED'];
     case OrderStatus.PREPARING:
-      return ['READY', 'CANCELLED'];
+      // Simplified lifecycle: serving goes straight out for delivery.
+      return ['OUT_FOR_DELIVERY', 'CANCELLED'];
     case OrderStatus.READY:
+      // Legacy packed orders dispatch straight to the driver.
       return ['OUT_FOR_DELIVERY', 'CANCELLED'];
     case OrderStatus.OUT_FOR_DELIVERY:
-      return ['DELIVERED'];
+      // Only the assigned driver completes a delivery (admins can override).
+      return [];
     default:
       return [];
   }
@@ -423,7 +468,7 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
       },
     });
     return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE });
-  });
+  }, { maxWait: 10_000, timeout: 30_000 });
 
   const dto = serializeOrder(updated);
   emitToRole('KITCHEN', 'order:updated', { order: dto, previousStatus: order.status });
@@ -482,10 +527,10 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
         link: '/kitchen',
       });
     }
-    if (to === 'READY') {
+    if (to === 'OUT_FOR_DELIVERY') {
       await notifyDrivers({
-        title: `Pickup available • ${order.orderNumber}`,
-        body: 'An order is packed and waiting for a driver. Open Deliveries to accept it.',
+        title: `New delivery • ${order.orderNumber}`,
+        body: 'The kitchen sent an order out for delivery. Open Deliveries to accept it.',
         type: 'ORDER_UPDATE',
         audience: 'DRIVER',
         orderId: order.id,
@@ -556,7 +601,7 @@ export async function assignDriver(params: {
       },
     });
     return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE });
-  });
+  }, { maxWait: 10_000, timeout: 30_000 });
 
   const dto = serializeOrder(updated);
   emitToRole('KITCHEN', 'order:updated', { order: dto, previousStatus: order.status });

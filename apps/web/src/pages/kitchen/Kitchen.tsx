@@ -1,31 +1,36 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import type { OrderDTO, Paginated } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { toast, useRealtimeSync } from '../../lib/realtime';
-import { Button, Card, EmptyState, Modal, Spinner, StatusPill } from '../../components/ui';
+import { Button, Card, EmptyState, Spinner, StatusPill } from '../../components/ui';
 import {
   InboxIcon,
   FlameIcon,
   ChefHatIcon,
-  PackageIcon,
   CheckCircleIcon,
   XCircleIcon,
+  TruckIcon,
   WalletIcon,
 } from '../../components/icons';
 import type { ComponentType } from 'react';
-import { PrepTimer } from '../../components/PrepTimer';
 
 const LIVE_STATUSES = ['RECEIVED', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'] as const;
-const STATUS_FILTERS = ['all', ...LIVE_STATUSES] as const;
+
+/** The three queues of the kitchen main screen: New / Active / Completed. */
+type QueueTab = 'new' | 'active' | 'completed';
+const QUEUE_TABS: Array<{ id: QueueTab; label: string; statuses: string }> = [
+  { id: 'new', label: 'New orders', statuses: 'RECEIVED' },
+  { id: 'active', label: 'Active', statuses: 'ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY' },
+  { id: 'completed', label: 'Completed', statuses: 'DELIVERED,CANCELLED' },
+];
 
 interface KitchenSummary {
   incoming: number;
   active: number;
-  preparing: number;
-  ready: number;
+  serving: number;
+  outForDelivery: number;
   completedToday: number;
   cancelledToday: number;
   todayRevenue: number;
@@ -34,9 +39,8 @@ interface KitchenSummary {
 export function KitchenQueue() {
   useRealtimeSync();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState('RECEIVED');
-  const [rejectOrder, setRejectOrder] = useState<OrderDTO | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [tab, setTab] = useState<QueueTab>('new');
+  const activeStatuses = QUEUE_TABS.find((entry) => entry.id === tab)?.statuses ?? 'RECEIVED';
 
   const { data: summary } = useQuery({
     queryKey: ['kitchen-summary'],
@@ -45,11 +49,8 @@ export function KitchenQueue() {
   });
 
   const { data: page, isLoading } = useQuery({
-    queryKey: ['kitchen-orders', statusFilter],
-    queryFn: () =>
-      statusFilter === 'all'
-        ? api.get<Paginated<OrderDTO>>('/kitchen/orders')
-        : api.get<Paginated<OrderDTO>>(`/kitchen/orders?status=${statusFilter}`),
+    queryKey: ['kitchen-orders', activeStatuses],
+    queryFn: () => api.get<Paginated<OrderDTO>>(`/kitchen/orders?status=${activeStatuses}`),
     refetchInterval: 10_000,
   });
 
@@ -65,18 +66,6 @@ export function KitchenQueue() {
     }
   }
 
-  async function rejectOrderNow() {
-    if (!rejectOrder || !rejectReason.trim()) return;
-    try {
-      await api.post(`/kitchen/orders/${rejectOrder.id}/reject`, { reason: rejectReason });
-      void queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] });
-      void queryClient.invalidateQueries({ queryKey: ['kitchen-summary'] });
-      setRejectOrder(null);
-      setRejectReason('');
-    } catch (error: any) {
-      toast(error instanceof Error ? error.message : 'Action failed', 'error');
-    }
-  }
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -90,7 +79,7 @@ export function KitchenQueue() {
       {summary && (
         <>
           <Card className="flex items-center gap-4 !border-red-200 !bg-red-50">
-            <span className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-red-600 text-white">
+            <span className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-green-700 text-white">
               <WalletIcon className="h-6 w-6" />
             </span>
             <div className="min-w-0">
@@ -100,61 +89,52 @@ export function KitchenQueue() {
           </Card>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <KitchenStat label="Incoming" value={summary.incoming} icon={InboxIcon} tile="bg-red-50 text-red-700" />
-            <KitchenStat label="Active" value={summary.active} icon={FlameIcon} tile="bg-red-50 text-red-600" />
-            <KitchenStat label="Preparing" value={summary.preparing} icon={ChefHatIcon} tile="bg-red-100 text-red-800" />
-            <KitchenStat label="Ready" value={summary.ready} icon={PackageIcon} tile="bg-red-50 text-red-700" />
-            <KitchenStat label="Done today" value={summary.completedToday} icon={CheckCircleIcon} tile="bg-red-50 text-red-700" />
+            <KitchenStat label="Active" value={summary.active} icon={FlameIcon} tile="bg-green-50 text-green-700" />
+            <KitchenStat label="Serving" value={summary.serving} icon={ChefHatIcon} tile="bg-green-100 text-green-800" />
+            <KitchenStat label="Out for delivery" value={summary.outForDelivery} icon={TruckIcon} tile="bg-green-50 text-green-700" />
+            <KitchenStat label="Done today" value={summary.completedToday} icon={CheckCircleIcon} tile="bg-green-50 text-green-700" />
             <KitchenStat label="Cancelled" value={summary.cancelledToday} icon={XCircleIcon} tile="bg-slate-100 text-slate-500" />
           </div>
         </>
       )}
 
-      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1">
-        {STATUS_FILTERS.map((f) => (
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1" role="tablist" aria-label="Order queues">
+        {QUEUE_TABS.map((entry) => (
           <button
-            key={f}
-            onClick={() => setStatusFilter(f)}
-            className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-semibold whitespace-nowrap ${
-              statusFilter === f ? 'bg-red-600 text-white' : 'text-slate-600 hover:text-slate-800'
+            key={entry.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === entry.id}
+            onClick={() => setTab(entry.id)}
+            className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-bold whitespace-nowrap ${
+              tab === entry.id ? 'bg-green-700 text-white shadow-soft' : 'text-slate-600 hover:text-slate-800'
             }`}
           >
-            {f === 'all' ? 'All Live' : ORDER_STATUS_LABELS[f as keyof typeof ORDER_STATUS_LABELS]}
+            {entry.label}
           </button>
         ))}
       </div>
 
       {orders.length === 0 ? (
-        <EmptyState title="No orders in this queue" hint="New orders will appear here automatically." />
+        <EmptyState
+          title={
+            tab === 'new' ? 'No new orders' : tab === 'active' ? 'No active orders' : 'No completed orders yet'
+          }
+          hint={
+            tab === 'new'
+              ? 'New orders appear here the moment a customer checks out.'
+              : tab === 'active'
+                ? 'Accepted and serving orders show up here.'
+                : 'Delivered and cancelled orders are kept here for reference.'
+          }
+        />
       ) : (
         <div className="space-y-3">
           {orders.map((order) => (
-            <KitchenOrderCard
-              key={order.id}
-              order={order}
-              onAdvance={advance}
-              onReject={() => setRejectOrder(order)}
-            />
+            <KitchenOrderCard key={order.id} order={order} onAdvance={advance} />
           ))}
         </div>
       )}
-      <Modal open={!!rejectOrder} onClose={() => setRejectOrder(null)} title="Reject order">
-        <p className="mb-3 text-sm text-slate-700">
-          Tell the customer why order <span className="font-bold">{rejectOrder?.orderNumber}</span> was rejected.
-        </p>
-        <textarea
-          value={rejectReason}
-          onChange={(e) => setRejectReason(e.target.value)}
-          placeholder="Reason for rejection..."
-          maxLength={200}
-          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/15"
-        />
-        <div className="mt-4 flex gap-2 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setRejectOrder(null)}>Cancel</Button>
-          <Button variant="danger" size="sm" onClick={rejectOrderNow} disabled={!rejectReason.trim()}>
-            Reject order
-          </Button>
-        </div>
-      </Modal>
     </div>
   );
 }
@@ -178,11 +158,10 @@ function KitchenStat({ label, value, icon: Icon, tile }: {
 }
 
 function KitchenOrderCard({
-  order, onAdvance, onReject,
+  order, onAdvance,
 }: {
   order: OrderDTO;
   onAdvance: (id: string, action: string, note?: string) => void;
-  onReject: () => void;
 }) {
   const isLive = (LIVE_STATUSES as readonly string[]).includes(order.status);
   const actions = kitchenActions(order.status);
@@ -191,19 +170,12 @@ function KitchenOrderCard({
     <Card className="border-slate-200">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <Link to="/kitchen/history" className="text-sm font-extrabold text-slate-900">
-            {order.orderNumber}
-          </Link>
+          <p className="text-sm font-extrabold text-slate-900">{order.orderNumber}</p>
           <p className="text-sm text-slate-500">
             {order.customerName} · {formatRelativeTime(order.createdAt)}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
-          {isLive && (
-            <PrepTimer startedAt={order.preparingAt ?? order.createdAt} targetMinutes={Math.max(...order.items.map(() => 15))} />
-          )}
-        </div>
+        <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
       </div>
 
       <div className="space-y-1.5 mb-3">
@@ -241,23 +213,16 @@ function kitchenActions(status: string): Array<{
   variant?: 'primary' | 'ghost' | 'outline' | 'danger' | 'success';
   note?: string;
 }> {
+  // Exactly three kitchen actions in the simple lifecycle:
+  // ORDER ACCEPTED -> SERVING -> OUT FOR DELIVERY (the driver completes delivery).
   switch (status) {
     case 'RECEIVED':
-      return [
-        { label: 'Accept', endpoint: 'accept', note: 'Accepted by the kitchen' },
-        { label: 'Reject', endpoint: 'reject', variant: 'danger' },
-      ];
+      return [{ label: 'Accept order', endpoint: 'accept', note: 'Accepted by the kitchen' }];
     case 'ACCEPTED':
-      return [
-        { label: 'Start preparing', endpoint: 'preparing', note: 'Preparation started' },
-        { label: 'Reject', endpoint: 'reject', variant: 'danger' },
-      ];
+      return [{ label: 'Start serving', endpoint: 'preparing', note: 'Serving started' }];
     case 'PREPARING':
-      return [{ label: 'Mark ready', endpoint: 'ready', note: 'Order ready for dispatch' }];
-    case 'READY':
-      return [{ label: 'Dispatch', endpoint: 'dispatch', note: 'Out for delivery' }];
-    case 'OUT_FOR_DELIVERY':
-      return [{ label: 'Complete', endpoint: 'complete', note: 'Order completed', variant: 'success' }];
+    case 'READY': // legacy orders packed before the simplified workflow
+      return [{ label: 'Out for delivery', endpoint: 'dispatch', note: 'Out for delivery' }];
     default:
       return [];
   }

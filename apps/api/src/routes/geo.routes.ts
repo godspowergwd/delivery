@@ -40,11 +40,18 @@ geoRouter.get(
     }).parse(req.query);
 
     const settings = await getSettings();
-    const result = isWithinDeliveryZone(latitude, longitude, settings.businessLatitude, settings.businessLongitude);
+    const result = isWithinDeliveryZone(
+      latitude,
+      longitude,
+      settings.businessLatitude,
+      settings.businessLongitude,
+      settings.deliveryRadiusKm,
+    );
 
     res.json({
       within: result.within,
       distanceKm: Math.round(result.distanceKm * 100) / 100,
+      radiusKm: settings.deliveryRadiusKm,
       message: result.message,
     });
   }),
@@ -63,7 +70,7 @@ geoRouter.get(
     const kitchen = { lat: settings.businessLatitude, lng: settings.businessLongitude };
     res.json({
       kitchen,
-      radiusKm: 15, // This could be a configurable setting in the future
+      radiusKm: settings.deliveryRadiusKm,
     });
   }),
 );

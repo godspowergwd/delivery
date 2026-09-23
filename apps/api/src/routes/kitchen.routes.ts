@@ -10,7 +10,7 @@ import {
   type SessionUser,
 } from '../middleware/authenticate';
 import { prisma } from '../lib/prisma';
-import { badRequest, forbidden } from '../lib/errors';
+import { badRequest } from '../lib/errors';
 import {
   allowedKitchenTransitions,
   buildOrderWhere,
@@ -31,10 +31,6 @@ const statusBodySchema = z.object({
   note: z.string().trim().max(200).optional(),
 });
 
-const rejectBodySchema = z.object({
-  reason: z.string().trim().min(3, 'Tell the customer why this order was rejected').max(200),
-});
-
 /** GET /api/kitchen/summary - counts and revenue for the kitchen dashboard cards. */
 kitchenRouter.get(
   '/summary',
@@ -44,12 +40,12 @@ kitchenRouter.get(
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const [incoming, active, preparing, ready, completedToday, cancelledToday, todayRevenue] =
+    const [incoming, active, serving, outForDelivery, completedToday, cancelledToday, todayRevenue] =
       await Promise.all([
         prisma.order.count({ where: { status: 'RECEIVED' } }),
-        prisma.order.count({ where: { status: { in: ['ACCEPTED', 'PREPARING'] } } }),
-        prisma.order.count({ where: { status: 'PREPARING' } }),
-        prisma.order.count({ where: { status: 'READY' } }),
+        prisma.order.count({ where: { status: { in: ['ACCEPTED', 'PREPARING', 'READY'] } } }),
+        prisma.order.count({ where: { status: { in: ['PREPARING', 'READY'] } } }),
+        prisma.order.count({ where: { status: 'OUT_FOR_DELIVERY' } }),
         prisma.order.count({ where: { status: 'DELIVERED', createdAt: { gte: todayStart } } }),
         prisma.order.count({ where: { status: 'CANCELLED', createdAt: { gte: todayStart } } }),
         prisma.order.aggregate({
@@ -61,8 +57,8 @@ kitchenRouter.get(
     res.json({
       incoming,
       active,
-      preparing,
-      ready,
+      serving,
+      outForDelivery,
       completedToday,
       cancelledToday,
       todayRevenue: todayRevenue._sum.total ? Number(todayRevenue._sum.total) : 0,
@@ -189,30 +185,6 @@ kitchenRouter.post(
   }),
 );
 
-/** POST /api/kitchen/orders/:id/reject - requires a reason for the customer. */
-kitchenRouter.post(
-  '/orders/:id/reject',
-  authenticate,
-  requireKitchenOrAdmin,
-  asyncHandler(async (req, res) => {
-    const { id } = idParamSchema.parse(req.params);
-    const body = rejectBodySchema.parse(req.body);
-    const actor = getAuth(req).user;
-    const order = await getOrderById(id);
-    if (actor.role !== 'ADMIN' && !allowedKitchenTransitions(order.status).includes('CANCELLED')) {
-      throw forbidden('That order is too far along to be rejected.');
-    }
-    const updated = await changeOrderStatus({
-      orderId: id,
-      to: 'CANCELLED',
-      actor,
-      note: body.reason,
-      request: req,
-    });
-    res.json({ order: serializeOrder(updated) });
-  }),
-);
-
 /** POST /api/kitchen/orders/:id/preparing */
 kitchenRouter.post(
   '/orders/:id/preparing',
@@ -231,25 +203,7 @@ kitchenRouter.post(
   }),
 );
 
-/** POST /api/kitchen/orders/:id/ready */
-kitchenRouter.post(
-  '/orders/:id/ready',
-  authenticate,
-  requireKitchenOrAdmin,
-  asyncHandler(async (req, res) => {
-    const { id } = idParamSchema.parse(req.params);
-    const updated = await advance({
-      orderId: id,
-      status: 'READY',
-      note: 'Order ready for dispatch',
-      actor: getAuth(req).user,
-      request: req,
-    });
-    res.json({ order: serializeOrder(updated) });
-  }),
-);
-
-/** POST /api/kitchen/orders/:id/dispatch - the order leaves the kitchen. */
+/** POST /api/kitchen/orders/:id/dispatch - third kitchen action: serving -> out for delivery. */
 kitchenRouter.post(
   '/orders/:id/dispatch',
   authenticate,
@@ -267,20 +221,4 @@ kitchenRouter.post(
   }),
 );
 
-/** POST /api/kitchen/orders/:id/complete - mark the order delivered. */
-kitchenRouter.post(
-  '/orders/:id/complete',
-  authenticate,
-  requireKitchenOrAdmin,
-  asyncHandler(async (req, res) => {
-    const { id } = idParamSchema.parse(req.params);
-    const updated = await advance({
-      orderId: id,
-      status: 'DELIVERED',
-      note: 'Order completed',
-      actor: getAuth(req).user,
-      request: req,
-    });
-    res.json({ order: serializeOrder(updated) });
-  }),
-);
+// Delivery completion belongs to the driver: POST /api/driver/deliveries/:id/complete
