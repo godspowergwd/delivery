@@ -13,6 +13,7 @@ import {
   Cart,
   Checkout,
   CustomerHome,
+  CustomerTracking,
   DriverDeliveries,
   DriverEarnings,
   DriverMap,
@@ -28,7 +29,6 @@ import {
 import { AppShell } from './components/Layout';
 import { ProtectedRoute, RequireAccount, RoleHome } from './components/guards';
 import { Login } from './pages/Login';
-import CustomerTracking from './pages/customer/Tracking';
 import { Register } from './pages/Register';
 import { Verify } from './pages/Verify';
 
@@ -61,8 +61,8 @@ export function App() {
       </Route>
       {/* Full-screen live tracking - rendered outside the shell so the map owns the viewport. */}
       <Route element={<RequireAccount roles={['CUSTOMER']} />}>
-        <Route path="/app/track" element={<CustomerTracking />} />
-        <Route path="/app/track/:id" element={<CustomerTracking />} />
+        <Route path="/app/track" element={<LazyRoute label="Live tracking"><CustomerTracking /></LazyRoute>} />
+        <Route path="/app/track/:id" element={<LazyRoute label="Live tracking"><CustomerTracking /></LazyRoute>} />
       </Route>
 
       <Route element={<ProtectedRoute roles={['KITCHEN', 'ADMIN']} />}>

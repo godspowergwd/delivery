@@ -11,10 +11,20 @@ import { setupPwa } from './lib/pwa';
 import { installBootSplashSafetyNet, removeBootSplash } from './lib/boot-splash';
 import { Toaster } from './components/ui';
 import { AuthSheet } from './components/AuthSheet';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles.css';
 
 setupPwa();
 installBootSplashSafetyNet();
+
+// Every uncaught error is logged with its real message so a blank screen is
+// always debuggable. The React tree itself is protected by <ErrorBoundary>.
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[ONYX] Unhandled promise rejection:', event.reason);
+});
+window.addEventListener('error', (event) => {
+  if (event.error) console.error('[ONYX] Uncaught error:', event.error);
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,16 +72,18 @@ function Chrome() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <CartProvider>
-          <BrowserRouter basename={import.meta.env.BASE_URL}>
-            <GuestGateProvider>
-              <Chrome />
-            </GuestGateProvider>
-          </BrowserRouter>
-        </CartProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary label="Application root">
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <CartProvider>
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
+              <GuestGateProvider>
+                <Chrome />
+              </GuestGateProvider>
+            </BrowserRouter>
+          </CartProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

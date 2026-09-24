@@ -25,9 +25,19 @@ const envSchema = z.object({
   API_PUBLIC_URL: z.string().default('http://localhost:4000'),
   APP_PUBLIC_URL: z.string().default('http://localhost:5173'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
-  JWT_ACCESS_TTL: z.string().default('30m'),
-  JWT_REFRESH_TTL: z.string().default('30d'),
-  JWT_REMEMBER_TTL: z.string().default('90d'),
+  /**
+   * Sessions are INDEFINITE by design: a signed-in user stays signed in until
+   * they explicitly sign out (or an administrator revokes the session / disables
+   * the account / changes the password). There is no automatic timeout.
+   *
+   * - The access token is long-lived and renewed silently before it expires.
+   * - The refresh session uses the maximum lifetime browsers allow for cookies
+   *   (400 days) and is slid forward on every refresh, so an active user never
+   *   hits an expiry.
+   */
+  JWT_ACCESS_TTL: z.string().default('12h'),
+  JWT_REFRESH_TTL: z.string().default('400d'),
+  JWT_REMEMBER_TTL: z.string().default('400d'),
 });
 
 const parsed = envSchema.safeParse(process.env);

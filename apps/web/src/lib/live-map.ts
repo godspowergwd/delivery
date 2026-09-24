@@ -30,11 +30,13 @@ export {
  * once the browser grants permission — this is a view centre, never a position.
  */
 export const KITCHEN_ANCHOR: LatLng = { ...MALAM_CENTER };
-/** Keyless OpenFreeMap tiles rendered by MapLibre — no API key in the client. */
-const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
-export function mapStyleUrl(): string {
-  return MAP_STYLE_URL;
-}
+/**
+ * Basemap styles now come from the single map configuration module
+ * (`lib/map-config.ts`), which supports Mapbox / MapTiler / keyless
+ * OpenFreeMap with an automatic fallback style.
+ */
+import { mapAttributionText, mapFallbackStyleUrl, MAP_PROVIDER, mapStyleUrl } from './map-config';
+export { mapAttributionText, mapFallbackStyleUrl, MAP_PROVIDER, mapStyleUrl };
 function toFixed6(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
 }

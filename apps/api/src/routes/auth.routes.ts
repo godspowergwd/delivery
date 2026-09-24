@@ -226,7 +226,7 @@ authRouter.get(
   asyncHandler(async (_req, res) => {
     const settings = await getPublicSettings();
     res.json({
-      accessTokenTtlMs: durationToMs(env.JWT_ACCESS_TTL, 30 * 60_000),
+      accessTokenTtlMs: durationToMs(env.JWT_ACCESS_TTL, 12 * 3_600_000),
       rememberTtlMs: refreshTtlMs(true),
       appName: settings.businessName,
       supportPhone: settings.supportPhone,

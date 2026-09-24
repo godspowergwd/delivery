@@ -1,16 +1,39 @@
 import { lazy, type ComponentType } from 'react';
 
+/**
+ * Retries a dynamic import exactly once. Deploying a new release can swap the
+ * hashed chunk names while a tab is still open; one quick re-import normally
+ * fetches the fresh chunk. A second failure propagates to the route's
+ * ErrorBoundary, which offers an explicit "Reload app" — never an automatic
+ * reload loop.
+ */
+function importWithRetry<T>(loader: () => Promise<T>): () => Promise<T> {
+  return () =>
+    loader().catch(
+      () =>
+        new Promise<T>((resolve, reject) => {
+          window.setTimeout(() => {
+            loader().then(resolve, reject);
+          }, 350);
+        }),
+    );
+}
+
 function interop(loader: () => Promise<object>, name: string) {
-  return lazy(() =>
-    loader().then((mod) => ({ default: (mod as Record<string, ComponentType>)[name] as ComponentType })),
+  return lazy(
+    importWithRetry(async () => {
+      const mod = (await loader()) as Record<string, ComponentType>;
+      return { default: mod[name] as ComponentType };
+    }),
   ) as ComponentType;
 }
 
-export const CustomerHome: ComponentType = lazy(() => import('../pages/customer/Home'));
-export const DriverDeliveries: ComponentType = lazy(() => import('../pages/driver/Deliveries'));
-export const DriverMap: ComponentType = lazy(() => import('../pages/driver/Map'));
-export const DriverEarnings: ComponentType = lazy(() => import('../pages/driver/Earnings'));
-export const DriverProfile: ComponentType = lazy(() => import('../pages/driver/Profile'));
+export const CustomerHome: ComponentType = lazy(importWithRetry(() => import('../pages/customer/Home')));
+export const DriverDeliveries: ComponentType = lazy(importWithRetry(() => import('../pages/driver/Deliveries')));
+export const DriverMap: ComponentType = lazy(importWithRetry(() => import('../pages/driver/Map')));
+export const DriverEarnings: ComponentType = lazy(importWithRetry(() => import('../pages/driver/Earnings')));
+export const DriverProfile: ComponentType = lazy(importWithRetry(() => import('../pages/driver/Profile')));
+export const CustomerTracking: ComponentType = lazy(importWithRetry(() => import('../pages/customer/Tracking')));
 export const AccountSettings = interop(() => import('../pages/Settings'), 'AccountSettings');
 export const Menu = interop(() => import('../pages/customer/Menu'), 'Menu');
 export const ProductPage = interop(() => import('../pages/customer/Product'), 'ProductPage');

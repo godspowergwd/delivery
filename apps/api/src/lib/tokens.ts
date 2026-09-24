@@ -30,7 +30,7 @@ export function durationToMs(value: string, fallbackMs: number): number {
   return amount * (multipliers[unit] ?? 1000);
 }
 
-export const accessTokenTtlMs = durationToMs(env.JWT_ACCESS_TTL, 30 * 60_000);
+export const accessTokenTtlMs = durationToMs(env.JWT_ACCESS_TTL, 12 * 3_600_000);
 
 export function signAccessToken(payload: Omit<AccessTokenPayload, 'type'>): string {
   return jwt.sign({ ...payload, type: 'access' }, env.JWT_SECRET, {
@@ -64,8 +64,14 @@ export function randomCode(length = 10): string {
   return crypto.randomBytes(length).toString('hex').slice(0, length).toUpperCase();
 }
 
+/**
+ * Lifetime of the refresh session. Sessions are indefinite: browsers cap cookie
+ * lifetimes at 400 days, so that is the ceiling we use, and every refresh slides
+ * the window forward again. A user is only signed out when they sign out.
+ */
 export function refreshTtlMs(rememberMe: boolean): number {
+  const fourHundredDays = 400 * 86_400_000;
   return rememberMe
-    ? durationToMs(env.JWT_REMEMBER_TTL, 90 * 86_400_000)
-    : durationToMs(env.JWT_REFRESH_TTL, 30 * 86_400_000);
+    ? durationToMs(env.JWT_REMEMBER_TTL, fourHundredDays)
+    : durationToMs(env.JWT_REFRESH_TTL, fourHundredDays);
 }

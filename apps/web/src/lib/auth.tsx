@@ -15,11 +15,20 @@ import { createAppSocket, type AppSocket } from './socket';
 const USER_KEY = 'ds_user';
 
 /**
- * Startup must never hang: if a session call does not settle within the
- * timeout, it rejects and the bootstrap's catch/finally clears the loading
- * state so the app always reaches the login screen (or dashboard).
+ * Sessions are INDEFINITE: a signed-in visitor stays signed in until they press
+ * Sign out (or an administrator revokes the session / disables the account).
+ *
+ * The bootstrap only ends in `loading: false` — it always resolves. A slow or
+ * temporarily unreachable API is treated as *transient*: the cached identity is
+ * kept and the restore is retried in the background. A network hiccup must
+ * never sign a user out.
  */
-const BOOTSTRAP_TIMEOUT_MS = 8_000;
+const BOOTSTRAP_TIMEOUT_MS = 20_000;
+/** Background restore attempts after a transient failure (then visibility/online events take over). */
+const MAX_RESTORE_ATTEMPTS = 6;
+/** How often the session is slid forward while the app is in use. */
+const SLIDE_INTERVAL_MS = 6 * 60 * 60_000;
+const LAST_SLIDE_KEY = 'ds_last_slide';
 
 function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -38,6 +47,19 @@ function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
       },
     );
   });
+}
+
+/**
+ * True when this browser might still hold a refresh session (the CSRF companion
+ * cookie is readable; the refresh cookie itself is httpOnly by design).
+ */
+function hasRefreshHint(): boolean {
+  try {
+    if (getCsrfToken()) return true;
+    return document.cookie.includes('ds_refresh');
+  } catch {
+    return false;
+  }
 }
 
 function loadCachedUser(): AuthUser | null {
@@ -100,34 +122,136 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    async function bootstrap() {
+    let retryTimer = 0;
+    const cached = loadCachedUser();
+
+    const finish = () => {
+      if (!cancelled) setLoading(false);
+    };
+
+    const retryLater = (attempt: number) => {
+      if (cancelled || attempt >= MAX_RESTORE_ATTEMPTS) return;
+      retryTimer = window.setTimeout(
+        () => void restore(attempt + 1),
+        Math.min(60_000, 2_000 * 2 ** attempt),
+      );
+    };
+
+    /**
+     * Restores the session without ever punishing a valid user for a slow or
+     * offline API: only an explicit "refresh refused" signs them out.
+     */
+    const restore = async (attempt = 0): Promise<void> => {
+      const token = getToken();
+      const hint = hasRefreshHint();
+      if (!token && !hint) {
+        finish();
+        return;
+      }
       try {
-        if (getToken()) {
+        if (token) {
           const { user: me } = await withTimeout(
             api.get<{ user: AuthUser }>('/auth/me'),
             'Session check',
           );
           if (!cancelled) setUser(me);
-        } else if (getCsrfToken() || document.cookie.includes('ds_refresh')) {
-          const refreshed = await withTimeout(refreshSession(), 'Session refresh');
-          if (refreshed && !cancelled) {
-            const { user: me } = await withTimeout(
-              api.get<{ user: AuthUser }>('/auth/me'),
-              'Session check',
-            );
-            if (!cancelled) setUser(me);
-          }
+          finish();
+          return;
         }
-      } catch {
+        const refreshed = await withTimeout(refreshSession(), 'Session refresh');
+        if (refreshed) {
+          const { user: me } = await withTimeout(
+            api.get<{ user: AuthUser }>('/auth/me'),
+            'Session check',
+          );
+          if (!cancelled) setUser(me);
+          finish();
+          return;
+        }
+        // The server actively refused a renewal: the session really is gone
+        // (signed out elsewhere, revoked, or the account was disabled).
         if (!cancelled) setUser(null);
-      } finally {
-        if (!cancelled) setLoading(false);
+        finish();
+      } catch {
+        // Transient: cold API, offline, flaky network. Keep the cached user and
+        // retry quietly — never sign anyone out because of a timeout.
+        if (!cancelled && cached) setUser(cached);
+        finish();
+        retryLater(attempt);
       }
-    }
-    void bootstrap();
+    };
+
+    void restore();
+
+    // Coming back to the app (or back online) is the natural moment to finish a
+    // restore that failed while offline.
+    const onWake = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (getToken()) return;
+      if (!hasRefreshHint()) return;
+      void restore(MAX_RESTORE_ATTEMPTS);
+    };
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('online', onWake);
     return () => {
       cancelled = true;
+      window.clearTimeout(retryTimer);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('online', onWake);
     };
+  }, [setUser]);
+
+  /**
+   * Slides the refresh session forward while the app is in use, so the login
+   * never reaches an expiry window in the first place. Runs at most every
+   * `SLIDE_INTERVAL_MS` (persisted, so reloads do not spam the endpoint) and
+   * also whenever a backgrounded tab becomes visible again.
+   */
+  useEffect(() => {
+    if (!user) return;
+    const slide = () => {
+      if (document.visibilityState !== 'visible') return;
+      let last = 0;
+      try {
+        last = Number(localStorage.getItem(LAST_SLIDE_KEY) ?? 0);
+      } catch {
+        last = 0;
+      }
+      if (Date.now() - last < SLIDE_INTERVAL_MS) return;
+      try {
+        localStorage.setItem(LAST_SLIDE_KEY, String(Date.now()));
+      } catch {
+        // Storage unavailable: sliding still works in-memory via the interval.
+      }
+      void refreshSession().catch(() => undefined);
+    };
+    const timer = window.setInterval(slide, SLIDE_INTERVAL_MS);
+    document.addEventListener('visibilitychange', slide);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', slide);
+    };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * The server rejected the session (revoked, password changed, account
+   * disabled). Show the real sign-in screen — respecting the app's base path so
+   * a deployment under a sub-path can never land on a 404.
+   */
+  useEffect(() => {
+    const handler = () => {
+      setUser(null);
+      try {
+        const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
+        const here = window.location.pathname;
+        if (here.endsWith('/login') || here.includes('/login?') || here.endsWith('/register')) return;
+        window.location.assign(`${base}/login?expired=1`);
+      } catch {
+        // Never let a redirect failure blank the app.
+      }
+    };
+    window.addEventListener('ds:session-expired', handler);
+    return () => window.removeEventListener('ds:session-expired', handler);
   }, [setUser]);
 
   // Keep one live socket while signed in; rebuild it when the token changes.
