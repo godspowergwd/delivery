@@ -17,6 +17,7 @@ import {
   DriverEarnings,
   DriverMap,
   DriverProfile,
+  KitchenProducts,
   KitchenQueue,
   Menu,
   OrderDetail,
@@ -60,6 +61,7 @@ export function App() {
       <Route element={<ProtectedRoute roles={['KITCHEN', 'ADMIN']} />}>
         <Route element={<AppShell />}>
           <Route path="/kitchen" element={<LazyRoute><KitchenQueue /></LazyRoute>} />
+          <Route path="/kitchen/products" element={<LazyRoute><KitchenProducts /></LazyRoute>} />
         </Route>
       </Route>
 

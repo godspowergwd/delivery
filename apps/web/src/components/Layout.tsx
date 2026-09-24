@@ -132,6 +132,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   KITCHEN: [
     { to: '/kitchen', label: 'Queue', icon: FlameIcon, emphasize: true },
+    { to: '/kitchen/products', label: 'Products', icon: PackageIcon },
     { to: '/settings', label: 'Settings', icon: CogIcon },
   ],
   DRIVER: [

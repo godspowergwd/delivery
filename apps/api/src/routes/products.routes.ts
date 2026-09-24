@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { idParamSchema, moneySchema, paginationSchema, optionalBooleanQuery } from '../lib/validation';
-import { authenticate, getAuth, optionalAuthenticate, requireAdmin } from '../middleware/authenticate';
+import { authenticate, getAuth, optionalAuthenticate, requireAdmin, requireKitchenOrAdmin } from '../middleware/authenticate';
 import { writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, notFound } from '../lib/errors';
@@ -153,11 +153,11 @@ async function assertCategoryExists(categoryId: string): Promise<void> {
   if (!category) throw badRequest('Choose an existing category for this product.');
 }
 
-/** POST /api/products - create a product (admin only). */
+/** POST /api/products - create a product (kitchen staff can add dishes to their menu). */
 productsRouter.post(
   '/',
   authenticate,
-  requireAdmin,
+  requireKitchenOrAdmin,
   writeLimiter,
   asyncHandler(async (req, res) => {
     const body = productBodySchema.parse(req.body);
@@ -203,11 +203,11 @@ productsRouter.post(
   }),
 );
 
-/** PATCH /api/products/:id - edit any product field (admin only). */
+/** PATCH /api/products/:id - edit a product (kitchen staff manage their menu; delete stays admin-only). */
 productsRouter.patch(
   '/:id',
   authenticate,
-  requireAdmin,
+  requireKitchenOrAdmin,
   writeLimiter,
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);

@@ -22,6 +22,7 @@ export const Profile = interop(() => import('../pages/customer/Profile'), 'Profi
 export const KitchenQueue = interop(() => import('../pages/kitchen/Kitchen'), 'KitchenQueue');
 export const AdminDashboard = interop(() => import('../pages/admin/Dashboard'), 'AdminDashboard');
 export const AdminProducts = interop(() => import('../pages/admin/Products'), 'AdminProducts');
+export const KitchenProducts = interop(() => import('../pages/admin/Products'), 'AdminProducts');
 export const AdminCategories = interop(() => import('../pages/admin/Categories'), 'AdminCategories');
 export const AdminOrders = interop(() => import('../pages/admin/Orders'), 'AdminOrders');
 export const AdminUsers = interop(() => import('../pages/admin/Users'), 'AdminUsers');

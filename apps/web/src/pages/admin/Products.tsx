@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CategoryDTO, Paginated, ProductDTO } from '@delivery/shared';
 import { formatMoney } from '@delivery/shared';
 import { api, mediaUrl } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { useRealtimeSync } from '../../lib/realtime';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Textarea } from '../../components/ui';
 import { toast } from '../../lib/realtime';
@@ -17,6 +18,8 @@ export function AdminProducts() {
   const [editing, setEditing] = useState<ProductDTO | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ProductDTO | null>(null);
+  const { user } = useAuth();
+  const canDelete = user?.role === 'ADMIN';
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products', search, showArchived],
@@ -40,6 +43,10 @@ export function AdminProducts() {
   };
 
   const remove = async (product: ProductDTO) => {
+    if (!canDelete) {
+      toast('Only admins can delete products', 'info');
+    return;
+    }
     setPendingDelete(null);
     try {
       await api.del(`/products/${product.id}`);
@@ -124,9 +131,11 @@ export function AdminProducts() {
                     Archive
                   </Button>
                 )}
-                <Button size="sm" variant="ghost" className="text-red-700" onClick={() => setPendingDelete(product)}>
-                  Delete
-                </Button>
+                {canDelete && (
+                  <Button size="sm" variant="ghost" className="text-red-700" onClick={() => setPendingDelete(product)}>
+                    Delete
+                  </Button>
+                )}
               </div>
             </Card>
           ))}
