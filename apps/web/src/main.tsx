@@ -44,7 +44,7 @@ function Chrome() {
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
-        <span className="h-8 w-8 animate-spin rounded-full border-2 border-green-200 border-t-green-700" />
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-red-100 border-t-green-600" />
       </div>
     );
   }

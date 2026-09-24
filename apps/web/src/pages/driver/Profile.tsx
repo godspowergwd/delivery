@@ -59,7 +59,7 @@ export default function DriverProfile() {
       <Card className="!p-4">
         <button
           onClick={() => void logout()}
-          className="w-full rounded-2xl bg-green-700 px-4 py-3 text-sm font-bold text-white hover:bg-green-800"
+          className="w-full rounded-2xl brand-gradient px-4 py-3 text-sm font-bold text-white shadow-brand transition hover:brightness-105 active:scale-[0.98]"
         >
           Sign out
         </button>

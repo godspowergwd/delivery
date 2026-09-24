@@ -24,11 +24,11 @@ import {
 } from './icons';
 
 /* ===========================================================================
-   Waakye App UI kit — one design language for every screen.
+   ONYX UI kit — one design language for every screen.
 
-   Rules: white surfaces, soft shadows, large radii, 44px+ touch targets, GREEN
-   primary actions, red accents, ripple + lift feedback, no glassmorphism
-   and no emoji anywhere.
+   Rules: white surfaces, soft shadows, large radii, 44px+ touch targets, red
+   primary actions, green confirmations, glossy highlights, ripple + lift
+   feedback, no glassmorphism and no emoji anywhere.
    =========================================================================== */
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -39,10 +39,10 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const BUTTON_VARIANTS: Record<NonNullable<ButtonProps['variant']>, string> = {
-  primary: 'bg-green-700 text-white shadow-green hover:bg-green-800 active:bg-green-900',
+  primary: 'brand-gradient text-white shadow-brand hover:brightness-105 active:brightness-95',
   secondary:
-    'border border-slate-200 bg-white text-slate-800 shadow-soft hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100',
-  success: 'bg-green-600 text-white shadow-green hover:bg-green-700 active:bg-green-800',
+    'border border-red-200 bg-white text-red-700 shadow-soft hover:border-red-400 hover:bg-red-50 active:bg-red-100',
+  success: 'success-gradient text-white shadow-green hover:brightness-105 active:brightness-95',
   outline: 'border border-red-600/25 bg-white text-red-700 hover:border-red-600/50 hover:bg-red-50 active:bg-red-100',
   ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 active:bg-slate-200',
   danger: 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 active:bg-red-200',
@@ -73,7 +73,7 @@ export function Button({
       disabled={isDisabled}
       className={clsx(
         'btn-ripple inline-flex select-none items-center justify-center gap-2 rounded-2xl font-semibold',
-        'transition-[transform,background-color,box-shadow,border-color] duration-200 ease-out',
+        'transition-[transform,background-color,box-shadow,border-color,filter] duration-200 ease-out',
         'active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
         size === 'sm' && 'min-h-10 px-3.5 py-2 text-sm',
         size === 'md' && 'min-h-11 px-4 py-2.5 text-[15px]',
@@ -122,7 +122,7 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <span
       className={clsx(
-        'inline-block animate-spin rounded-full border-2 border-slate-200 border-t-green-700',
+        'inline-block animate-spin rounded-full border-2 border-red-100 border-t-green-600',
         className ?? 'h-5 w-5',
       )}
       role="status"
@@ -147,7 +147,7 @@ export function Card({
   return (
     <div
       className={clsx(
-        'rounded-3xl border border-slate-200 bg-white shadow-card',
+        'rounded-3xl glossy-card border border-slate-200 bg-white shadow-card',
         padded && 'p-5',
         interactive && 'lift cursor-pointer',
         className,
@@ -219,10 +219,12 @@ export function Badge({
 const STATUS_TONE_CLASSES: Record<string, string> = {
   neutral: 'bg-slate-100 text-slate-600',
   brand: 'bg-red-50 text-red-700',
+  'brand-deep': 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-200',
   success: 'bg-green-50 text-green-700',
-  warning: 'bg-amber-50 text-amber-700',
-  danger: 'bg-red-100 text-red-700',
-  info: 'bg-slate-900/5 text-slate-700',
+  'success-deep': 'bg-green-100 text-green-900 ring-1 ring-inset ring-green-200',
+  warning: 'bg-red-50 text-red-700',
+  danger: 'bg-red-100 text-red-800',
+  info: 'bg-slate-100 text-slate-700',
 };
 
 export function StatusPill({
@@ -661,7 +663,7 @@ export function SegmentedControl<T extends string>({
             className={clsx(
               'flex flex-none items-center gap-2 rounded-xl font-bold transition',
               size === 'sm' ? 'min-h-9 px-3 text-[13px]' : 'min-h-10 px-3.5 text-sm',
-              active ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:bg-white/60 hover:text-slate-700',
+              active ? 'brand-gradient text-white shadow-brand-soft' : 'text-slate-500 hover:bg-white/60 hover:text-slate-700',
             )}
           >
             {option.label}
@@ -669,7 +671,7 @@ export function SegmentedControl<T extends string>({
               <span
                 className={clsx(
                   'rounded-full px-2 py-0.5 text-[11px] font-extrabold',
-                  active ? 'bg-red-50 text-red-700' : 'bg-slate-200/70 text-slate-600',
+                  active ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600',
                 )}
               >
                 {option.count}

@@ -2,25 +2,19 @@
 @import 'maplibre-gl/dist/maplibre-gl.css';
 
 /* ===========================================================================
-   Waakye App design system (2026)
+   ONYX — Maame’s Waakye App design system (2026)
 
-   Brand palette: GREEN primary + RED accent + WHITE surfaces.
-
-   Primary green  #0B9663  — every primary action, selected state, live badge
-   Accent red     #E30613  — highlights, prices, small accents only
-   White          #FFFFFF  — dominant background
-   Charcoal       #131A26  — text
-
-   GREEN is the primary action color everywhere: buttons, active tabs,
-   progress, toggles and live badges. Red is an accent, never a primary.
+   The supplied Maame’s Waakye logo is the source of truth. Red is the primary
+   action and selected-state colour; green is reserved for positive, live, and
+   completed states. White remains the dominant surface.
    =========================================================================== */
 @theme {
-  /* --- Brand red (accent only) ------------------------------------------ */
+  /* --- Brand red: primary actions and selected states ---------------------- */
   --color-red-50: #fff1f2;
   --color-red-100: #ffe2e4;
   --color-red-200: #ffc7cb;
   --color-red-300: #ff9aa2;
-  --color-red-400: #fb5c6a;
+  --color-red-400: #ff5c66;
   --color-red-500: #f5253a;
   --color-red-600: #e30613;
   --color-red-700: #bf0511;
@@ -28,7 +22,7 @@
   --color-red-900: #7c0410;
   --color-red-950: #450109;
 
-  /* --- Brand green (premium complementary jade) ------------------------- */
+  /* --- Brand green: positive, live, and completed states ------------------ */
   --color-green-50: #edfcf5;
   --color-green-100: #d3f8e6;
   --color-green-200: #a9efd1;
@@ -51,7 +45,7 @@
   --color-emerald-800: #075f42;
   --color-emerald-900: #064e37;
 
-  /* --- Premium neutrals (soft gray -> charcoal) ------------------------- */
+  /* --- Soft neutral surfaces ---------------------------------------------- */
   --color-slate-50: #f7f8fa;
   --color-slate-100: #f1f3f7;
   --color-slate-200: #e5e9ef;
@@ -64,19 +58,15 @@
   --color-slate-900: #131a26;
   --color-slate-950: #0a0e15;
 
-  /* --- Typography ------------------------------------------------------- */
   --font-sans: "Inter var", Inter, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
 
-  /* --- Elevation: soft, layered, never heavy ---------------------------- */
   --shadow-soft: 0 2px 8px -2px rgb(19 26 38 / 0.06), 0 8px 24px -12px rgb(19 26 38 / 0.10);
   --shadow-card: 0 1px 2px rgb(19 26 38 / 0.04), 0 12px 32px -16px rgb(19 26 38 / 0.14);
   --shadow-lift: 0 2px 4px rgb(19 26 38 / 0.05), 0 24px 48px -20px rgb(19 26 38 / 0.22);
   --shadow-brand: 0 8px 24px -8px rgb(227 6 19 / 0.45);
   --shadow-brand-soft: 0 6px 18px -10px rgb(227 6 19 / 0.35);
   --shadow-green: 0 8px 24px -8px rgb(11 150 99 / 0.4);
-
-  /* --- Motion ----------------------------------------------------------- */
   --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -85,10 +75,15 @@
   --brand: #e30613;
   --brand-hover: #bf0511;
   --brand-press: #99040d;
+  --brand-highlight: #ff5c66;
   --brand-soft: #fff1f2;
   --brand-tint: #fff7f7;
   --success: #0b9663;
+  --success-deep: #075f42;
+  --success-highlight: #37c896;
   --success-soft: #edfcf5;
+  --brand-gradient: linear-gradient(135deg, #e30613 0%, #bf0511 52%, #99040d 100%);
+  --success-gradient: linear-gradient(135deg, #37c896 0%, #0b9663 52%, #075f42 100%);
   --surface: #ffffff;
   --surface-muted: #f7f8fa;
   --line: #e5e9ef;
@@ -97,8 +92,37 @@
   --muted: #6a7383;
   --radius-card: 1.5rem;
   --radius-control: 1rem;
-  --nav-height: 4.75rem;
+  --nav-height: 4.5rem;
 }
+
+/* ONYX branded primitives used by route-level components. */
+.brand-gradient { background: var(--brand-gradient); }
+.success-gradient { background: var(--success-gradient); }
+.rounded-card { border-radius: var(--radius-card); }
+.food-card { isolation: isolate; }
+.glossy-card { position: relative; isolation: isolate; }
+.glossy-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.95), transparent);
+  pointer-events: none;
+}
+.glossy-card::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -3rem;
+  right: -3rem;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(227 6 19 / 0.07), transparent 70%);
+  pointer-events: none;
+}
+
 
 html {
   -webkit-tap-highlight-color: transparent;

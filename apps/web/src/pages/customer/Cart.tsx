@@ -43,7 +43,7 @@ export function Cart() {
           <h1 className="text-2xl font-extrabold text-slate-900 lg:text-3xl">
             Cart <span className="ml-2 text-base font-semibold text-slate-500">({itemCount} {itemCount === 1 ? 'item' : 'items'})</span>
           </h1>
-          <button onClick={clear} className="text-sm font-semibold text-green-700 hover:text-red-800 hover:underline">
+          <button onClick={clear} className="text-sm font-semibold text-red-600 hover:text-red-800 hover:underline">
             Clear all
           </button>
         </div>
@@ -77,15 +77,15 @@ export function Cart() {
                   onChange={(event) => setNotes(line.productId, event.target.value)}
                   placeholder="Item note (optional)"
                   maxLength={200}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-800 placeholder:text-slate-500 outline-none focus:border-green-600"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-800 placeholder:text-slate-500 outline-none focus:border-red-600"
                 />
                 <div className="mt-auto flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setQuantity(line.productId, line.quantity - 1)} className="h-10 w-10 rounded-xl bg-slate-100 font-bold text-slate-800" aria-label="Decrease">
+                    <button onClick={() => setQuantity(line.productId, line.quantity - 1)} className="h-10 w-10 rounded-xl border border-red-200 bg-red-50 font-bold text-red-700 transition hover:bg-red-100" aria-label="Decrease">
                       −
                     </button>
                     <span className="w-6 text-center font-extrabold text-slate-900">{line.quantity}</span>
-                    <button onClick={() => setQuantity(line.productId, line.quantity + 1)} className="h-10 w-10 rounded-xl bg-slate-100 font-bold text-slate-800" aria-label="Increase">
+                    <button onClick={() => setQuantity(line.productId, line.quantity + 1)} className="h-10 w-10 rounded-xl bg-red-600 font-bold text-white shadow-brand-soft transition hover:bg-red-700" aria-label="Increase">
                       +
                     </button>
                   </div>

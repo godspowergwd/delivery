@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OrderDTO, ReceiptDTO, ProductDTO } from '@delivery/shared';
+import type { OrderDTO, OrderStatus, ReceiptDTO, ProductDTO } from '@delivery/shared';
 import {
   ORDER_STATUS_FLOW,
   ORDER_STATUS_LABELS,
+  ORDER_STATUS_TONE,
   formatDateTime,
   formatMoney,
   orderStatusIndex,
@@ -98,7 +99,7 @@ export function OrderDetail() {
       <Card>
         <p className="text-center text-sm text-slate-600">Order not found.</p>
         <div className="mt-4 flex justify-center">
-          <Link to="/app/orders" className="text-sm font-semibold text-green-700 hover:underline">
+          <Link to="/app/orders" className="text-sm font-semibold text-red-600 hover:underline">
             Back to orders
           </Link>
         </div>
@@ -124,6 +125,14 @@ export function OrderDetail() {
     />
   );
 }
+
+const ORDER_PROGRESS_TONES = [
+  'bg-red-600',
+  'bg-red-800',
+  'bg-green-600',
+  'success-gradient shadow-green',
+  'bg-green-800',
+] as const;
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -184,11 +193,11 @@ function OrderDetailBody({
               return (
                 <li key={status} className="relative flex gap-3 pb-5 last:pb-0">
                   {index < ORDER_STATUS_FLOW.length - 1 && (
-                    <span className={`absolute left-[11px] top-6 h-full w-0.5 ${index < currentStep ? 'bg-green-600/60' : 'bg-slate-200'}`} />
+                    <span className={`absolute left-[11px] top-6 h-full w-0.5 ${index < currentStep ? (index < 2 ? 'bg-red-800/60' : 'bg-green-600/60') : 'bg-slate-200'}`} />
                   )}
                   <span
                     className={`relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${
-                      done ? 'bg-green-600 text-white' : 'border border-slate-300 bg-white text-slate-500'
+                      done ? `${ORDER_PROGRESS_TONES[index]} text-white` : 'border border-slate-300 bg-white text-slate-500'
                     } ${isCurrent ? 'pulse-ring' : ''}`}
                   >
                     {done ? <CheckIcon className="h-3.5 w-3.5" /> : index + 1}

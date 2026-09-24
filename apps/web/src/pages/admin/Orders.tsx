@@ -74,7 +74,7 @@ export function AdminOrders() {
             }}
             className={
               status === filter
-                ? 'rounded-full bg-green-700 px-3 py-1.5 text-sm font-bold text-white'
+                ? 'rounded-full bg-red-700 px-3 py-1.5 text-sm font-bold text-white shadow-brand-soft'
                 : 'rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-200'
             }
           >
@@ -218,7 +218,7 @@ function OrderDialog({
         </div>
 
         {dispatchable && (
-          <div className="rounded-2xl border border-red-600/20 bg-green-700/5 p-3">
+          <div className="rounded-2xl border border-red-600/20 bg-red-50 p-3">
             <Field
               label="Driver dispatch"
               hint="The driver is notified in real time and sees the delivery in their app."

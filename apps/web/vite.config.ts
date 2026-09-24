@@ -30,16 +30,16 @@ export default defineConfig(({ mode }) => {
 
   const manifest = {
     id: base,
-    name: process.env.VITE_APP_NAME || 'Waakye App',
-    short_name: 'Waakye',
+    name: process.env.VITE_APP_NAME || 'Maame’s Waakye App',
+    short_name: 'Maame’s Waakye',
     description:
-      'Waakye App - fresh waakye and rice meals, live delivery tracking on the map, and the whole kitchen in one installable app.',
+      'Maame’s Waakye App — hot waakye and rice meals, live delivery tracking, and a faster kitchen.',
     start_url: `${base}?source=pwa`,
     scope: base,
     display: 'standalone',
     display_override: ['fullscreen', 'standalone', 'minimal-ui'],
     orientation: 'any',
-    theme_color: '#0b9663',
+    theme_color: '#e30613',
     background_color: '#ffffff',
     lang: 'en',
     dir: 'ltr',
@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => {
       { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
       { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
       { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: 'apple-touch-icon-180x180.png', sizes: '180x180', type: 'image/png' },
     ],
     shortcuts: [
       {
@@ -83,7 +84,7 @@ export default defineConfig(({ mode }) => {
       strategies: 'generateSW',
       registerType: 'autoUpdate',
       injectRegister: null,
-      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg', 'robots.txt', 'offline.html'],
+      includeAssets: ['apple-touch-icon-180x180.png', 'brand/maame-waakye-onyx.png', 'robots.txt', 'offline.html'],
       manifest,
       manifestFilename: 'manifest.webmanifest',
       workbox: {

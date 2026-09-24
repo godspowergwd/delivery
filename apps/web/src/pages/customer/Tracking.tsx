@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { OrderDTO } from '@delivery/shared';
-import { ORDER_STATUS_DESCRIPTIONS, ORDER_STATUS_LABELS, orderStatusIndex } from '@delivery/shared';
+import type { OrderDTO, OrderStatus } from '@delivery/shared';
+import { ORDER_STATUS_DESCRIPTIONS, ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, ORDER_STATUS_TONE, orderStatusIndex } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useOrderTracking } from '../../lib/tracking';
 import { useDeviceLocation } from '../../lib/geolocation';
@@ -10,6 +10,14 @@ import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
 import { ArrowLeftIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
 import { estimateAddressCoordinates, formatDistance } from '../../lib/live-map';
+
+const TRACK_TONE_CLASSES = [
+  'bg-red-600 text-white',
+  'bg-red-800 text-white',
+  'bg-green-600 text-white',
+  'success-gradient text-white shadow-green',
+  'bg-green-800 text-white',
+] as const;
 
 /** The five customer-facing steps of the Waakye App order lifecycle. */
 const TRACK_STEPS = [
@@ -169,7 +177,7 @@ export default function CustomerTracking() {
             <div className="mt-3">
               <a
                 href={`tel:${driver.phone}`}
-                className="block rounded-2xl bg-green-700 px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-green-800"
+                className="block rounded-2xl brand-gradient px-4 py-2.5 text-center text-sm font-bold text-white shadow-brand transition hover:brightness-105"
               >
                 Call {driver.name}
               </a>
@@ -210,16 +218,11 @@ export default function CustomerTracking() {
           {steps.map((step, i) => {
             const done = i < activeIndex;
             const current = i === activeIndex;
+            const tone = i <= activeIndex ? TRACK_TONE_CLASSES[i] : 'bg-slate-200 text-slate-400';
             return (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
                 <div
-                  className={
-                    done
-                      ? 'flex h-7 w-7 shrink-0 flex-col items-center justify-center rounded-full text-[11px] font-bold bg-green-600 text-white'
-                      : current
-                        ? 'flex h-7 w-7 shrink-0 flex-col items-center justify-center rounded-full text-[11px] font-bold bg-amber-400 text-amber-900 ring-2 ring-amber-300'
-                        : 'flex h-7 w-7 shrink-0 flex-col items-center justify-center rounded-full text-[11px] font-bold bg-slate-200 text-slate-400'
-                  }
+                  className={`flex h-7 w-7 shrink-0 flex-col items-center justify-center rounded-full text-[11px] font-bold ${tone} ${current ? 'pulse-ring' : ''}`}
                 >
                   {done ? <CheckIcon className="h-4 w-4" /> : <span className="leading-none">{i + 1}</span>}
                 </div>

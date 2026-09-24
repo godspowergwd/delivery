@@ -548,7 +548,7 @@ function DeliverySheet({
             rel="noreferrer"
             className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-semibold text-slate-800 transition hover:bg-slate-50"
           >
-            <NavigationIcon className="h-4 w-4 text-red-600" />
+            <NavigationIcon className="h-4 w-4 text-green-700" />
             Navigate
           </a>
         )}
@@ -570,7 +570,7 @@ function EmptyDelivery() {
       <div className="mt-3">
         <Link
           to="/driver/deliveries"
-          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-green-700 px-4 text-[15px] font-semibold text-white shadow-green"
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-red-700 px-4 text-[15px] font-semibold text-white shadow-brand-soft transition hover:bg-red-800"
         >
           Go to deliveries
         </Link>

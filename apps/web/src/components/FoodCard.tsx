@@ -42,12 +42,12 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
         )}
         <div className="absolute left-2 top-2 flex gap-1.5">
           {product.isPopular && (
-            <span className="rounded-full bg-green-700 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
               Popular
             </span>
           )}
           {product.isNew && (
-            <span className="rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-green-700">
+            <span className="rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-red-700">
               New
             </span>
           )}
@@ -79,7 +79,7 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
             aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
             className={clsx(
               'btn-ripple flex h-11 w-11 items-center justify-center rounded-full text-white transition active:scale-95 disabled:opacity-40',
-              soldOut ? 'bg-slate-300' : 'bg-green-700 shadow-green hover:bg-green-800',
+              soldOut ? 'bg-slate-300' : 'bg-red-600 shadow-brand hover:bg-red-700',
             )}
           >
             <PlusIcon className="h-5 w-5" aria-hidden="true" />

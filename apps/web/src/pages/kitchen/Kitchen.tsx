@@ -79,7 +79,7 @@ export function KitchenQueue() {
       {summary && (
         <>
           <Card className="flex items-center gap-4 !border-red-200 !bg-red-50">
-            <span className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-green-700 text-white">
+            <span className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-red-600 text-white">
               <WalletIcon className="h-6 w-6" />
             </span>
             <div className="min-w-0">
@@ -107,7 +107,7 @@ export function KitchenQueue() {
             aria-selected={tab === entry.id}
             onClick={() => setTab(entry.id)}
             className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-bold whitespace-nowrap ${
-              tab === entry.id ? 'bg-green-700 text-white shadow-soft' : 'text-slate-600 hover:text-slate-800'
+              tab === entry.id ? 'bg-red-700 text-white shadow-brand-soft' : 'text-slate-600 hover:text-slate-800'
             }`}
           >
             {entry.label}
@@ -222,7 +222,7 @@ function kitchenActions(status: string): Array<{
       return [{ label: 'Start serving', endpoint: 'preparing', note: 'Serving started' }];
     case 'PREPARING':
     case 'READY': // legacy orders packed before the simplified workflow
-      return [{ label: 'Out for delivery', endpoint: 'dispatch', note: 'Out for delivery' }];
+      return [{ label: 'Out for delivery', endpoint: 'dispatch', note: 'Out for delivery', variant: 'success' }];
     default:
       return [];
   }

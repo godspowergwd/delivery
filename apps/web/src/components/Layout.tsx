@@ -101,7 +101,7 @@ export function OfflineBar() {
   }, []);
   if (!offline) return null;
   return (
-    <div className="sticky top-0 z-40 bg-green-700 py-1.5 text-center text-sm font-bold text-white" role="status">
+        <div className="sticky top-0 z-40 bg-slate-900 py-1.5 text-center text-sm font-bold text-white" role="status">
       Offline — showing cached data. Actions will sync when you reconnect.
     </div>
   );
@@ -166,19 +166,19 @@ function SidebarLink({ item, cartCount }: { item: NavItem; cartCount: number }) 
           'flex items-center gap-3 rounded-xl px-3.5 transition',
           item.emphasize ? 'py-3.5 text-base font-bold' : 'py-3 text-[15px] font-semibold',
           isActive
-            ? 'bg-green-700 text-white shadow-sm shadow-green-700/25'
+            ? 'bg-red-700 text-white shadow-brand-soft'
             : item.emphasize
-              ? 'text-green-800 hover:bg-green-50'
+              ? 'text-red-700 hover:bg-red-50'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
         )
       }
     >
       {({ isActive }) => (
         <>
-          <Icon className={clsx('flex-none', item.emphasize ? 'h-6 w-6' : 'h-5 w-5', isActive ? 'text-white' : item.emphasize ? 'text-green-700' : 'text-slate-400')} />
+          <Icon className={clsx('flex-none', item.emphasize ? 'h-6 w-6' : 'h-5 w-5', isActive ? 'text-white' : item.emphasize ? 'text-red-600' : 'text-slate-400')} />
           <span className="flex-1 truncate">{item.label}</span>
           {item.cart && cartCount > 0 && (
-            <span className={clsx('rounded-full px-2 py-0.5 text-sm font-bold', isActive ? 'bg-white text-green-800' : 'bg-green-700 text-white')}>
+            <span className={clsx('rounded-full px-2 py-0.5 text-sm font-bold', isActive ? 'bg-white text-red-700' : 'bg-red-600 text-white')}>
               {cartCount}
             </span>
           )}
@@ -198,7 +198,7 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
       className={({ isActive }) =>
         clsx(
           'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1.5 transition',
-          isActive ? 'text-green-700' : 'text-slate-500',
+          isActive ? 'text-red-700' : 'text-slate-500',
         )
       }
     >
@@ -207,18 +207,18 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
           <span
             className={clsx(
               'absolute inset-x-4 top-0 h-0.5 rounded-full',
-              isActive ? 'bg-green-700' : 'bg-transparent',
+              isActive ? 'bg-red-700' : 'bg-transparent',
             )}
           />
           <span
             className={clsx(
               'relative flex items-center justify-center',
-              item.cart ? 'h-12 w-12 rounded-full bg-green-700 text-white shadow-lg shadow-green-700/25' : 'h-7 w-7',
+              item.cart ? 'h-12 w-12 rounded-full bg-red-600 text-white shadow-lg shadow-red-600/25' : 'h-7 w-7',
             )}
           >
             <Icon className={clsx(item.cart ? 'h-6 w-6' : item.emphasize ? 'h-7 w-7' : 'h-5 w-5')} />
             {item.cart && cartCount > 0 && (
-              <span className="absolute -right-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-green-700 px-1 text-sm font-bold text-white">
+              <span className="absolute -right-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-sm font-bold text-white">
                 {cartCount}
               </span>
             )}
@@ -248,11 +248,10 @@ export function AppShell() {
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh w-64 flex-none flex-col border-r border-slate-200 bg-white lg:flex xl:w-72">
         <div className="flex items-center gap-3 px-5 pb-5 pt-6">
-          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-11 w-11 rounded-2xl" />
+          <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-11 w-11 rounded-2xl" />
           <div className="min-w-0">
-            <p className="truncate text-base font-extrabold text-slate-900">Waakye App</p>
-            <p className="truncate text-xs font-medium text-slate-500">
-              {roleLabel}
+            <p className="truncate text-base font-extrabold text-slate-900">Maame’s Waakye App</p>
+            <p className="truncate text-xs font-medium text-slate-500">ONYX · {roleLabel}
               {user ? ` · ${user.name}` : ''}
             </p>
           </div>
@@ -281,12 +280,10 @@ export function AppShell() {
         <header className="pt-safe sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between gap-3 pb-3 pt-2">
             <Link to="/" className="flex min-w-0 items-center gap-2.5">
-              <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="h-10 w-10 rounded-xl" />
+              <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-10 w-10 rounded-xl" />
               <div className="min-w-0">
-                <p className="truncate text-[15px] font-extrabold leading-tight text-slate-900">Waakye App</p>
-                <p className="truncate text-xs leading-tight text-slate-500">
-                  {user ? `${roleLabel} · ${user.name}` : 'Fresh food, delivered fast'}
-                </p>
+                <p className="truncate text-[15px] font-extrabold leading-tight text-slate-900">Maame’s Waakye App</p>
+                <p className="truncate text-[10px] font-extrabold uppercase tracking-[0.22em] text-red-600">ONYX</p>
               </div>
             </Link>
             <div className="flex flex-none items-center gap-2">
@@ -317,10 +314,10 @@ export function AppShell() {
         {/* Mobile bottom navigation */}
         {items.length > 0 && (
           <nav
-            className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white shadow-[0_-4px_16px_rgba(15,23,42,0.06)] lg:hidden"
+            className="pb-safe fixed inset-x-2 bottom-2 z-40 rounded-[1.5rem] border border-slate-200 bg-white/95 shadow-lift backdrop-blur lg:hidden"
             aria-label="Primary navigation"
           >
-            <div className="mx-auto flex w-full max-w-md items-stretch justify-around">
+            <div className="mx-auto flex w-full max-w-md items-stretch justify-around rounded-[1.25rem] bg-white/95 px-1">
               {items.slice(0, 5).map((item) => (
                 <BottomLink key={item.to} item={item} cartCount={itemCount} />
               ))}

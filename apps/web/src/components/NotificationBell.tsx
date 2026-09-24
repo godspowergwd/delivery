@@ -73,7 +73,7 @@ export function NotificationBell() {
       >
         <BellIcon className="h-5 w-5" />
         {unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-700 px-1 text-sm font-bold text-white">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1 text-sm font-bold text-white">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
@@ -87,7 +87,7 @@ export function NotificationBell() {
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
             <span className="text-sm font-semibold uppercase tracking-wide text-slate-600">Notifications</span>
             {unread > 0 && (
-              <button onClick={markAllRead} className="text-sm font-semibold text-green-700 hover:underline">
+              <button onClick={markAllRead} className="text-sm font-semibold text-red-600 hover:underline">
                 Mark all read
               </button>
             )}

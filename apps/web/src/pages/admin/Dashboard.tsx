@@ -149,7 +149,7 @@ export function AdminDashboard() {
                   <Tooltip
                     contentStyle={{ borderRadius: 16, border: '1px solid #e5e9ef', boxShadow: '0 12px 32px -16px rgba(19,26,38,0.14)' }}
                   />
-                  <Bar dataKey="orders" fill="#0b9663" radius={[8, 8, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="orders" fill="#e30613" radius={[8, 8, 0, 0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -195,7 +195,7 @@ export function AdminDashboard() {
             ))
           )}
         </div>
-        <Link to="/admin/orders" className="mt-3 block text-center text-sm text-green-700">
+        <Link to="/admin/orders" className="mt-3 block text-center text-sm text-red-700 hover:underline">
           View all orders →
         </Link>
       </Card>

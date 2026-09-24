@@ -180,8 +180,8 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
           </div>
         )}
         <div className="absolute left-2 top-2 flex gap-1">
-          {product.isPopular && <Badge className="bg-green-700 text-white">Popular</Badge>}
-          {product.isNew && <Badge className="bg-green-700/90 text-white">New</Badge>}
+          {product.isPopular && <Badge className="bg-red-700 text-white">Popular</Badge>}
+          {product.isNew && <Badge className="bg-red-700/90 text-white">New</Badge>}
         </div>
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-3">
@@ -194,7 +194,7 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
           <button
             onClick={onAdd}
             disabled={soldOut}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-green-700 text-lg font-bold text-white disabled:opacity-40"
+            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-700 text-lg font-bold text-white shadow-brand-soft transition hover:bg-red-800 disabled:opacity-40"
             aria-label={soldOut ? 'Sold out' : `Add ${product.name} to cart`}
           >
             +
@@ -233,7 +233,7 @@ function SearchSuggestions({ onPick }: { onPick: (term: string) => void }) {
             key={term}
             type="button"
             onClick={() => onPick(term)}
-            className="rounded-full bg-green-50 px-3.5 py-2 text-[13px] font-bold text-green-800 transition hover:bg-green-100 active:scale-95"
+            className="rounded-full bg-red-50 px-3.5 py-2 text-[13px] font-bold text-red-800 transition hover:bg-red-100 active:scale-95"
           >
             {term}
           </button>
@@ -270,7 +270,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       className={
         active
-          ? 'shrink-0 rounded-full bg-green-700 px-4 py-2 text-sm font-bold text-white'
+          ? 'shrink-0 rounded-full bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-brand-soft'
           : 'shrink-0 rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200'
       }
     >

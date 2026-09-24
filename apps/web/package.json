@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "pwa:assets": "pwa-assets-generator --preset minimal-2023 public/logo.svg",
+    "pwa:assets": "pwa-assets-generator --preset minimal-2023 public/brand/maame-waakye-onyx.png",
     "pwa:audit": "node ../../scripts/pwa-audit.mjs"
   },
   "dependencies": {

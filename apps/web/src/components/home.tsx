@@ -19,7 +19,7 @@ export function DeliveryStatusBar({ etaMinutes = 25 }: { etaMinutes?: number }) 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] font-medium text-slate-500">
       <span className="inline-flex min-w-0 items-center gap-1.5">
-        <MapPinIcon className="h-4 w-4 flex-none text-green-700" aria-hidden="true" />
+        <MapPinIcon className="h-4 w-4 flex-none text-red-600" aria-hidden="true" />
         <span className="truncate">{location?.label ?? 'Accra, Ghana'}</span>
       </span>
       <span className="inline-flex items-center gap-1.5">
@@ -57,7 +57,7 @@ export function CategoryRail<T extends { id: string; name: string }>({
         onClick={() => onSelect(null)}
         className={
           activeId === null
-            ? 'flex flex-none items-center gap-2 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-soft'
+            ? 'flex flex-none items-center gap-2 rounded-full brand-gradient px-4 py-2.5 text-sm font-bold text-white shadow-brand'
             : 'flex flex-none items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-soft ring-1 ring-inset ring-slate-200/70 hover:text-slate-900'
         }
       >
@@ -74,7 +74,7 @@ export function CategoryRail<T extends { id: string; name: string }>({
             onClick={() => onSelect(active ? null : category.id)}
             className={
               active
-                ? 'flex flex-none items-center gap-2 rounded-full bg-green-700 px-4 py-2.5 text-sm font-bold text-white shadow-green'
+                ? 'flex flex-none items-center gap-2 rounded-full bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-brand'
                 : 'flex flex-none items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-soft ring-1 ring-inset ring-slate-200/70 hover:text-slate-900'
             }
           >
@@ -118,10 +118,10 @@ export function PromoCapture() {
       onSubmit={submit}
       className="flex items-center gap-2 rounded-2xl bg-slate-900 p-2 pl-4 text-white shadow-card"
     >
-      <p className="min-w-0 flex-1 truncate text-sm font-bold">New to Waakye App? Create an account to order</p>
+      <p className="min-w-0 flex-1 truncate text-sm font-bold">New to Maame’s Waakye App? Create an account to order</p>
       <Link
         to="/register"
-        className="flex-none rounded-xl bg-green-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-green-800 active:scale-[0.97]"
+        className="flex-none rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 active:scale-[0.97]"
       >
         Sign up
       </Link>

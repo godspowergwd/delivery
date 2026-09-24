@@ -57,12 +57,12 @@ export const ORDER_STATUS_DESCRIPTIONS: Record<OrderStatus, string> = {
  * apps/web/src/components/ui.tsx (green/red/white brand palette).
  */
 export const ORDER_STATUS_TONE: Record<OrderStatus, string> = {
-  RECEIVED: 'warning',
-  ACCEPTED: 'success',
+  RECEIVED: 'brand',
+  ACCEPTED: 'brand-deep',
   PREPARING: 'success',
   READY: 'success',
-  OUT_FOR_DELIVERY: 'brand',
-  DELIVERED: 'success',
+  OUT_FOR_DELIVERY: 'success',
+  DELIVERED: 'success-deep',
   CANCELLED: 'danger',
 };
 

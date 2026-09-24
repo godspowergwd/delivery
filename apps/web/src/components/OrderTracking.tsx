@@ -5,7 +5,14 @@ import { estimateAddressCoordinates, formatDistance, distanceKm } from '../lib/l
 import { fetchRoadRoute } from '../lib/route';
 import { useLiveMap } from './LiveMap';
 import { useOrderTracking } from '../lib/tracking';
-import { useQueryClient } from '@tanstack/react-query';
+
+const ORDER_PROGRESS_TONES = [
+  'bg-red-600',
+  'bg-red-800',
+  'bg-green-600',
+  'success-gradient shadow-green',
+  'bg-green-800',
+] as const;
 
 /**
  * Live tracking section for the customer order page: real Accra roads,
@@ -13,7 +20,6 @@ import { useQueryClient } from '@tanstack/react-query';
  * Runs while the order is out for delivery; quiet otherwise.
  */
 export function OrderTracking({ order }: { order: OrderDTO }) {
-  const queryClient = useQueryClient();
   const mapHostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useLiveMap(mapHostRef);
   const tracking = useOrderTracking(order.id);
@@ -100,7 +106,7 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
           {ORDER_STATUS_FLOW.map((status, index) => (
             <span
               key={status}
-              className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${index <= stepIndex ? 'bg-green-600' : 'bg-slate-200'}`}
+              className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${index <= stepIndex ? ORDER_PROGRESS_TONES[index] : 'bg-slate-200'}`}
             />
           ))}
         </div>

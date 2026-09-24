@@ -80,7 +80,7 @@ export default function DriverEarnings() {
             onClick={() => setTab(m.value as 'week' | 'month' | 'all')}
             className={
               tab === m.value
-                ? 'flex-1 rounded-full bg-green-700 py-2 text-white'
+                ? 'flex-1 rounded-full bg-red-700 py-2 text-white shadow-brand-soft'
                 : 'flex-1 rounded-full py-2 text-slate-500 hover:text-slate-800'
             }
           >

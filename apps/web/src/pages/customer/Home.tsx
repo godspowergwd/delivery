@@ -57,7 +57,7 @@ export default function CustomerHome() {
           to={`/app/orders/${active!.orders[0].id}`}
           className="flex items-center gap-3 rounded-card bg-slate-900 p-4 text-white shadow-card transition hover:shadow-lift"
         >
-          <span className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-green-700">
+          <span className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-red-600 shadow-brand">
             <TruckIcon className="h-6 w-6" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
@@ -141,7 +141,7 @@ export default function CustomerHome() {
             <h2 className="text-lg font-extrabold tracking-tight text-slate-900">Popular now</h2>
             <p className="text-[13px] text-slate-500">The waakye plates Malam & Gbawe order most.</p>
           </div>
-          <Link to="/app/search" className="flex-none text-sm font-bold text-green-700 hover:underline">
+          <Link to="/app/search" className="flex-none text-sm font-bold text-red-700 hover:underline">
             See all
           </Link>
         </div>
@@ -168,9 +168,9 @@ export default function CustomerHome() {
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-extrabold tracking-tight text-slate-900">Fresh this week</h2>
-            <p className="text-[13px] text-slate-500">Straight from the Waakye App kitchen.</p>
+            <p className="text-[13px] text-slate-500">Straight from the Maame’s Waakye App kitchen.</p>
           </div>
-          <Link to="/app/search" className="flex-none text-sm font-bold text-green-700 hover:underline">
+          <Link to="/app/search" className="flex-none text-sm font-bold text-red-700 hover:underline">
             Browse menu
           </Link>
         </div>
@@ -191,7 +191,7 @@ export default function CustomerHome() {
       {itemCount > 0 ? (
         <Link
           to="/app/cart"
-          className="flex items-center justify-between gap-3 rounded-card bg-green-700 p-4 text-white shadow-green transition hover:bg-green-800"
+          className="flex items-center justify-between gap-3 rounded-card bg-red-600 p-4 text-white shadow-brand transition hover:bg-red-700"
         >
           <span className="text-sm font-bold">
             {itemCount} item{itemCount === 1 ? '' : 's'} in your cart

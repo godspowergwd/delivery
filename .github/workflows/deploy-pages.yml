@@ -41,7 +41,7 @@ jobs:
           GITHUB_ACTIONS: 'true'
           VITE_API_URL: https://delivery-2xbo.onrender.com/api
           VITE_SOCKET_URL: https://delivery-2xbo.onrender.com
-          VITE_APP_NAME: Delivery System
+          VITE_APP_NAME: Maame’s Waakye App
 
       - name: Add SPA fallback
         run: Copy-Item apps/web/dist/index.html apps/web/dist/404.html

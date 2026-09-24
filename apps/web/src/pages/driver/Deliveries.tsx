@@ -80,7 +80,7 @@ export default function DriverDeliveries() {
             onClick={() => setTab(t)}
             className={
               tab === t
-                ? 'rounded-full bg-green-700 px-4 py-2 text-sm font-bold text-white'
+                ? 'rounded-full bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-brand-soft'
                 : 'rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200'
             }
           >
@@ -134,7 +134,7 @@ export default function DriverDeliveries() {
                 {tab === 'mine' && (
                   <Link
                     to={`/driver/map?order=${order.id}`}
-                    className="rounded-2xl bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
+                    className="rounded-2xl bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow-green hover:bg-green-800"
                   >
                     Open map
                   </Link>
