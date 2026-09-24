@@ -51,6 +51,7 @@ export default function CustomerTracking() {
   const navigate = useNavigate();
   const mapHostRef = useRef<HTMLDivElement>(null);
   const mapRef = useLiveMap(mapHostRef);
+  const location = useDeviceLocation({ enabled: true });
   const activeLatest = useQuery({
     queryKey: ['active-orders'],
     queryFn: () => api.get<{ orders: OrderDTO[] }>('/orders/active'),
@@ -89,6 +90,14 @@ export default function CustomerTracking() {
   useEffect(() => {
     if (destination && mapRef.current) mapRef.current.setDestination(destination);
   }, [destination, mapRef]);
+
+  useEffect(() => {
+    if (!location.position || !mapRef.current) return;
+    mapRef.current.setUser(
+      { lat: location.position.lat, lng: location.position.lng },
+      location.position.accuracy,
+    );
+  }, [location.position, mapRef]);
 
   const cancelled = orderData?.status === 'CANCELLED';
   const steps = cancelled ? CANCELLED_STEPS : TRACK_STEPS;

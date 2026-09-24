@@ -23,7 +23,7 @@ export interface LiveMapHandle {
   setDriver(point: LatLng | null, options?: { animate?: boolean; accuracyMetres?: number | null }): void;
   setDestination(point: LatLng | null): void;
   setRestaurant(point: LatLng | null): void;
-  /** The device's own position (driver app only). */
+  /** The device's own position ("you are here" marker). */
   setUser(point: LatLng | null, accuracyMetres?: number | null): void;
   focus(point: LatLng, options?: { zoom?: number; durationMs?: number; padding?: number }): void;
   fit(points: LatLng[], options?: { padding?: number; maxZoom?: number; durationMs?: number }): void;
