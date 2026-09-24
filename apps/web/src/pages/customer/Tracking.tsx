@@ -11,12 +11,17 @@ import { Button, Card, Spinner } from '../../components/ui';
 import { ArrowLeftIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
 import { estimateAddressCoordinates, formatDistance } from '../../lib/live-map';
 
+/**
+ * Step tones follow the brand's status table: every step pairs red and green
+ * so the lifecycle never reads as a single-colour sequence.
+ * [placed balanced, accepted green+red, serving red+green, out duo, done green+red]
+ */
 const TRACK_TONE_CLASSES = [
-  'bg-red-600 text-white',
-  'bg-red-800 text-white',
-  'bg-green-600 text-white',
-  'success-gradient text-white shadow-green',
-  'bg-green-800 text-white',
+  'bg-red-600 text-white shadow-[inset_-4px_0_0_#0a8058]',
+  'bg-green-600 text-white shadow-[inset_4px_0_0_#e30613]',
+  'bg-red-700 text-white shadow-[inset_-4px_0_0_#0a8058]',
+  'duo-progress text-white',
+  'bg-green-700 text-white shadow-[inset_4px_0_0_#e30613]',
 ] as const;
 
 /** The five customer-facing steps of the Waakye App order lifecycle. */

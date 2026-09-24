@@ -54,15 +54,23 @@ export const ORDER_STATUS_DESCRIPTIONS: Record<OrderStatus, string> = {
 
 /**
  * Status -> StatusPill tone. Values must be keys of STATUS_TONE_CLASSES in
- * apps/web/src/components/ui.tsx (green/red/white brand palette).
+ * apps/web/src/components/ui.tsx (balanced red/green/white brand palette).
+ *
+ * Every status carries BOTH brand colours so the lifecycle reads as one
+ * balanced red-and-green system, never an all-red or all-green sequence:
+ *   RECEIVED          -> 'placed'   (white, red + green edges)
+ *   ACCEPTED          -> 'accepted' (green service surface, red accent)
+ *   PREPARING / READY -> 'prep'     (red preparation surface, green accent)
+ *   OUT_FOR_DELIVERY  -> 'route'    (red action surface, green route accent)
+ *   DELIVERED         -> 'delivered'(green completion surface, red accent)
  */
 export const ORDER_STATUS_TONE: Record<OrderStatus, string> = {
-  RECEIVED: 'brand',
-  ACCEPTED: 'brand-deep',
-  PREPARING: 'success',
-  READY: 'success',
-  OUT_FOR_DELIVERY: 'success',
-  DELIVERED: 'success-deep',
+  RECEIVED: 'placed',
+  ACCEPTED: 'accepted',
+  PREPARING: 'prep',
+  READY: 'prep',
+  OUT_FOR_DELIVERY: 'route',
+  DELIVERED: 'delivered',
   CANCELLED: 'danger',
 };
 

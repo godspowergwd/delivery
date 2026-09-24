@@ -423,6 +423,40 @@ export const EarningsIcon = (p: IconProps) => (
   </Base>
 );
 
+/** Compass for the driver map (reset bearing / north-up). */
+export const CompassIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m15.5 8.5-2 5-5 2 2-5 5-2z" />
+  </Base>
+);
+
+/** Leaf — freshness, ingredients and available-today accents. */
+export const LeafIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M5 19c0-7.5 4.5-12.5 14-13-0.5 9.5-5.5 14-13 14H5z" />
+    <path d="M5 19c3-4.5 6.5-7.5 10.5-9.5" />
+  </Base>
+);
+
+/** Zoom-in control for the driver map. */
+export const ZoomInIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M11 8v6M8 11h6" />
+    <path d="m16.6 16.6 4.4 4.4" />
+  </Base>
+);
+
+/** Zoom-out control for the driver map. */
+export const ZoomOutIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M8 11h6" />
+    <path d="m16.6 16.6 4.4 4.4" />
+  </Base>
+);
+
 export const StarIcon = (p: IconProps & { filled?: boolean }) => (
   <Base {...p} filled={p.filled}>
     <path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.2-4.1 5.8-.8Z" />

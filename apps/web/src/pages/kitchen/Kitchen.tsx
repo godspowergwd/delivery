@@ -106,8 +106,12 @@ export function KitchenQueue() {
             role="tab"
             aria-selected={tab === entry.id}
             onClick={() => setTab(entry.id)}
-            className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-bold whitespace-nowrap ${
-              tab === entry.id ? 'bg-red-700 text-white shadow-brand-soft' : 'text-slate-600 hover:text-slate-800'
+            className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-bold whitespace-nowrap transition ${
+              tab === entry.id
+                ? entry.id === 'new'
+                  ? 'bg-red-700 text-white shadow-brand-soft'
+                  : 'bg-green-600 text-white shadow-green'
+                : 'text-slate-600 hover:text-slate-800'
             }`}
           >
             {entry.label}

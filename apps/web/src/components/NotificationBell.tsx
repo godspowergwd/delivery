@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import type { NotificationDTO } from '@delivery/shared';
 import { formatRelativeTime } from '@delivery/shared';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { toast } from '../lib/realtime';
 import {
   BellIcon,
@@ -16,6 +17,7 @@ import {
 export function NotificationBell() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -26,6 +28,8 @@ export function NotificationBell() {
   }>({
     queryKey: ['notifications'],
     queryFn: () => api.get<{ items: NotificationDTO[]; unread: number }>('/notifications'),
+    // Notifications are per-account — guests never trigger the request.
+    enabled: Boolean(user),
     staleTime: 30_000,
   });
 

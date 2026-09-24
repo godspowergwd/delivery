@@ -11,15 +11,21 @@ import { useLocationPublisher } from '../../lib/tracking';
 import { estimateAddressCoordinates, MALAM_CENTER } from '../../lib/live-map';
 import { fetchRoadRoute, type RoadRoute } from '../../lib/route';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
+import { DragSheet, sheetSnapHeights, type SheetSnap } from '../../components/DragSheet';
 import {
   ArrowLeftIcon,
   BikeIcon,
+  ChevronDownIcon,
+  CompassIcon,
+  LeafIcon,
   LocateIcon,
   MapPinIcon,
   NavigationIcon,
   PhoneIcon,
   RouteIcon,
   StoreIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
 } from '../../components/icons';
 import { Button, Modal, Spinner, StatusPill, Textarea } from '../../components/ui';
 
@@ -44,7 +50,15 @@ export default function DriverMap() {
   const [searchParams] = useSearchParams();
   const requestedOrderId = searchParams.get('order');
   const [selectedId, setSelectedId] = useState<string | null>(requestedOrderId);
-  const [sheetOpen, setSheetOpen] = useState(true);
+  /**
+   * Bolt-Food sheet behaviour: peek (handle only, map almost full-screen),
+   * collapsed (summary) and expanded (full order details).
+   */
+  const [snap, setSnap] = useState<SheetSnap>('collapsed');
+  const [rotated, setRotated] = useState(false);
+  const [viewportH, setViewportH] = useState(() =>
+    typeof window === 'undefined' ? 720 : window.innerHeight,
+  );
   const [permissionDismissed, setPermissionDismissed] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
   const [route, setRoute] = useState<RoadRoute | null>(null);
@@ -55,6 +69,9 @@ export default function DriverMap() {
   const mapRef = useLiveMap(mapHostRef, {
     center: MALAM_CENTER,
     zoom: 15,
+    // The driver map ships its own floating controls (zoom, compass, route,
+    // centre) so MapLibre's built-in control would be a duplicate.
+    navigation: false,
     onUserInteract: () => setIsFollowing(false),
   });
 
@@ -204,15 +221,76 @@ export default function DriverMap() {
     mapRef.current.fit(points, { maxZoom: 15 });
   }, [location.position, target, mapRef]);
 
-  // Keep the canvas correctly sized when the sheet opens/closes on mobile.
+  // Keep the canvas correctly sized whenever the sheet snaps to a new height,
+  // and remember the viewport so the floating controls can track the sheet.
   useEffect(() => {
-    const id = window.setTimeout(() => mapRef.current.resize(), 280);
+    const onResize = () => setViewportH(window.innerHeight);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => mapRef.current.resize(), 320);
     return () => window.clearTimeout(id);
-  }, [sheetOpen, mapRef]);
+  }, [snap, mapRef]);
+
+  // Compass state: red selected treatment while the map is rotated off north.
+  useEffect(() => {
+    let timer = 0;
+    let detach: (() => void) | undefined;
+    let tries = 0;
+    const attach = () => {
+      const map = mapRef.current.getMap();
+      if (map) {
+        const onRotate = () => setRotated(Math.abs(map.getBearing()) > 1);
+        map.on('rotate', onRotate);
+        onRotate();
+        detach = () => map.off('rotate', onRotate);
+        return;
+      }
+      if (tries < 40) {
+        tries += 1;
+        timer = window.setTimeout(attach, 500);
+      }
+    };
+    attach();
+    return () => {
+      window.clearTimeout(timer);
+      detach?.();
+    };
+  }, [mapRef]);
+
+  const zoomBy = useCallback(
+    (direction: 1 | -1) => {
+      const map = mapRef.current.getMap();
+      if (!map) return;
+      if (direction > 0) map.zoomIn();
+      else map.zoomOut();
+    },
+    [mapRef],
+  );
+
+  const resetBearing = useCallback(() => {
+    const map = mapRef.current.getMap();
+    if (!map) return;
+    map.easeTo({ bearing: 0, pitch: 0, duration: 450 });
+  }, [mapRef]);
+
+  const handleSnapChange = useCallback(
+    (next: SheetSnap) => {
+      setSnap(next);
+      // The sheet animates for ~420 ms; resize once it has settled.
+      window.setTimeout(() => mapRef.current.resize(), 440);
+    },
+    [mapRef],
+  );
 
   const showPermissionCard =
     !permissionDismissed &&
     ['idle', 'denied', 'unavailable', 'timeout', 'insecure', 'unsupported'].includes(location.status);
+
+  /** Floating controls track the sheet height at every snap. */
+  const snapHeight = sheetSnapHeights(viewportH)[snap];
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
@@ -230,8 +308,10 @@ export default function DriverMap() {
           {orders.length > 1 && (
             <button
               type="button"
-              className="map-control-btn gap-1 px-3 text-sm font-bold"
-              onClick={() => setSheetOpen(true)}
+              className="map-control-btn map-control-btn-green gap-1 px-3 text-sm font-bold"
+              onClick={() => handleSnapChange('expanded')}
+              aria-label={`${orders.length} active deliveries — open the list`}
+              title="Active deliveries"
             >
               <BikeIcon className="h-4 w-4" />
               {orders.length}
@@ -239,25 +319,59 @@ export default function DriverMap() {
           )}
         </div>
 
-        {/* Floating map controls, within one-thumb reach */}
-        <div className="absolute right-3 z-20 flex flex-col gap-2" style={{ bottom: '15rem' }}>
+        {/* Floating map controls — within one thumb, never eating screen space.
+            Red = selected / primary controls, green = location + route progress. */}
+        <div
+          className="absolute right-3 z-20 flex flex-col gap-2"
+          style={{ bottom: `${snapHeight + 16}px` }}
+        >
           <button
             type="button"
-            className={`map-control-btn ${isFollowing ? 'map-control-btn-active' : ''}`}
-            onClick={recenter}
-            aria-label="Centre on my location"
-            title="Centre on my location"
+            className="map-control-btn"
+            onClick={() => zoomBy(1)}
+            aria-label="Zoom in"
+            title="Zoom in"
           >
-            <LocateIcon className="h-5 w-5" />
+            <ZoomInIcon className="map-control-btn-icon-red h-5 w-5" />
           </button>
           <button
             type="button"
             className="map-control-btn"
+            onClick={() => zoomBy(-1)}
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            <ZoomOutIcon className="map-control-btn-icon-red h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className={`map-control-btn ${rotated ? 'map-control-btn-red' : ''}`}
+            onClick={resetBearing}
+            aria-label="Reset the map to north"
+            title="Reset to north"
+            aria-pressed={rotated}
+          >
+            <CompassIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className={`map-control-btn ${route ? 'map-control-btn-green' : ''}`}
             onClick={fitRoute}
             aria-label="Show the whole route"
             title="Show the whole route"
+            aria-pressed={Boolean(route)}
           >
             <RouteIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className={`map-control-btn ${isFollowing ? 'map-control-btn-green' : ''}`}
+            onClick={recenter}
+            aria-label="Centre on my location"
+            title="Centre on my location"
+            aria-pressed={isFollowing}
+          >
+            <LocateIcon className={`h-5 w-5 ${isFollowing ? '' : 'map-control-btn-icon-green'}`} />
           </button>
           {target && (
             <button
@@ -267,7 +381,11 @@ export default function DriverMap() {
               aria-label={delivering ? 'Centre on the customer' : 'Centre on the restaurant'}
               title={delivering ? 'Centre on the customer' : 'Centre on the restaurant'}
             >
-              {delivering ? <MapPinIcon className="h-5 w-5" /> : <StoreIcon className="h-5 w-5" />}
+              {delivering ? (
+                <MapPinIcon className="map-control-btn-icon-red h-5 w-5" />
+              ) : (
+                <StoreIcon className="map-control-btn-icon-red h-5 w-5" />
+              )}
             </button>
           )}
         </div>
@@ -296,48 +414,114 @@ export default function DriverMap() {
         </div>
       )}
 
-      {/* Delivery bottom sheet */}
-      <div
-        className={`absolute inset-x-0 bottom-0 z-30 transition-transform duration-300 ease-out ${
-          sheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-4.25rem)]'
-        }`}
+      {/* Delivery bottom sheet — draggable, Bolt-Food style: three snaps,
+          velocity-based spring, and the map grows when the driver drags down. */}
+      <DragSheet
+        snap={snap}
+        onSnapChange={handleSnapChange}
+        ariaLabel="Delivery order"
+        className="pb-[max(env(safe-area-inset-bottom),0.5rem)]"
+        header={
+          <div className="pt-1">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Spinner className="h-6 w-6" />
+              </div>
+            ) : !selected ? (
+              <div className="flex items-center gap-2 py-1">
+                <span className="badge-fresh">Ready for a delivery</span>
+                <p className="ml-auto truncate text-sm font-bold text-slate-700">
+                  No active order
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <StatusPill status={selected.status} label={ORDER_STATUS_LABELS[selected.status]} />
+                  <span className="truncate font-mono text-sm text-slate-700">
+                    {selected.orderNumber}
+                  </span>
+                  {/* Green online / active-delivery indicator */}
+                  {delivering ? (
+                    <span className="flex flex-none items-center gap-1.5 rounded-full bg-green-600 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white shadow-green">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-glow absolute inset-0 rounded-full bg-green-300/60" />
+                        <span className="absolute inset-0 rounded-full bg-white" />
+                      </span>
+                      On delivery
+                    </span>
+                  ) : (
+                    <span className="badge-hot flex-none">Pickup</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleSnapChange(snap === 'expanded' ? 'collapsed' : 'expanded')}
+                    aria-label={snap === 'expanded' ? 'Collapse order details' : 'Expand order details'}
+                    className="ml-auto flex h-9 w-9 flex-none items-center justify-center rounded-full bg-red-50 text-red-600 transition hover:bg-red-100"
+                  >
+                    <ChevronDownIcon
+                      className={`h-5 w-5 transition-transform duration-300 ${
+                        snap === 'expanded' ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+                {snap !== 'peek' && (
+                  <div className="mt-2 flex items-center gap-3 pb-1">
+                    <span className="flex flex-col">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-red-600">
+                        ETA
+                      </span>
+                      <span className="text-sm font-extrabold text-green-700">
+                        {route ? etaText(route.durationMin) : '—'}
+                      </span>
+                    </span>
+                    <span className="flex flex-col">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-red-600">
+                        To go
+                      </span>
+                      <span className="text-sm font-extrabold text-green-700">
+                        {remainingKm !== null ? formatDistance(remainingKm) : '—'}
+                      </span>
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-slate-600">
+                      {selected.customerName} ·{' '}
+                      {delivering ? selected.deliveryAddress : 'Maame’s Waakye kitchen'}
+                    </span>
+                    <a
+                      href={`tel:${selected.deliveryPhone}`}
+                      aria-label={`Call ${selected.customerName}`}
+                      className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-green-600 text-white shadow-green transition hover:bg-green-700"
+                    >
+                      <PhoneIcon className="h-4 w-4" />
+                    </a>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        }
       >
-        <div className="rounded-t-3xl border border-slate-200 bg-white pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-[0_-12px_40px_-24px_rgba(19,26,38,0.45)]">
-          <button
-            type="button"
-            onClick={() => setSheetOpen((open) => !open)}
-            className="flex w-full items-center justify-center px-5 pb-1 pt-3"
-            aria-label={sheetOpen ? 'Collapse delivery details' : 'Expand delivery details'}
-          >
-            <span className="h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
-          </button>
-
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Spinner className="h-7 w-7" />
-            </div>
-          ) : !selected ? (
-            <EmptyDelivery />
-          ) : (
-            <DeliverySheet
-              order={selected}
-              remainingKm={remainingKm}
-              delivering={Boolean(delivering)}
-              destinationExact={destination?.exact ?? false}
-              routeReady={Boolean(route)}
-              busy={action.isPending}
-              deliveryCount={orders.length}
-              onComplete={() => action.mutate({ id: selected.id, verb: 'complete' })}
-              onIssue={() => setIssueOpen(true)}
-              onSelectOther={() => {
-                const index = orders.findIndex((order) => order.id === selected.id);
-                const next = orders[(index + 1) % orders.length];
-                if (next) setSelectedId(next.id);
-              }}
-            />
-          )}
-        </div>
-      </div>
+        {!isLoading && !selected && <EmptyDelivery />}
+        {selected && (
+          <DeliveryDetails
+            order={selected}
+            remainingKm={remainingKm}
+            delivering={Boolean(delivering)}
+            destinationExact={destination?.exact ?? false}
+            routeReady={Boolean(route)}
+            busy={action.isPending}
+            deliveryCount={orders.length}
+            onComplete={() => action.mutate({ id: selected.id, verb: 'complete' })}
+            onIssue={() => setIssueOpen(true)}
+            onSelectOther={() => {
+              const index = orders.findIndex((order) => order.id === selected.id);
+              const next = orders[(index + 1) % orders.length];
+              if (next) setSelectedId(next.id);
+            }}
+          />
+        )}
+      </DragSheet>
 
       {issueOpen && selected && <IssueDialog order={selected} onClose={() => setIssueOpen(false)} />}
     </div>
@@ -433,7 +617,7 @@ function LocationPermissionCard({
   );
 }
 
-function DeliverySheet({
+function DeliveryDetails({
   order,
   remainingKm,
   delivering,
@@ -465,10 +649,10 @@ function DeliverySheet({
       : null;
 
   return (
-    <div className="px-5 pb-1">
+    <div className="pb-4 pt-2">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[13px] font-bold uppercase tracking-wide text-slate-400">
+          <p className="text-[13px] font-bold uppercase tracking-wide text-red-600">
             {delivering ? 'Delivering now' : 'Next stop · restaurant'}
           </p>
           <p className="truncate font-mono text-sm text-slate-700">{order.orderNumber}</p>
@@ -476,15 +660,18 @@ function DeliverySheet({
         <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
       </div>
 
+      {/* ETA (red emphasis) paired with the live green distance-to-go. */}
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Arriving in</p>
-          <p className="text-xl font-extrabold leading-tight text-slate-900">
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-3 py-2.5">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-red-700/80">
+            Arriving in
+          </p>
+          <p className="text-xl font-extrabold leading-tight text-red-800">
             {eta ?? (remainingKm !== null ? '—' : 'Waiting for GPS')}
           </p>
         </div>
-        <div className="rounded-2xl bg-green-50 px-3 py-2.5">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-green-700/70">
+        <div className="rounded-2xl border border-green-100 bg-green-50 px-3 py-2.5">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-green-700/80">
             {delivering ? 'To customer' : 'To restaurant'}
           </p>
           <p className="text-xl font-extrabold leading-tight text-green-800">
@@ -498,7 +685,9 @@ function DeliverySheet({
           <MapPinIcon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-bold uppercase tracking-wide text-slate-400">{targetLabel}</p>
+          <p className="text-[13px] font-bold uppercase tracking-wide text-green-700">
+            {targetLabel}
+          </p>
           <p className="text-[15px] font-bold text-slate-900">{order.customerName}</p>
           <p className="text-sm leading-snug text-slate-600">
             {order.deliveryAddress}
@@ -510,7 +699,7 @@ function DeliverySheet({
             </p>
           )}
           {order.notes && (
-            <p className="mt-1 rounded-xl bg-amber-50 px-2 py-1 text-[13px] font-semibold text-amber-800">
+            <p className="mt-1 rounded-xl bg-green-50 px-2 py-1 text-[13px] font-semibold text-green-800">
               Note: {order.notes}
             </p>
           )}
@@ -519,7 +708,8 @@ function DeliverySheet({
 
       <div className="mt-2 flex items-center justify-between gap-2 text-[13px] font-semibold text-slate-500">
         <span>
-          {order.itemCount} item(s) · {formatMoney(order.total)} · {order.paymentMethod.replace('_', ' ')}
+          {order.itemCount} item(s) · {formatMoney(order.total)} ·{' '}
+          {order.paymentMethod.replace('_', ' ')}
         </span>
         {deliveryCount > 1 && (
           <button type="button" onClick={onSelectOther} className="font-bold text-red-700 underline">
@@ -528,17 +718,19 @@ function DeliverySheet({
         )}
       </div>
 
+      {/* Balanced actions: red = the delivery action itself, green = service
+          and contact, white/red = navigation, ghost = reporting. */}
       <div className="mt-3 flex flex-wrap gap-2">
         {delivering && (
-          <Button variant="success" loading={busy} onClick={onComplete}>
+          <Button loading={busy} onClick={onComplete}>
             Complete delivery
           </Button>
         )}
         <a
           href={`tel:${order.deliveryPhone}`}
-          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-semibold text-slate-800 transition hover:bg-slate-50"
+          className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-green-600 px-4 text-[15px] font-bold text-white shadow-green transition hover:bg-green-700"
         >
-          <PhoneIcon className="h-4 w-4 text-green-700" />
+          <PhoneIcon className="h-4 w-4" />
           Call
         </a>
         {delivering && navPoint && (
@@ -546,9 +738,9 @@ function DeliverySheet({
             href={`https://www.openstreetmap.org/directions?to=${navPoint.lat},${navPoint.lng}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-semibold text-slate-800 transition hover:bg-slate-50"
+            className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-[15px] font-semibold text-red-700 transition hover:bg-red-50"
           >
-            <NavigationIcon className="h-4 w-4 text-green-700" />
+            <NavigationIcon className="h-4 w-4" />
             Navigate
           </a>
         )}
@@ -562,18 +754,22 @@ function DeliverySheet({
 
 function EmptyDelivery() {
   return (
-    <div className="px-5 pb-2 pt-3">
+    <div className="pb-6 pt-2">
       <p className="text-base font-extrabold text-slate-900">No active delivery to navigate</p>
       <p className="mt-1 text-sm text-slate-600">
         Accept a delivery from the list and the full route appears here automatically.
       </p>
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Link
           to="/driver/deliveries"
-          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-red-700 px-4 text-[15px] font-semibold text-white shadow-brand-soft transition hover:bg-red-800"
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-red-600 px-4 text-[15px] font-semibold text-white shadow-brand-soft transition hover:bg-red-700"
         >
           Go to deliveries
         </Link>
+        <span className="food-chip">
+          <LeafIcon className="h-3 w-3" aria-hidden="true" />
+          available today
+        </span>
       </div>
     </div>
   );

@@ -1,15 +1,22 @@
 @import "tailwindcss";
-@import 'maplibre-gl/dist/maplibre-gl.css';
 
 /* ===========================================================================
    ONYX — Maame’s Waakye App design system (2026)
 
-   The supplied Maame’s Waakye logo is the source of truth. Red is the primary
-   action and selected-state colour; green is reserved for positive, live, and
-   completed states. White remains the dominant surface.
+   The supplied Maame’s Waakye logo is the source of truth. RED and GREEN are
+   EQUAL brand pillars: red carries warmth, energy, actions, pricing and food
+   emphasis; green carries freshness, ingredients, availability, active service
+   and delivery progress. White remains the dominant content surface so the two
+   brand colours read as intentional, never noisy.
+
+   Colour rules of the house:
+   * Red   -> primary buttons, prices, food names, navigation, banners, actions.
+   * Green -> ingredient chips, availability, freshness, delivery progress,
+              location accents, positive confirmations, active service.
+   * Both  -> headers, promos, statuses, map controls, cards, containers.
    =========================================================================== */
 @theme {
-  /* --- Brand red: primary actions and selected states ---------------------- */
+  /* --- Brand red: warmth, actions, pricing, emphasis ---------------------- */
   --color-red-50: #fff1f2;
   --color-red-100: #ffe2e4;
   --color-red-200: #ffc7cb;
@@ -22,28 +29,30 @@
   --color-red-900: #7c0410;
   --color-red-950: #450109;
 
-  /* --- Brand green: positive, live, and completed states ------------------ */
+  /* --- Brand green: freshness, ingredients, availability, progress --------
+     Tuned one step deeper than the 2025 palette so white text on green
+     buttons and green labels on white both clear WCAG AA (>= 4.5:1). */
   --color-green-50: #edfcf5;
   --color-green-100: #d3f8e6;
-  --color-green-200: #a9efd1;
-  --color-green-300: #71e0b6;
-  --color-green-400: #37c896;
-  --color-green-500: #14ad7c;
-  --color-green-600: #0b9663;
-  --color-green-700: #077852;
-  --color-green-800: #075f42;
-  --color-green-900: #064e37;
-  --color-green-950: #022c1f;
+  --color-green-200: #a7efcf;
+  --color-green-300: #6ee0b4;
+  --color-green-400: #2fc392;
+  --color-green-500: #10a87c;
+  --color-green-600: #0a8058;
+  --color-green-700: #076647;
+  --color-green-800: #064e37;
+  --color-green-900: #053d2b;
+  --color-green-950: #02271b;
   --color-emerald-50: #edfcf5;
   --color-emerald-100: #d3f8e6;
-  --color-emerald-200: #a9efd1;
-  --color-emerald-300: #71e0b6;
-  --color-emerald-400: #37c896;
-  --color-emerald-500: #14ad7c;
-  --color-emerald-600: #0b9663;
-  --color-emerald-700: #077852;
-  --color-emerald-800: #075f42;
-  --color-emerald-900: #064e37;
+  --color-emerald-200: #a7efcf;
+  --color-emerald-300: #6ee0b4;
+  --color-emerald-400: #2fc392;
+  --color-emerald-500: #10a87c;
+  --color-emerald-600: #0a8058;
+  --color-emerald-700: #076647;
+  --color-emerald-800: #064e37;
+  --color-emerald-900: #053d2b;
 
   /* --- Soft neutral surfaces ---------------------------------------------- */
   --color-slate-50: #f7f8fa;
@@ -66,8 +75,10 @@
   --shadow-lift: 0 2px 4px rgb(19 26 38 / 0.05), 0 24px 48px -20px rgb(19 26 38 / 0.22);
   --shadow-brand: 0 8px 24px -8px rgb(227 6 19 / 0.45);
   --shadow-brand-soft: 0 6px 18px -10px rgb(227 6 19 / 0.35);
-  --shadow-green: 0 8px 24px -8px rgb(11 150 99 / 0.4);
+  --shadow-green: 0 8px 24px -8px rgb(10 128 88 / 0.45);
   --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Spring used by the driver bottom sheet and modal sheets. */
+  --ease-spring: cubic-bezier(0.33, 1.18, 0.42, 1);
 }
 
 :root {
@@ -78,12 +89,15 @@
   --brand-highlight: #ff5c66;
   --brand-soft: #fff1f2;
   --brand-tint: #fff7f7;
-  --success: #0b9663;
-  --success-deep: #075f42;
-  --success-highlight: #37c896;
+  --success: #0a8058;
+  --success-deep: #064e37;
+  --success-highlight: #2fc392;
   --success-soft: #edfcf5;
   --brand-gradient: linear-gradient(135deg, #e30613 0%, #bf0511 52%, #99040d 100%);
-  --success-gradient: linear-gradient(135deg, #37c896 0%, #0b9663 52%, #075f42 100%);
+  --success-gradient: linear-gradient(135deg, #10a87c 0%, #0a8058 52%, #064e37 100%);
+  /* Equal-weight red-and-green pairing for promos, sheets and headers. */
+  --duo-gradient: linear-gradient(120deg, #e30613 0%, #bf0511 38%, #0a8058 100%);
+  --duo-bar: linear-gradient(90deg, #e30613 0%, #e30613 50%, #0a8058 50%, #0a8058 100%);
   --surface: #ffffff;
   --surface-muted: #f7f8fa;
   --line: #e5e9ef;
@@ -303,7 +317,7 @@ img {
 .field-float.is-filled > label,
 .field-float:focus-within > label { transform: translateY(-0.62rem) scale(0.78); }
 .field-float.is-valid > input,
-.field-float.is-valid > textarea { border-color: var(--success); box-shadow: 0 0 0 4px rgb(11 150 99 / 0.12); }
+.field-float.is-valid > textarea { border-color: var(--success); box-shadow: 0 0 0 4px rgb(10 128 88 / 0.12); }
 .field-float.is-valid > label { color: var(--success); }
 .field-float.is-invalid > input,
 .field-float.is-invalid > textarea { border-color: var(--brand); box-shadow: 0 0 0 4px rgb(227 6 19 / 0.14); }
@@ -322,6 +336,126 @@ img {
   transform: translateX(-100%);
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.75), transparent);
   animation: ds-shimmer 1.4s infinite;
+}
+
+/* ===========================================================================
+   Balanced red-and-green brand surfaces
+   =========================================================================== */
+
+/* Split red/green top border for white cards and panels. */
+.duo-top { position: relative; overflow: hidden; }
+.duo-top::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--duo-bar);
+  pointer-events: none;
+}
+
+/* Selective red + green corner accents (cards, promos, status panels). */
+.rg-corners { position: relative; }
+.rg-corners::before,
+.rg-corners::after {
+  content: "";
+  position: absolute;
+  width: 2.25rem;
+  height: 2.25rem;
+  pointer-events: none;
+  transition: transform 0.35s var(--ease-premium), opacity 0.35s var(--ease-premium);
+}
+.rg-corners::before {
+  top: -1px;
+  right: -1px;
+  border-top: 4px solid var(--brand);
+  border-right: 4px solid var(--brand);
+  border-top-right-radius: calc(var(--radius-card) - 2px);
+}
+.rg-corners::after {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 4px solid var(--success);
+  border-left: 4px solid var(--success);
+  border-bottom-left-radius: calc(var(--radius-card) - 2px);
+}
+.group:hover .rg-corners::before { transform: translate(-3px, 3px); }
+.group:hover .rg-corners::after { transform: translate(3px, -3px); }
+
+/* Decorative duo blob used on promo banners (red field, green flourish). */
+.duo-blob {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+}
+.duo-blob-green { background: rgb(10 128 88 / 0.9); }
+.duo-blob-red { background: rgb(227 6 19 / 0.9); }
+
+/* Green ingredient / freshness chip — the food voice of the brand. */
+.food-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-green-200);
+  background: var(--success-soft);
+  color: var(--success-deep);
+  padding: 0.16rem 0.55rem;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  animation: ds-pop 0.3s var(--ease-premium) both;
+}
+.food-chip-red {
+  border-color: var(--color-red-200);
+  background: var(--brand-soft);
+  color: var(--brand-hover);
+}
+
+/* Green availability / freshness badge. */
+.badge-fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  background: var(--success);
+  color: #fff;
+  padding: 0.18rem 0.6rem;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: var(--shadow-green);
+}
+/* Red emphasis badge (popular, promo, price alerts). */
+.badge-hot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  padding: 0.18rem 0.6rem;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: var(--shadow-brand-soft);
+}
+
+/* Sheet / bottom-sheet spring snapping. */
+.sheet-spring { transition: height 0.42s var(--ease-premium), transform 0.42s var(--ease-spring); }
+.sheet-dragging { transition: none !important; }
+
+/* Animated red-and-green delivery progress bar (split segments). */
+.duo-progress {
+  background: var(--duo-bar);
+  background-size: 200% 100%;
+  animation: ds-duo-slide 6s linear infinite;
+}
+@keyframes ds-duo-slide {
+  0% { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
 }
 
 /* ===========================================================================
@@ -424,11 +558,11 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 0.85rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 0.95rem;
   border: 1px solid var(--line);
-  background: rgb(255 255 255 / 0.96);
+  background: rgb(255 255 255 / 0.97);
   color: var(--ink);
   box-shadow: var(--shadow-soft);
   cursor: pointer;
@@ -436,10 +570,23 @@ img {
 .map-control-btn:hover {
   background: var(--surface-muted);
 }
-.map-control-btn-active {
-  background: var(--success);
+/* Selected / primary controls -> red. Location + route progress -> green.
+   Secondary controls stay white with red or green icons. */
+.map-control-btn-active,
+.map-control-btn-red {
+  background: var(--brand);
+  border-color: var(--brand);
   color: #ffffff;
 }
+.map-control-btn-red:hover { background: var(--brand-hover); }
+.map-control-btn-green {
+  background: var(--success);
+  border-color: var(--success);
+  color: #ffffff;
+}
+.map-control-btn-green:hover { background: var(--success-deep); }
+.map-control-btn-icon-red { color: var(--brand); }
+.map-control-btn-icon-green { color: var(--success); }
 
 .map-overlay-card {
   position: absolute;
@@ -467,13 +614,18 @@ img {
 .map-marker {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 999px;
   background: #fff;
   box-shadow: var(--shadow-lift);
   border: 2px solid var(--brand);
   color: var(--brand);
 }
+/* Green = live/moving things (driver + your location). Red = destination and
+   the kitchen, the two anchors of every delivery. Both stay equally present. */
 .map-marker-driver { border-color: var(--success); color: var(--success); animation: ds-pop 0.4s var(--ease-premium) both; }
-.map-marker-kitchen { border-color: var(--ink); color: var(--ink); }
+.map-marker-user { border-color: var(--success); color: var(--success); }
+.map-marker-destination { border-color: var(--brand); color: var(--brand); }
+.map-marker-restaurant { border-color: var(--brand); color: var(--brand); }
+.map-marker-kitchen { border-color: var(--brand); color: var(--brand); }

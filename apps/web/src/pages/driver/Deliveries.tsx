@@ -80,8 +80,10 @@ export default function DriverDeliveries() {
             onClick={() => setTab(t)}
             className={
               tab === t
-                ? 'rounded-full bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-brand-soft'
-                : 'rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200'
+                ? t === 'mine'
+                  ? 'rounded-full bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-brand-soft transition'
+                  : 'rounded-full bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-green transition'
+                : 'rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200'
             }
           >
             {TAB_LABELS[t]}
@@ -103,19 +105,23 @@ export default function DriverDeliveries() {
       ) : (
         <div className="space-y-2">
           {orders.map((order) => (
-            <Card key={order.id} className="!p-4">
+            <Card key={order.id} className="rg-corners !p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-mono text-sm text-slate-800">{order.orderNumber}</p>
-                  <p className="truncate text-sm text-slate-600">{order.customerName}</p>
+                  <p className="truncate text-sm font-semibold text-slate-700">{order.customerName}</p>
                   <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-                    <MapPinIcon className="h-3.5 w-3.5 flex-none text-slate-400" aria-hidden="true" />
+                    <MapPinIcon className="h-3.5 w-3.5 flex-none text-green-600" aria-hidden="true" />
                     <span className="truncate">{order.deliveryAddress}</span>
                   </p>
-                  {order.notes ? <p className="mt-1 truncate text-xs text-red-700">Note: {order.notes}</p> : null}
+                  {order.notes ? (
+                    <p className="mt-1 rounded-lg bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-800">
+                      Note: {order.notes}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-sm text-slate-500">
-                    {order.itemCount} item(s) · {formatMoney(order.total)} · {order.paymentMethod.replace('_', ' ')} ·{' '}
-                    {formatRelativeTime(order.createdAt)}
+                    {order.itemCount} item(s) · <span className="font-semibold text-red-600">{formatMoney(order.total)}</span> ·{' '}
+                    {order.paymentMethod.replace('_', ' ')} · {formatRelativeTime(order.createdAt)}
                   </p>
                 </div>
                 <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
@@ -134,7 +140,7 @@ export default function DriverDeliveries() {
                 {tab === 'mine' && (
                   <Link
                     to={`/driver/map?order=${order.id}`}
-                    className="rounded-2xl bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow-green hover:bg-green-800"
+                    className="rounded-2xl bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-green transition hover:bg-green-700"
                   >
                     Open map
                   </Link>
@@ -142,6 +148,7 @@ export default function DriverDeliveries() {
                 {tab === 'mine' && order.status === 'OUT_FOR_DELIVERY' && (
                   <Button
                     size="sm"
+                    variant="secondary"
                     loading={action.isPending && action.variables?.id === order.id}
                     onClick={() => action.mutate({ id: order.id, verb: 'complete' })}
                   >
@@ -151,7 +158,7 @@ export default function DriverDeliveries() {
                 {tab === 'mine' && (
                   <a
                     href={`tel:${order.deliveryPhone}`}
-                    className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
+                    className="rounded-2xl bg-green-50 px-4 py-2 text-sm font-bold text-green-800 transition hover:bg-green-100"
                   >
                     Call customer
                   </a>

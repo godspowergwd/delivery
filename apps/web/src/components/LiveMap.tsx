@@ -1,21 +1,41 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import * as maplibregl from 'maplibre-gl';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { DEFAULT_MAP_ZOOM, KITCHEN_ANCHOR, mapStyleUrl, type LatLng } from '../lib/live-map';
 
 /**
  * MapLibre GL wrapper for the delivery maps.
  *
- * Everything drawn here comes from real data: the driver marker is the driver's
- * own device GPS, the destination is the coordinate captured at checkout and the
- * restaurant is the admin-configured kitchen anchor. The only motion that is not
- * a raw fix is the smoothing between two real fixes, so the marker glides
- * instead of jumping.
+ * The GL engine (Mapbox GL-compatible renderer + keyless OpenFreeMap tiles)
+ * is loaded lazily so the renderer never blocks first paint: maps download
+ * only when a screen actually mounts one.
+ *
+ * Everything drawn here comes from real data: the driver marker is the
+ * driver's own device GPS, the destination is the coordinate captured at
+ * checkout and the restaurant is the admin-configured kitchen anchor. The
+ * only motion that is not a raw fix is the smoothing between two real fixes,
+ * so the marker glides instead of jumping.
  */
+
+type MapGL = typeof import('maplibre-gl');
+/** Instance types for the lazily-imported engine (type-only, fully erased). */
+type GLMap = InstanceType<MapGL['Map']>;
+type GLMarker = InstanceType<MapGL['Marker']>;
+
+/** Single cached dynamic import (module + stylesheet) shared by every map. */
+let mapglPromise: Promise<MapGL> | null = null;
+function loadMapGL(): Promise<MapGL> {
+  if (!mapglPromise) {
+    mapglPromise = (async () => {
+      await import('maplibre-gl/dist/maplibre-gl.css');
+      return import('maplibre-gl');
+    })();
+  }
+  return mapglPromise;
+}
 
 export type MapMarkerKind = 'driver' | 'destination' | 'restaurant' | 'user';
 
 export interface LiveMapHandle {
-  getMap(): maplibregl.Map | null;
+  getMap(): GLMap | null;
   /** Draws the delivery route (remaining leg). */
   setRoute(coordinates: Array<[number, number]>, options?: { fit?: boolean }): void;
   /** Paints the part of the route already covered, in green. */
@@ -81,6 +101,9 @@ export interface UseLiveMapOptions {
   center?: LatLng;
   zoom?: number;
   interactive?: boolean;
+  /** Show MapLibre's built-in zoom control. App screens with their own floating
+   *  controls (the driver map) pass false; defaults to `interactive`. */
+  navigation?: boolean;
   /** Notified when the user pans or zooms away from the followed position. */
   onUserInteract?: () => void;
 }
@@ -97,14 +120,30 @@ export function useLiveMap(
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
+  // Lazily pull the GL engine; the map mounts the moment it lands.
+  const [mapgl, setMapgl] = useState<MapGL | null>(null);
   useEffect(() => {
+    let cancelled = false;
+    loadMapGL()
+      .then((module) => {
+        if (!cancelled) setMapgl(module);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const maplibregl = mapgl;
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || !maplibregl) return;
 
     const center = optionsRef.current.center ?? KITCHEN_ANCHOR;
     const interactive = optionsRef.current.interactive ?? true;
+    const showNavigation = optionsRef.current.navigation ?? interactive;
     let cancelled = false;
-    let map: maplibregl.Map | null = null;
+    let map: GLMap | null = null;
 
     try {
       map = new maplibregl.Map({
@@ -118,7 +157,7 @@ export function useLiveMap(
         maxZoom: 18,
         minZoom: 10,
       });
-      if (interactive) {
+      if (showNavigation) {
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
       }
     } catch {
@@ -132,8 +171,8 @@ export function useLiveMap(
     const mapInstance = map;
     let following = false;
     let animationFrame = 0;
-    let accuracyMarker: maplibregl.Marker | null = null;
-    const markers: Partial<Record<MapMarkerKind, maplibregl.Marker>> = {};
+    let accuracyMarker: GLMarker | null = null;
+    const markers: Partial<Record<MapMarkerKind, GLMarker>> = {};
     const targets: Partial<Record<MapMarkerKind, LatLng>> = {};
     const displayed: Partial<Record<MapMarkerKind, LatLng>> = {};
 
@@ -177,14 +216,16 @@ export function useLiveMap(
       });
     };
 
-    function setSourceData(id: string, coordinates: Array<[number, number]>): void {
+    // Arrow consts (not hoisted function declarations) so the non-null
+    // `maplibregl` narrowing from the guard above is preserved inside them.
+    const setSourceData = (id: string, coordinates: Array<[number, number]>): void => {
       if (!mapInstance.isStyleLoaded()) return;
-      const source = mapInstance.getSource(id) as maplibregl.GeoJSONSource | undefined;
+      const source = mapInstance.getSource(id) as import('maplibre-gl').GeoJSONSource | undefined;
       if (!source) return;
       source.setData(coordinates.length === 0 ? emptyCollection() : lineFeature(coordinates));
-    }
+    };
 
-    function placeMarker(kind: MapMarkerKind, point: LatLng, animate: boolean): void {
+    const placeMarker = (kind: MapMarkerKind, point: LatLng, animate: boolean): void => {
       targets[kind] = point;
       if (!mapInstance.isStyleLoaded()) return;
       const previous = displayed[kind];
@@ -222,9 +263,9 @@ export function useLiveMap(
         if (t < 1 && !cancelled) animationFrame = requestAnimationFrame(step);
       };
       animationFrame = requestAnimationFrame(step);
-    }
+    };
 
-    function updateAccuracyHalo(point: LatLng, accuracyMetres: number | null): void {
+    const updateAccuracyHalo = (point: LatLng, accuracyMetres: number | null): void => {
       if (!accuracyMetres || accuracyMetres <= 0 || !mapInstance.isStyleLoaded()) {
         accuracyMarker?.remove();
         accuracyMarker = null;
@@ -245,9 +286,9 @@ export function useLiveMap(
       element.style.width = `${size}px`;
       element.style.height = `${size}px`;
       accuracyMarker.setLngLat([point.lng, point.lat]);
-    }
+    };
 
-    function followIfNeeded(): void {
+    const followIfNeeded = (): void => {
       const driver = targets.driver;
       if (!following || !driver) return;
       const current = mapInstance.getCenter();
@@ -257,7 +298,7 @@ export function useLiveMap(
         center: [driver.lng, driver.lat],
         duration: Math.min(1400, Math.max(450, movedMetres * 14)),
       });
-    }
+    };
 
     mapInstance.on('load', () => {
       if (cancelled) return;
@@ -378,7 +419,7 @@ export function useLiveMap(
     };
     // The map is created once per mounted container on purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef]);
+  }, [containerRef, mapgl]);
 
   return handleRef;
 }

@@ -4,9 +4,11 @@ import { Link } from 'react-router-dom';
 import type { CategoryDTO, Paginated, ProductDTO } from '@delivery/shared';
 import { formatMoney } from '@delivery/shared';
 import { api, mediaUrl, qs } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { useCart } from '../../lib/cart';
+import { useGuestGate } from '../../lib/guest';
 import { toast } from '../../lib/realtime';
-import { HeartIcon, ImageIcon } from '../../components/icons';
+import { HeartIcon, ImageIcon, LeafIcon } from '../../components/icons';
 import { EmptyState, Input, Select, Spinner } from '../../components/ui';
 import {
   TRENDING_SEARCHES,
@@ -25,6 +27,8 @@ export function Menu() {
   const [sort, setSort] = useState<Sort>('newest');
   const sentinel = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { requireAuth } = useGuestGate();
   const { add } = useCart();
 
   useEffect(() => {
@@ -46,6 +50,8 @@ export function Menu() {
   const { data: favoriteIds } = useQuery({
     queryKey: ['favorite-ids'],
     queryFn: () => api.get<{ productIds: string[] }>('/favorites/ids'),
+    // Favorites belong to an account — guests browse without the query.
+    enabled: Boolean(user),
     staleTime: 60_000,
   });
 
@@ -79,16 +85,21 @@ export function Menu() {
   const items = useMemo(() => products.data?.pages.flatMap((page) => page.items) ?? [], [products.data]);
   const favorites = useMemo(() => new Set(favoriteIds?.productIds ?? []), [favoriteIds]);
 
-  const toggleFavorite = async (product: ProductDTO) => {
+  const toggleFavorite = (product: ProductDTO) => {
     const wasFavorite = favorites.has(product.id);
-    try {
-      if (wasFavorite) await api.del(`/favorites/${product.id}`);
-      else await api.post(`/favorites/${product.id}`);
-      void queryClient.invalidateQueries({ queryKey: ['favorite-ids'] });
-      toast(wasFavorite ? `Removed "${product.name}" from favorites` : `Saved "${product.name}" to favorites`, 'success');
-    } catch (error) {
-      toast(error instanceof Error ? error.message : 'Could not update favorites', 'error');
-    }
+    // Saving a favorite is an account action — guests get the sign-in sheet.
+    requireAuth(() => {
+      void (async () => {
+        try {
+          if (wasFavorite) await api.del(`/favorites/${product.id}`);
+          else await api.post(`/favorites/${product.id}`);
+          void queryClient.invalidateQueries({ queryKey: ['favorite-ids'] });
+          toast(wasFavorite ? `Removed "${product.name}" from favorites` : `Saved "${product.name}" to favorites`, 'success');
+        } catch (error) {
+          toast(error instanceof Error ? error.message : 'Could not update favorites', 'error');
+        }
+      })();
+    });
   };
 
   return (
@@ -110,11 +121,11 @@ export function Menu() {
             <option value="name_asc">Name A → Z</option>
           </Select>
           <div className="flex flex-1 gap-2 overflow-x-auto pb-1">
-            <Chip active={categoryId === null} onClick={() => setCategoryId(null)}>
+            <Chip active={categoryId === null} tone="red" onClick={() => setCategoryId(null)}>
               All
             </Chip>
             {(categories?.items ?? []).map((category) => (
-              <Chip key={category.id} active={categoryId === category.id} onClick={() => setCategoryId(category.id)}>
+              <Chip key={category.id} active={categoryId === category.id} tone="green" onClick={() => setCategoryId(category.id)}>
                 {category.name}
               </Chip>
             ))}
@@ -140,8 +151,24 @@ export function Menu() {
               favorite={favorites.has(product.id)}
               onFavorite={() => void toggleFavorite(product)}
               onAdd={() => {
-                add(product);
-                toast(`Added ${product.name}`, 'success');
+                // Add to cart is protected: guests sign in, then it adds itself.
+                requireAuth(
+                  () => {
+                    add(product);
+                    toast(`Added ${product.name}`, 'success');
+                  },
+                  {
+                    type: 'ADD_TO_CART',
+                    line: {
+                      productId: product.id,
+                      name: product.name,
+                      imageUrl: product.imageUrl,
+                      unitPrice: product.price,
+                      quantity: 1,
+                      notes: null,
+                    },
+                  },
+                );
               }}
             />
           ))}
@@ -163,7 +190,7 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
   const soldOut = !product.isAvailable || product.stock <= 0;
 
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white">
+    <div className="rg-corners relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white transition hover:shadow-card">
       <button
         onClick={onFavorite}
         aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -180,15 +207,29 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
           </div>
         )}
         <div className="absolute left-2 top-2 flex gap-1">
-          {product.isPopular && <Badge className="bg-red-700 text-white">Popular</Badge>}
-          {product.isNew && <Badge className="bg-red-700/90 text-white">New</Badge>}
+          {product.isPopular && <Badge className="bg-red-600 text-white">Popular</Badge>}
+          {product.isNew && (
+            <Badge className="bg-green-600 text-white">
+              <LeafIcon className="mr-0.5 inline h-3 w-3" aria-hidden="true" />
+              Fresh
+            </Badge>
+          )}
         </div>
+        {!soldOut && !product.isNew && (
+          <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-green-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden="true" />
+            Available
+          </span>
+        )}
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <Link to={`/app/product/${product.id}`} className="line-clamp-2 text-sm font-bold leading-snug text-slate-900">
+        <Link to={`/app/product/${product.id}`} className="line-clamp-2 text-sm font-bold leading-snug text-red-700 transition hover:text-red-800">
           {product.name}
         </Link>
-        <p className="text-sm text-slate-500">{product.prepTimeMinutes} min prep</p>
+        <p className="flex items-center gap-1 text-sm text-green-700">
+          <LeafIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          {product.prepTimeMinutes} min prep
+        </p>
         <div className="mt-auto flex items-center justify-between gap-2">
           <span className="text-sm font-extrabold text-red-600">{formatMoney(product.price)}</span>
           <button
@@ -264,13 +305,25 @@ function Badge({ children, className = '' }: { children: React.ReactNode; classN
   return <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide ${className}`}>{children}</span>;
 }
 
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({
+  active,
+  tone = 'red',
+  onClick,
+  children,
+}: {
+  active: boolean;
+  tone?: 'red' | 'green';
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       onClick={onClick}
       className={
         active
-          ? 'shrink-0 rounded-full bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-brand-soft'
+          ? tone === 'green'
+            ? 'shrink-0 rounded-full bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-green transition'
+            : 'shrink-0 rounded-full bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-brand-soft transition'
           : 'shrink-0 rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200'
       }
     >

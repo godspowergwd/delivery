@@ -1,52 +1,284 @@
+import { useEffect, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { AddressDTO, OrderDTO, SettingsDTO } from '@delivery/shared';
+import { PAYMENT_METHOD_LABELS, computeTotals, formatMoney } from '@delivery/shared';
+import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
+import { useCart } from '../../lib/cart';
+import type { PlaceSuggestion } from '../../lib/geocode';
+import { toast } from '../../lib/realtime';
+import { Button, Card, Field, Input, Textarea } from '../../components/ui';
+import { MapPreview } from '../../components/MapPreview';
+import { LocationSearch } from '../../components/LocationSearch';
+import { CheckIcon, LeafIcon } from '../../components/icons';
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AddressDTO, OrderDTO, SettingsDTO } from "@delivery/shared";
-import { PAYMENT_METHOD_LABELS, computeTotals, formatMoney } from "@delivery/shared";
-import { api } from "../../lib/api";
-import { useAuth } from "../../lib/auth";
-import { useCart } from "../../lib/cart";
-import { toast } from "../../lib/realtime";
-import { Button, Card, ErrorText, Field, Input, Textarea } from "../../components/ui";
-import { MapPreview } from "../../components/MapPreview";
-import { LocateIcon, MapPinIcon } from "../../components/icons";
-
-interface SelectedAddress { label: string; address: string; latitude: number; longitude: number; }
-
-interface GeoSearchResponse { suggestions: Array<{ label: string; address: string; latitude: number; longitude: number; placeId: string; type: string; }>; }
-
+/**
+ * Checkout — account-only (gated by <RequireAccount>), so everyone here is
+ * signed in. The address field is the intelligent Mallam-first autocomplete,
+ * the service-zone verdict is a live green/red status, and the submit action
+ * is the screen's single red primary button.
+ */
 export function Checkout() {
-  const { lines, itemCount, subtotal, clear } = useCart();
+  const { lines, clear } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const searchRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const [form, setForm] = useState<{ selectedAddress: SelectedAddress | null; deliveryPhone: string; notes: string; paymentMethod: "CASH" | "MOBILE_MONEY"; showSuggestions: boolean; searchQuery: string; }>({ selectedAddress: null, deliveryPhone: "", notes: "", paymentMethod: "CASH", showSuggestions: false, searchQuery: "", });
-  const { data: settingsData } = useQuery({ queryKey: ["settings"], queryFn: () => api.get<{ settings: SettingsDTO }>("/settings"), staleTime: 60_000 });
+
+  const [addressText, setAddressText] = useState('');
+  const [selected, setSelected] = useState<PlaceSuggestion | null>(null);
+  const [deliveryPhone, setDeliveryPhone] = useState('');
+  const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'MOBILE_MONEY'>('CASH');
+
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
+    staleTime: 60_000,
+  });
   const settings = settingsData?.settings;
+
   // Live service-area feedback for the chosen point. The API re-checks on submit.
-  const chosenPoint = form.selectedAddress && (form.selectedAddress.latitude !== 0 || form.selectedAddress.longitude !== 0) ? form.selectedAddress : null;
-  const zoneCheck = useQuery({ queryKey: ["delivery-zone", chosenPoint?.latitude, chosenPoint?.longitude], enabled: Boolean(chosenPoint), staleTime: 120_000, queryFn: () => api.get<{ within: boolean; distanceKm: number; radiusKm: number; message: string | null }>("/geo/check-zone?latitude=" + chosenPoint!.latitude + "&longitude=" + chosenPoint!.longitude) });
+  const zoneCheck = useQuery({
+    queryKey: ['delivery-zone', selected?.lat, selected?.lng],
+    enabled: Boolean(selected && (selected.lat !== 0 || selected.lng !== 0)),
+    staleTime: 120_000,
+    queryFn: () =>
+      api.get<{ within: boolean; distanceKm: number; radiusKm: number; message: string | null }>(
+        `/geo/check-zone?latitude=${selected!.lat}&longitude=${selected!.lng}`,
+      ),
+  });
   const outOfZone = zoneCheck.data ? !zoneCheck.data.within : false;
-  const { data: addressData } = useQuery({ queryKey: ["addresses"], queryFn: () => api.get<{ addresses: AddressDTO[] }>("/addresses") });
-  useEffect(() => { const phone = user?.phone ?? ""; setForm(c => ({ ...c, deliveryPhone: c.deliveryPhone || phone })); }, [user?.phone]);
-  useEffect(() => { const saved = addressData?.addresses.find(a => a.isDefault) ?? addressData?.addresses[0]; if (saved && !form.selectedAddress) { const addr = [saved.line1, saved.area, saved.city].filter(Boolean).join(", "); setForm(c => ({ ...c, selectedAddress: { label: addr, address: addr, latitude: 0, longitude: 0 } })); } }, [addressData]);
-  const [suggestions, setSuggestions] = useState<Array<{ label: string; address: string; latitude: number; longitude: number; }>>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const totals = computeTotals({ items: lines.map(l => ({ unitPrice: l.unitPrice, quantity: l.quantity })), deliveryFee: settings?.deliveryFee ?? 0, taxRate: settings?.taxRate ?? 0 });
-  const searchAddresses = async (q: string) => { if (q.trim().length < 3) { setSuggestions([]); setSearchError(null); return; } setSearchLoading(true); setSearchError(null); try { const data = await api.get<GeoSearchResponse>("/geo/search?q=" + encodeURIComponent(q.trim())); setSuggestions(data.suggestions ?? []); } catch (e) { setSearchError(e instanceof Error ? e.message : "Search failed"); setSuggestions([]); } finally { setSearchLoading(false); } };
-  const handleSearchChange = (v: string) => { setForm(c => ({ ...c, searchQuery: v, showSuggestions: v.trim().length >= 3 })); if (debounceRef.current) clearTimeout(debounceRef.current); debounceRef.current = setTimeout(() => searchAddresses(v), 300); };
-  const selectSuggestion = (s: { label: string; address: string; latitude: number; longitude: number; }) => { setForm(c => ({ ...c, selectedAddress: { label: s.label, address: s.address, latitude: s.latitude, longitude: s.longitude }, searchQuery: s.address, showSuggestions: false })); setSuggestions([]); if (searchRef.current) searchRef.current.blur(); };
-  const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => { if (e.key === "Escape") setForm(c => ({ ...c, showSuggestions: false })); if (e.key === "Enter" && suggestions.length > 0) selectSuggestion(suggestions[0]); };
-  useEffect(() => { const h = (e: MouseEvent) => { if (listRef.current && !listRef.current.contains(e.target as Node)) setForm(c => ({ ...c, showSuggestions: false })); }; document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
-  const useCurrentLocation = () => { if (!navigator.geolocation) { toast("Geolocation is not supported by your browser.", "error"); return; } setSearchLoading(true); navigator.geolocation.getCurrentPosition(async (pos) => { setSearchLoading(false); const { latitude: lat, longitude: lng } = pos.coords; const label = "Current location"; const addr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`; setForm(c => ({ ...c, selectedAddress: { label, address: addr, latitude: lat, longitude: lng }, searchQuery: label, showSuggestions: false })); toast("Location detected", "success"); }, (err) => { setSearchLoading(false); const error = err as GeolocationPositionError; if (error.code === error.PERMISSION_DENIED) toast("Location access denied. Please type your address.", "error"); else toast("Could not get location. Please type your address.", "error"); }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }); };
-  const placeOrder = useMutation({ mutationFn: () => api.post<{ order: OrderDTO }>("/orders", { items: lines.map(l => ({ productId: l.productId, quantity: l.quantity, notes: l.notes || undefined })), deliveryAddress: form.selectedAddress?.address ?? form.searchQuery, deliveryPhone: form.deliveryPhone, notes: form.notes || undefined, paymentMethod: form.paymentMethod, deliveryLatitude: form.selectedAddress?.latitude ?? null, deliveryLongitude: form.selectedAddress?.longitude ?? null }), onSuccess: (d) => { clear(); queryClient.invalidateQueries({ queryKey: ["orders"] }); queryClient.invalidateQueries({ queryKey: ["active-orders"] }); toast("Order " + d.order.orderNumber + " sent to the kitchen!", "success"); navigate("/app/orders/" + d.order.id, { replace: true }); }, onError: (e) => toast(e instanceof Error ? e.message : "Could not place the order", "error") });
-  if (lines.length === 0) { return (<Card><p className="text-center text-sm text-slate-600">Your cart is empty — add items before checking out.</p><div className="mt-4 flex justify-center"><Button onClick={() => navigate("/app/menu")}>Open the menu</Button></div></Card>); }
-  const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); if (!settings?.acceptingOrders) { toast("The kitchen is not accepting orders right now.", "error"); return; } if (!form.deliveryPhone.trim()) { toast("Please add a contact phone number.", "error"); return; } if (!form.selectedAddress && !form.searchQuery.trim()) { toast("Please choose a delivery address.", "error"); return; } if (outOfZone) { toast(zoneCheck.data?.message ?? "We do not deliver to that location yet.", "error"); return; } placeOrder.mutate(); };
+
+  const { data: addressData } = useQuery({
+    queryKey: ['addresses'],
+    queryFn: () => api.get<{ addresses: AddressDTO[] }>('/addresses'),
+    enabled: Boolean(user),
+  });
+
+  useEffect(() => {
+    const phone = user?.phone ?? '';
+    setDeliveryPhone((current) => current || phone);
+  }, [user?.phone]);
+
+  // Preselect the saved default address once, before the guest touches the field.
+  useEffect(() => {
+    if (selected || !addressData) return;
+    const saved = addressData.addresses.find((a) => a.isDefault) ?? addressData.addresses[0];
+    if (!saved) return;
+    const label = [saved.line1, saved.area, saved.city].filter(Boolean).join(', ');
+    setAddressText(label);
+    // Saved addresses have no GPS pin yet (0/0) — the guest can refine it by
+    // picking a suggestion, which turns on the live zone check + map pin.
+    setSelected({
+      id: `saved:${saved.id}`,
+      label: saved.line1,
+      address: label,
+      lat: 0,
+      lng: 0,
+      source: 'nominatim',
+      kind: 'area',
+    });
+  }, [addressData, selected]);
+
+  const totals = computeTotals({
+    items: lines.map((line) => ({ unitPrice: line.unitPrice, quantity: line.quantity })),
+    deliveryFee: settings?.deliveryFee ?? 0,
+    taxRate: settings?.taxRate ?? 0,
+  });
+
+  const placeOrder = useMutation({
+    mutationFn: () =>
+      api.post<{ order: OrderDTO }>('/orders', {
+        items: lines.map((line) => ({
+          productId: line.productId,
+          quantity: line.quantity,
+          notes: line.notes || undefined,
+        })),
+        deliveryAddress: selected?.address ?? addressText,
+        deliveryPhone,
+        notes: notes || undefined,
+        paymentMethod,
+        deliveryLatitude: selected && (selected.lat !== 0 || selected.lng !== 0) ? selected.lat : null,
+        deliveryLongitude: selected && (selected.lat !== 0 || selected.lng !== 0) ? selected.lng : null,
+      }),
+    onSuccess: (data) => {
+      clear();
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['active-orders'] });
+      toast(`Order ${data.order.orderNumber} sent to the kitchen!`, 'success');
+      navigate(`/app/orders/${data.order.id}`, { replace: true });
+    },
+    onError: (error) => toast(error instanceof Error ? error.message : 'Could not place the order', 'error'),
+  });
+
+  if (lines.length === 0) {
+    return (
+      <Card>
+        <p className="text-center text-sm text-slate-600">
+          Your cart is empty — add items before checking out.
+        </p>
+        <div className="mt-4 flex justify-center">
+          <Button onClick={() => navigate('/app/menu')}>Open the menu</Button>
+        </div>
+      </Card>
+    );
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!settings?.acceptingOrders) {
+      toast('The kitchen is not accepting orders right now.', 'error');
+      return;
+    }
+    if (!deliveryPhone.trim()) {
+      toast('Please add a contact phone number.', 'error');
+      return;
+    }
+    if (!selected && !addressText.trim()) {
+      toast('Please choose a delivery address.', 'error');
+      return;
+    }
+    if (outOfZone) {
+      toast(zoneCheck.data?.message ?? 'We do not deliver to that location yet.', 'error');
+      return;
+    }
+    placeOrder.mutate();
+  };
+
   const accepting = settings?.acceptingOrders ?? true;
   const busy = placeOrder.isPending;
-  return ( <form onSubmit={submit} className="space-y-5"> <header> <h1 className="text-2xl font-extrabold text-slate-900 lg:text-3xl">Checkout</h1> <p className="mt-1 text-sm text-slate-500">Choose your delivery address and confirm.</p> </header> <Card className="space-y-3"> <div className="flex items-center justify-between gap-2"> <Field label="Delivery address"> <div className="relative" ref={listRef}> <Input ref={searchRef} required value={form.searchQuery} onChange={(e) => handleSearchChange(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Start typing an address…" className="pr-10" /> {form.selectedAddress && ( <button type="button" onClick={() => setForm(c => ({ ...c, selectedAddress: null, searchQuery: "" }))} className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700" aria-label="Clear address"> <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"> <path d="M18 6 6 18M6 6l12 12" /> </svg> </button> )} {searchLoading && ( <div className="absolute left-3 top-1/2 -translate-y-1/2"> <span className="animate-spin rounded-full border-2 border-red-100 border-t-green-600 h-4 w-4" /> </div> )} </div> </Field> <button type="button" onClick={useCurrentLocation} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-soft transition hover:bg-slate-50 hover:text-slate-900 active:scale-95" aria-label="Use my current location" title="Use my current location"> <LocateIcon className="h-5 w-5" /> </button> </div> {form.showSuggestions && suggestions.length > 0 && ( <div className="relative" ref={listRef}> <div className="absolute z-10 mt-1 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lift divide-y divide-slate-100"> {suggestions.map((s, i) => ( <button key={i} type="button" onClick={() => selectSuggestion(s)} className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50"> <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" /> <div> <p className="text-sm font-semibold text-slate-900">{s.label}</p> <p className="text-xs text-slate-500 truncate">{s.address}</p> </div> </button> ))} </div> </div> )} {searchError && <p className="text-xs text-red-600">{searchError}</p>} {form.selectedAddress ? ( <div className="flex items-start gap-3 rounded-2xl bg-green-50 border border-green-200 px-4 py-3"> <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-green-600" /> <div className="min-w-0"> <p className="text-sm font-semibold text-slate-900">{form.selectedAddress.label}</p> <p className="text-xs text-slate-500 truncate">{form.selectedAddress.address}</p> <p className="text-xs text-green-600 mt-1">{chosenPoint ? "Exact location set" : "Approximate location"}</p> </div> </div> ) : ( <p className="text-xs text-slate-500">Type an address to see suggestions, or tap the location icon to use your current position.</p> )} <Field label="Contact phone"> <Input required inputMode="tel" value={form.deliveryPhone} onChange={(e) => setForm(c => ({ ...c, deliveryPhone: e.target.value }))} placeholder="+233 20 123 4567" /> </Field> <Field label="Order notes (optional)"> <Textarea value={form.notes} onChange={(e) => setForm(c => ({ ...c, notes: e.target.value }))} placeholder="Gate code, landmark, delivery instructions…" maxLength={300} /> </Field> </Card> {chosenPoint && ( <MapPreview address={chosenPoint.address} className="h-40" label="Delivery location" /> )} <Card className="space-y-2"> <p className="text-sm font-bold text-slate-800">Payment method</p> {(["CASH", "MOBILE_MONEY"] as const).map((method) => ( <label key={method} className={ form.paymentMethod === method ? "flex cursor-pointer items-center justify-between rounded-2xl border border-red-600/50 bg-red-50 px-4 py-3" : "flex cursor-pointer items-center justify-between rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3" }> <span className="text-sm font-semibold text-slate-800">{PAYMENT_METHOD_LABELS[method]}</span> <input type="radio" name="payment" checked={form.paymentMethod === method} onChange={() => setForm(c => ({ ...c, paymentMethod: method }))} className="h-5 w-5 accent-red-600" /> </label> ))} </Card> {chosenPoint && zoneCheck.isFetching && !zoneCheck.data && ( <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600"> <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-200 border-t-green-600" /> Checking the delivery area… </div> )} {outOfZone && ( <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"> <p className="font-bold">Outside our delivery area</p> <p className="mt-0.5">{zoneCheck.data?.message ?? "We do not deliver to that location yet."}</p> <p className="mt-0.5">Move the pin closer to Malam / Gbawe, or call {settings?.supportPhone ?? "the restaurant"} to arrange delivery.</p> </div> )} <Card className="space-y-2 text-sm"> <div className="flex justify-between text-slate-600"> <span>Items ({itemCount})</span> <span className="font-semibold text-slate-800">{formatMoney(subtotal)}</span> </div> <div className="flex justify-between text-slate-600"> <span>Delivery</span> <span className="font-semibold text-slate-800">{formatMoney(totals.deliveryFee)}</span> </div> <div className="flex justify-between text-slate-600"> <span>Tax</span> <span className="font-semibold text-slate-800">{formatMoney(totals.tax)}</span> </div> <div className="flex items-center justify-between border-t border-slate-200 pt-2"> <span className="font-bold text-slate-800">Total</span> <span className="text-lg font-extrabold text-red-600">{formatMoney(totals.total)}</span> </div> <ErrorText message={!accepting ? "The kitchen is currently not accepting orders." : null} /> <Button type="submit" size="lg" className="w-full" loading={busy} disabled={outOfZone}> Place order · {formatMoney(totals.total)} </Button> </Card> </form> ); }
+
+  return (
+    <form onSubmit={submit} className="space-y-5">
+      <header>
+        <h1 className="text-2xl font-extrabold text-slate-900 lg:text-3xl">Checkout</h1>
+        <p className="mt-1 text-sm text-slate-500">Choose your delivery address and confirm.</p>
+      </header>
+
+      {/* ---------- Address (intelligent autocomplete) ---------- */}
+      <Card className="duo-top relative space-y-1">
+        <LocationSearch
+          value={addressText}
+          onChange={setAddressText}
+          onSelect={setSelected}
+          selected={selected}
+          required
+        />
+        {zoneCheck.data && (
+          <p
+            role="status"
+            className={
+              zoneCheck.data.within
+                ? 'flex items-center gap-1.5 rounded-xl bg-green-50 px-3 py-2 text-xs font-bold text-green-800'
+                : 'flex items-center gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700'
+            }
+          >
+            {zoneCheck.data.within ? (
+              <>
+                <CheckIcon className="h-4 w-4" aria-hidden="true" />
+                Inside the delivery zone · {zoneCheck.data.distanceKm} km from the kitchen (radius{' '}
+                {zoneCheck.data.radiusKm} km)
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true">!</span>
+                {zoneCheck.data.message ?? 'Outside the current delivery zone.'}
+              </>
+            )}
+          </p>
+        )}
+        {selected && (selected.lat !== 0 || selected.lng !== 0) && (
+          <div className="pt-2">
+            <MapPreview
+              address={selected.address}
+              className="h-40"
+              label={`Delivery pin for ${selected.label}`}
+            />
+          </div>
+        )}
+      </Card>
+
+      {/* ---------- Contact ---------- */}
+      <Card className="space-y-4">
+        <Field label="Contact phone" hint="Your courier calls this number on arrival.">
+          <Input
+            required
+            inputMode="tel"
+            autoComplete="tel"
+            value={deliveryPhone}
+            onChange={(event) => setDeliveryPhone(event.target.value)}
+            placeholder="+233 20 123 4567"
+          />
+        </Field>
+        <Field label="Order notes" hint="Extra sauce, no shito, gate code…">
+          <Textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            rows={3}
+            maxLength={300}
+            placeholder="Anything the kitchen or courier should know?"
+          />
+        </Field>
+        <div>
+          <p className="mb-2 text-sm font-semibold text-slate-800">Payment</p>
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
+            {(['CASH', 'MOBILE_MONEY'] as const).map((method) => {
+              const active = paymentMethod === method;
+              return (
+                <button
+                  key={method}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setPaymentMethod(method)}
+                  className={
+                    active
+                      ? 'flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 bg-red-50 px-3 py-3 text-sm font-bold text-red-700 transition'
+                      : 'flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600 transition hover:border-green-300 hover:bg-green-50'
+                  }
+                >
+                  {active && <CheckIcon className="h-4 w-4" aria-hidden="true" />}
+                  {PAYMENT_METHOD_LABELS[method]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+
+      {/* ---------- Totals + submit ---------- */}
+      <Card className="duo-top space-y-2 text-sm">
+        <Row label="Subtotal" value={formatMoney(totals.subtotal)} />
+        <Row label="Delivery fee" value={formatMoney(totals.deliveryFee)} />
+        <Row label={`Tax (${settings?.taxRate ?? 0}%)`} value={formatMoney(totals.tax)} />
+        <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+          <span className="font-bold text-slate-800">Total</span>
+          <span className="text-lg font-extrabold text-red-600">{formatMoney(totals.total)}</span>
+        </div>
+        <p className="flex items-center gap-1.5 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
+          <LeafIcon className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
+          Prepared fresh in the Mallam kitchen the moment you order.
+        </p>
+        {!accepting && (
+          <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
+            The kitchen is currently not accepting orders.
+          </p>
+        )}
+        <Button type="submit" size="lg" block loading={busy} disabled={!accepting}>
+          {busy ? 'Sending…' : `Place order · ${formatMoney(totals.total)}`}
+        </Button>
+      </Card>
+    </form>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-slate-600">
+      <span>{label}</span>
+      <span className="font-semibold text-slate-800">{value}</span>
+    </div>
+  );
+}
+

@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { useGuestGate } from '../lib/guest';
 import { Button, Card, ErrorText, Field, Input } from '../components/ui';
 
 export function Register() {
-  const { register } = useAuth();
+  const { register, user } = useAuth();
+  const { flushPending } = useGuestGate();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
   const [error, setError] = useState<string | null>(null);
@@ -13,13 +15,21 @@ export function Register() {
   const update = (key: keyof typeof form) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
 
+  // Signed-in visitors are never shown sign-up again.
+  if (user) return <Navigate to="/app/home" replace />;
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
       await register(form);
-      navigate('/app/menu', { replace: true });
+      // Replay the action that brought the guest here (add-to-cart, checkout…)
+      // and land on the storefront.
+      const resumed = flushPending();
+      if (resumed === 'none' || resumed === 'cart' || resumed === 'ran') {
+        navigate('/app/home', { replace: true });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
     } finally {
@@ -32,10 +42,13 @@ export function Register() {
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
         <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-16 w-16 rounded-2xl" />
         <h1 className="text-2xl font-extrabold text-slate-900">Create your account</h1>
-        <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-red-600">Onyx</p>
+        <p className="text-xs font-extrabold uppercase tracking-[0.28em]">
+          <span className="text-red-600">Onyx</span>
+          <span className="text-green-700"> · fresh daily</span>
+        </p>
         <p className="text-sm text-slate-500">Order in seconds and follow every delivery live.</p>
       </div>
-      <Card>
+      <Card className="duo-top">
         <form onSubmit={submit} className="space-y-4">
           <Field label="Full name">
             <Input required value={form.name} onChange={(e) => update('name')(e.target.value)} placeholder="Ama Mensah" autoComplete="name" />
@@ -50,7 +63,7 @@ export function Register() {
             <Input required type="password" autoComplete="new-password" value={form.password} onChange={(e) => update('password')(e.target.value)} placeholder="••••••••" />
           </Field>
           <ErrorText message={error} />
-          <Button type="submit" size="lg" loading={busy} className="w-full">
+          <Button type="submit" variant="success" size="lg" loading={busy} className="w-full">
             Create account
           </Button>
         </form>

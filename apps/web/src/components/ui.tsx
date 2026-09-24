@@ -17,8 +17,12 @@ import {
   AlertTriangleIcon,
   CheckCircleIcon,
   ChevronDownIcon,
+  ClockIcon,
+  FlameIcon,
   InfoIcon,
+  StoreIcon,
   StarIcon,
+  TruckIcon,
   XCircleIcon,
   XIcon,
 } from './icons';
@@ -216,15 +220,44 @@ export function Badge({
   );
 }
 
+/**
+ * Dual-tone status styles. Every pill pairs red and green AND includes an
+ * icon + label, so colour is never the only signal (colour-vision safe).
+ * The inset shadows are the second brand colour as a crisp edge accent.
+ */
 const STATUS_TONE_CLASSES: Record<string, string> = {
   neutral: 'bg-slate-100 text-slate-600',
-  brand: 'bg-red-50 text-red-700',
-  'brand-deep': 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-200',
-  success: 'bg-green-50 text-green-700',
-  'success-deep': 'bg-green-100 text-green-900 ring-1 ring-inset ring-green-200',
+  // Order placed — balanced white pill with a red edge and a green edge.
+  placed:
+    'bg-white text-red-800 ring-1 ring-inset ring-red-200 shadow-[inset_5px_0_0_0_#e30613,inset_-5px_0_0_0_#0a8058]',
+  // Order accepted — green active-service surface with a red supporting edge.
+  accepted: 'bg-green-600 text-white ring-1 ring-inset ring-green-700 shadow-[inset_5px_0_0_0_#e30613]',
+  // Serving — red food-preparation surface with a green freshness edge.
+  prep: 'bg-red-600 text-white ring-1 ring-inset ring-red-700 shadow-[inset_-5px_0_0_0_#0a8058]',
+  // Out for delivery — red delivery-action surface with a green route edge.
+  route: 'bg-red-700 text-white ring-1 ring-inset ring-red-800 shadow-[inset_5px_0_0_0_#0a8058]',
+  // Delivered — green completion surface with a red confirmation edge.
+  delivered:
+    'bg-green-700 text-white ring-1 ring-inset ring-green-800 shadow-[inset_5px_0_0_0_#e30613]',
+  danger: 'bg-white text-red-700 ring-1 ring-inset ring-red-300',
   warning: 'bg-red-50 text-red-700',
-  danger: 'bg-red-100 text-red-800',
   info: 'bg-slate-100 text-slate-700',
+  // Legacy keys kept so older call sites keep working.
+  brand: 'bg-white text-red-800 ring-1 ring-inset ring-red-200',
+  'brand-deep': 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-200',
+  success: 'bg-green-50 text-green-800',
+  'success-deep': 'bg-green-100 text-green-900 ring-1 ring-inset ring-green-200',
+};
+
+/** Status-specific icons: shape + text accompany every colour. */
+const STATUS_ICONS: Record<OrderStatus, ReactNode> = {
+  RECEIVED: <ClockIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+  ACCEPTED: <StoreIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+  PREPARING: <FlameIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+  READY: <FlameIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+  OUT_FOR_DELIVERY: <TruckIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+  DELIVERED: <CheckCircleIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+  CANCELLED: <XCircleIcon className="h-3.5 w-3.5" aria-hidden="true" />,
 };
 
 export function StatusPill({
@@ -239,9 +272,14 @@ export function StatusPill({
   const tone = STATUS_TONE_CLASSES[ORDER_STATUS_TONE[status] ?? 'neutral'] ?? STATUS_TONE_CLASSES.neutral;
   return (
     <span
-      className={clsx('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold', tone, className)}
+      className={clsx(
+        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-colors duration-300',
+        tone,
+        className,
+      )}
+      role="status"
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+      {STATUS_ICONS[status] ?? null}
       {label ?? status}
     </span>
   );

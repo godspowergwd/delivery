@@ -126,12 +126,23 @@ export function OrderDetail() {
   );
 }
 
+/**
+ * Step + connector tones follow the brand status table: red and green
+ * alternate so the timeline never reads as a single-colour sequence.
+ */
 const ORDER_PROGRESS_TONES = [
   'bg-red-600',
-  'bg-red-800',
   'bg-green-600',
-  'success-gradient shadow-green',
-  'bg-green-800',
+  'bg-red-700',
+  'duo-progress',
+  'bg-green-700',
+] as const;
+
+const ORDER_CONNECTOR_TONES = [
+  'bg-red-500/50',
+  'bg-green-600/50',
+  'bg-red-600/50',
+  'bg-green-600/50',
 ] as const;
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -193,7 +204,11 @@ function OrderDetailBody({
               return (
                 <li key={status} className="relative flex gap-3 pb-5 last:pb-0">
                   {index < ORDER_STATUS_FLOW.length - 1 && (
-                    <span className={`absolute left-[11px] top-6 h-full w-0.5 ${index < currentStep ? (index < 2 ? 'bg-red-800/60' : 'bg-green-600/60') : 'bg-slate-200'}`} />
+                    <span
+                      className={`absolute left-[11px] top-6 h-full w-0.5 ${
+                        index < currentStep ? ORDER_CONNECTOR_TONES[index] : 'bg-slate-200'
+                      }`}
+                    />
                   )}
                   <span
                     className={`relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${

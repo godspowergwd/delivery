@@ -26,7 +26,7 @@ import {
   Profile,
 } from './components/lazy';
 import { AppShell } from './components/Layout';
-import { ProtectedRoute, RoleHome } from './components/guards';
+import { ProtectedRoute, RequireAccount, RoleHome } from './components/guards';
 import { Login } from './pages/Login';
 import CustomerTracking from './pages/customer/Tracking';
 import { Register } from './pages/Register';
@@ -40,20 +40,27 @@ export function App() {
       <Route path="/verify/:code" element={<Verify />} />
       <Route path="/" element={<RoleHome />} />
 
-      <Route element={<ProtectedRoute roles={['CUSTOMER']} />}>
-        <Route element={<AppShell />}>
-          <Route path="/app" element={<Navigate to="/app/home" replace />} />
-          <Route path="/app/home" element={<LazyRoute><CustomerHome /></LazyRoute>} />
-          <Route path="/app/search" element={<LazyRoute><Menu /></LazyRoute>} />
-          <Route path="/app/menu" element={<LazyRoute><Menu /></LazyRoute>} />
-          <Route path="/app/product/:id" element={<LazyRoute><ProductPage /></LazyRoute>} />
-          <Route path="/app/cart" element={<LazyRoute><Cart /></LazyRoute>} />
+      {/*
+        Customer storefront. Browsing (home, categories, menu, search, food
+        details, cart) works as a guest; account-only screens sit behind
+        <RequireAccount>, which opens the sign-in sheet instead of redirecting.
+      */}
+      <Route element={<AppShell />}>
+        <Route path="/app" element={<Navigate to="/app/home" replace />} />
+        <Route path="/app/home" element={<LazyRoute><CustomerHome /></LazyRoute>} />
+        <Route path="/app/search" element={<LazyRoute><Menu /></LazyRoute>} />
+        <Route path="/app/menu" element={<LazyRoute><Menu /></LazyRoute>} />
+        <Route path="/app/product/:id" element={<LazyRoute><ProductPage /></LazyRoute>} />
+        <Route path="/app/cart" element={<LazyRoute><Cart /></LazyRoute>} />
+        <Route element={<RequireAccount roles={['CUSTOMER']} />}>
           <Route path="/app/checkout" element={<LazyRoute><Checkout /></LazyRoute>} />
           <Route path="/app/orders" element={<LazyRoute><Orders /></LazyRoute>} />
           <Route path="/app/orders/:id" element={<LazyRoute><OrderDetail /></LazyRoute>} />
           <Route path="/app/profile" element={<LazyRoute><Profile /></LazyRoute>} />
         </Route>
-        {/* Full-screen live tracking - rendered outside the shell so the map owns the viewport. */}
+      </Route>
+      {/* Full-screen live tracking - rendered outside the shell so the map owns the viewport. */}
+      <Route element={<RequireAccount roles={['CUSTOMER']} />}>
         <Route path="/app/track" element={<CustomerTracking />} />
         <Route path="/app/track/:id" element={<CustomerTracking />} />
       </Route>
@@ -65,7 +72,8 @@ export function App() {
         </Route>
       </Route>
 
-      <Route element={<ProtectedRoute />}>
+      {/* Account settings — guests get the sign-in sheet instead of a redirect. */}
+      <Route element={<RequireAccount />}>
         <Route element={<AppShell />}>
           <Route path="/settings" element={<LazyRoute><AccountSettings /></LazyRoute>} />
         </Route>

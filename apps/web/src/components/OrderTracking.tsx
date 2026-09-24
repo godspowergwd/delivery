@@ -7,11 +7,11 @@ import { useLiveMap } from './LiveMap';
 import { useOrderTracking } from '../lib/tracking';
 
 const ORDER_PROGRESS_TONES = [
-  'bg-red-600',
-  'bg-red-800',
-  'bg-green-600',
-  'success-gradient shadow-green',
-  'bg-green-800',
+  /* Order placed   */ 'bg-red-600',
+  /* Order accepted  */ 'bg-green-600',
+  /* Serving         */ 'bg-red-700',
+  /* Out for delivery*/ 'duo-progress',
+  /* Delivered       */ 'bg-green-700',
 ] as const;
 
 /**

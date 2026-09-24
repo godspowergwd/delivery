@@ -4,22 +4,52 @@ import { formatMoney } from '@delivery/shared';
 import { clsx } from 'clsx';
 import { mediaUrl } from '../lib/api';
 import { useCart } from '../lib/cart';
+import { useGuestGate } from '../lib/guest';
 import { toast } from '../lib/realtime';
-import { ClockIcon, ImageIcon, PlusIcon } from './icons';
+import { ClockIcon, ImageIcon, LeafIcon, PlusIcon } from './icons';
 
 /**
- * Food card: image, name, category, price + prep time, always-visible add
- * button. No rating is shown — the backend has no ratings data, and showing
- * a fake score would be placeholder functionality.
+ * Food card — the brand's signature surface, balancing red and green:
+ *   * white card body with selective red + green corner accents
+ *   * red food name and red price (appetite + action hierarchy)
+ *   * green ingredient chips, green category line and green freshness badge
+ *   * red add-to-cart button (ordering is the action)
+ *
+ * Guests can browse every card; the add action routes through the guest gate
+ * so the sign-in sheet appears and the item is added automatically afterwards.
  */
 export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: number }) {
   const { add } = useCart();
+  const { requireAuth } = useGuestGate();
   const image = mediaUrl(product.imageUrl);
   const soldOut = !product.isAvailable || product.stock <= 0;
+  const chips = product.ingredients.slice(0, 2);
+  const extraChips = Math.max(0, product.ingredients.length - chips.length);
+
+  const onAdd = () => {
+    if (soldOut) return;
+    requireAuth(
+      () => {
+        add(product);
+        toast(`Added ${product.name}`, 'success');
+      },
+      {
+        type: 'ADD_TO_CART',
+        line: {
+          productId: product.id,
+          name: product.name,
+          imageUrl: product.imageUrl,
+          unitPrice: product.price,
+          quantity: 1,
+          notes: null,
+        },
+      },
+    );
+  };
 
   return (
     <article
-      className="food-card group flex animate-fade-up flex-col overflow-hidden rounded-card bg-white shadow-card ring-1 ring-inset ring-slate-200/60 transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-lift"
+      className="food-card group rg-corners flex animate-fade-up flex-col overflow-hidden rounded-card bg-white shadow-card ring-1 ring-inset ring-slate-200/60 transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-lift"
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
       <Link
@@ -40,18 +70,27 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
             <ImageIcon className="h-10 w-10" aria-hidden="true" />
           </div>
         )}
+        {/* Red emphasis badges */}
         <div className="absolute left-2 top-2 flex gap-1.5">
           {product.isPopular && (
-            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
-              Popular
-            </span>
+            <span className="badge-hot">Popular</span>
           )}
+        </div>
+        {/* Green freshness / availability badges */}
+        <div className="absolute right-2 top-2 flex gap-1.5">
           {product.isNew && (
-            <span className="rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-red-700">
-              New
+            <span className="badge-fresh">
+              <LeafIcon className="h-3 w-3" aria-hidden="true" />
+              Fresh
             </span>
           )}
         </div>
+        {!soldOut && !product.isNew && (
+          <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-green-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden="true" />
+            Available
+          </span>
+        )}
         {soldOut && (
           <span className="absolute inset-x-0 bottom-0 bg-slate-900/70 py-1 text-center text-[11px] font-bold uppercase tracking-wide text-white">
             Sold out
@@ -59,23 +98,37 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
         )}
       </Link>
       <div className="flex flex-1 flex-col gap-1 p-3">
-        <Link to={`/app/product/${product.id}`} className="line-clamp-1 text-[15px] font-bold text-slate-900">
+        <Link
+          to={`/app/product/${product.id}`}
+          className="line-clamp-1 text-[15px] font-bold text-red-700 transition group-hover:text-red-800"
+        >
           {product.name}
         </Link>
-        <p className="line-clamp-1 text-[13px] text-slate-500">{product.categoryName}</p>
-        <p className="flex items-center gap-1 text-[13px] font-semibold text-slate-600">
-          <ClockIcon className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+        <p className="line-clamp-1 text-[13px] font-semibold text-green-700">
+          {product.categoryName}
+        </p>
+        {chips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1" aria-label="Ingredients">
+            {chips.map((ingredient) => (
+              <span key={ingredient} className="food-chip">
+                {ingredient.toLowerCase()}
+              </span>
+            ))}
+            {extraChips > 0 && (
+              <span className="food-chip food-chip-red">+{extraChips}</span>
+            )}
+          </div>
+        )}
+        <p className="flex items-center gap-1 text-[13px] font-semibold text-slate-500">
+          <ClockIcon className="h-3.5 w-3.5 text-green-600" aria-hidden="true" />
           {product.prepTimeMinutes} min
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-          <span className="text-[15px] font-extrabold text-slate-900">{formatMoney(product.price)}</span>
+          <span className="text-[15px] font-extrabold text-red-600">{formatMoney(product.price)}</span>
           <button
             type="button"
             disabled={soldOut}
-            onClick={() => {
-              add(product);
-              toast(`Added ${product.name}`, 'success');
-            }}
+            onClick={onAdd}
             aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
             className={clsx(
               'btn-ripple flex h-11 w-11 items-center justify-center rounded-full text-white transition active:scale-95 disabled:opacity-40',
