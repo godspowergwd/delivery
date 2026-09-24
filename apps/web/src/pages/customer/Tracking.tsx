@@ -6,7 +6,7 @@ import { ORDER_STATUS_DESCRIPTIONS, ORDER_STATUS_LABELS, orderStatusIndex } from
 import { api } from '../../lib/api';
 import { useOrderTracking } from '../../lib/tracking';
 import { useDeviceLocation } from '../../lib/geolocation';
-import { useLiveMap } from '../../components/LiveMap';
+import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
 import { ArrowLeftIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
 import { estimateAddressCoordinates, formatDistance } from '../../lib/live-map';
@@ -108,26 +108,31 @@ export default function CustomerTracking() {
   const driver = trackingData?.driver;
   const distanceKm = trackingData?.driverToDestinationKm;
 
-  if (!orderData) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-white px-6">
-        {order.isPending ? (
-          <Spinner className="h-8 w-8" />
-        ) : (
-          <Card>
-            <p className="text-center text-sm text-slate-600">
-              {order.error instanceof Error ? order.error.message : 'That order could not be found.'}
-            </p>
-          </Card>
-        )}
-      </div>
-    );
-  }
-
-  return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
-      <div ref={mapHostRef} className="absolute inset-0" />
+      {/* The map container is always mounted so useLiveMap can construct the MapLibre
+          instance on the first render — the hook builds the map once, on mount, and
+          never re-runs for the same ref object. Rendering the container here (instead
+          of inside the `!orderData` branch) is what makes the map actually appear;
+          the loading spinner below simply overlays it while the order resolves. */}
+      <LiveMap mapRef={mapHostRef} ariaLabel="Live delivery map" />
 
+      {!orderData && (
+        <div className="absolute inset-0 flex h-[100dvh] items-center justify-center bg-white px-6">
+          {order.isPending ? (
+            <Spinner className="h-8 w-8" />
+          ) : (
+            <Card>
+              <p className="text-center text-sm text-slate-600">
+                {order.error instanceof Error ? order.error.message : 'That order could not be found.'}
+              </p>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {orderData && (
+        <>
       <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between border-b border-white/20 bg-gradient-to-b from-black/55 via-black/30 to-transparent px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/90 shadow-sm">
@@ -226,8 +231,10 @@ export default function CustomerTracking() {
               </div>
             );
           })}
-        </div>
+                </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
