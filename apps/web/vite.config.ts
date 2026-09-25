@@ -97,6 +97,53 @@ export default defineConfig(({ mode }) => {
         offlineGoogleAnalytics: false,
         runtimeCaching: [
           {
+            // Road routing (OSRM): live when online, and the last good route
+            // still renders when the courier's signal drops.
+            urlPattern: ({ url, request }) =>
+              request.method === 'GET' && url.hostname === 'router.project-osrm.org',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'map-routes',
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Basemap styles (OpenFreeMap / Mapbox / MapTiler): fresh while
+            // online, cached style so the map still paints offline.
+            urlPattern: ({ url, request }) =>
+              request.method === 'GET' &&
+              !/\.(?:png|jpe?g|svg|webp)$/i.test(url.pathname) &&
+              ((url.hostname === 'tiles.openfreemap.org' && url.pathname.startsWith('/styles/')) ||
+                (url.hostname === 'api.mapbox.com' && url.pathname.startsWith('/styles/')) ||
+                (url.hostname === 'api.maptiler.com' && url.pathname.endsWith('/style.json'))),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'map-styles',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Tiles, glyphs and sprites: immutable per coordinate, so
+            // cache-first keeps panning instant and paints the last known area
+            // of Accra when the PWA runs offline.
+            urlPattern: ({ url, request }) =>
+              request.method === 'GET' &&
+              (url.hostname === 'tiles.openfreemap.org' ||
+                url.hostname === 'api.mapbox.com' ||
+                url.hostname.endsWith('.tiles.mapbox.com') ||
+                url.hostname === 'api.maptiler.com'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'map-assets',
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 14 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // Live business data: always try the network first, fall back to cache when offline.
             urlPattern: ({ url, request }) =>
               url.pathname.startsWith('/api/') && request.method === 'GET',
@@ -191,7 +238,7 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       sourcemap: false,
       target: 'es2020',
-      chunkSizeWarningLimit: 1500,
+      chunkSizeWarningLimit: 2000,
       rollupOptions: {
         output: {
           manualChunks(id: string) {

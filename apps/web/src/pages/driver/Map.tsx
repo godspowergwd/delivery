@@ -70,8 +70,11 @@ export default function DriverMap() {
     center: MALAM_CENTER,
     zoom: 15,
     // The driver map ships its own floating controls (zoom, compass, route,
-    // centre) so MapLibre's built-in control would be a duplicate.
+    // centre) so Mapbox's built-in control would be a duplicate.
     navigation: false,
+    // Start already following: the first real fix glides the camera onto the
+    // driver, and any manual pan hands control back to the driver.
+    follow: true,
     onUserInteract: () => setIsFollowing(false),
   });
 

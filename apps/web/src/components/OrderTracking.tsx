@@ -21,7 +21,12 @@ const ORDER_PROGRESS_TONES = [
  */
 export function OrderTracking({ order }: { order: OrderDTO }) {
   const mapHostRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useLiveMap(mapHostRef);
+  const mapRef = useLiveMap(mapHostRef, {
+    // The card follows the delivery: the camera keeps the courier and the
+    // destination in view and only moves when one of them would leave it.
+    follow: true,
+    followMode: 'bounds',
+  });
   const tracking = useOrderTracking(order.id);
 
   // Real checkout GPS only — never invent a pin for a typed address.

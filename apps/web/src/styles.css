@@ -506,7 +506,7 @@ img {
 }
 
 /* ===========================================================================
-   Map (MapLibre GL) — themed to the brand, never a raw third-party look
+   Map (Mapbox GL) — themed to the brand, never a raw third-party look
    =========================================================================== */
 .map-shell {
   position: relative;
@@ -516,13 +516,21 @@ img {
   background: #eef1f6;
   box-shadow: var(--shadow-card);
 }
-.map-canvas { position: absolute; inset: 0; }
+/**
+ * Mapbox adds `.mapboxgl-map` to this very node at runtime, and that class
+ * declares `position: relative` in the (lazily loaded) Mapbox stylesheet. The
+ * ancestor selector raises specificity so the canvas stays absolutely
+ * positioned no matter which stylesheet lands last — a relative canvas
+ * collapses to 0px and paints nothing.
+ */
+.map-shell .map-canvas { position: absolute; inset: 0; }
+
 
 /**
  * Driver navigation screen only. `.map-shell` is `position: relative` with no
  * intrinsic height, and `.map-canvas` is absolutely positioned (so it contributes
  * nothing to the shell's flow height) — which would collapse the shell to 0px
- * and mount a 0×0 MapLibre canvas that never appears. `.map-fullscreen`
+ * and mount a 0×0 Mapbox canvas that never appears. `.map-fullscreen`
  * stretches the shell edge-to-edge over its `relative h-[100dvh]` parent so the
  * canvas actually gets a size. It sits behind the z-indexed sheet/cards (z-20/30)
  * on purpose: the bottom sheet and overlays must stay on top.
@@ -596,16 +604,16 @@ img {
   box-shadow: var(--shadow-lift);
   backdrop-filter: blur(8px);
 }
-.maplibregl-ctrl-attrib { font-size: 10px !important; }
-.maplibregl-ctrl-group {
+.mapboxgl-ctrl-attrib { font-size: 10px !important; }
+.mapboxgl-ctrl-group {
   border-radius: 0.85rem !important;
   box-shadow: var(--shadow-soft) !important;
   overflow: hidden;
   border: 1px solid var(--line) !important;
 }
-.maplibregl-ctrl-group button { width: 38px !important; height: 38px !important; }
-.maplibregl-ctrl-group button + button { border-top: 1px solid var(--line) !important; }
-.maplibregl-popup-content {
+.mapboxgl-ctrl-group button { width: 38px !important; height: 38px !important; }
+.mapboxgl-ctrl-group button + button { border-top: 1px solid var(--line) !important; }
+.mapboxgl-popup-content {
   border-radius: 1rem !important;
   padding: 0.75rem 0.9rem !important;
   font-family: var(--font-sans);
@@ -629,3 +637,25 @@ img {
 .map-marker-destination { border-color: var(--brand); color: var(--brand); }
 .map-marker-restaurant { border-color: var(--brand); color: var(--brand); }
 .map-marker-kitchen { border-color: var(--brand); color: var(--brand); }
+
+/** GPS accuracy halo under the live driver marker (sized from real accuracy). */
+.map-accuracy {
+  border-radius: 999px;
+  background: rgb(11 150 99 / 0.14);
+  border: 1px solid rgb(11 150 99 / 0.35);
+  pointer-events: none;
+}
+
+/** Branded placeholder when WebGL/tiles are unavailable — never a blank pane. */
+.map-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 1.25rem;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-muted, #6a7383);
+  background: #eef1f6;
+}
+

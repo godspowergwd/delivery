@@ -1,5 +1,5 @@
 /**
- * Live-map foundation: MapLibre GL style + shared geo maths.
+ * Live-map foundation: Mapbox GL style + shared geo maths.
  *
  * All distance / ETA / bearing maths lives in `@delivery/shared` so the API and
  * the app always agree. This module only adds what is web specific: the tile

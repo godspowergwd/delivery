@@ -54,6 +54,16 @@ export function mapFallbackStyleUrl(): string {
   return 'https://tiles.openfreemap.org/styles/bright';
 }
 
+/**
+ * The public Mapbox token the GL engine authenticates `mapbox://` resources
+ * with (null when the app runs keyless on OpenFreeMap). Public browser tokens
+ * only — this value ships to the client by design.
+ */
+export function mapboxAccessToken(): string | null {
+  return MAPBOX_TOKEN;
+}
+
+
 /** Attribution line shown under the map when the provider requires one. */
 export function mapAttributionText(): string {
   return `© ${MAP_PROVIDER_LABEL[MAP_PROVIDER]} · OpenStreetMap contributors`;

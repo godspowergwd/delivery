@@ -1,36 +1,30 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { DEFAULT_MAP_ZOOM, KITCHEN_ANCHOR, mapStyleUrl, type LatLng } from '../lib/live-map';
+import { loadMapGL, type GLMap, type GLMarker, type MapboxGL } from '../lib/map-engine';
 
 /**
- * MapLibre GL wrapper for the delivery maps.
+ * Mapbox GL wrapper for the delivery maps.
  *
- * The GL engine (Mapbox GL-compatible renderer + keyless OpenFreeMap tiles)
- * is loaded lazily so the renderer never blocks first paint: maps download
- * only when a screen actually mounts one.
+ * The GL engine (Mapbox GL JS + keyless OpenFreeMap vector tiles by default,
+ * or the Mapbox-hosted basemap when VITE_MAPBOX_TOKEN is configured) is loaded
+ * lazily so the renderer never blocks first paint: maps download only when a
+ * screen actually mounts one.
  *
  * Everything drawn here comes from real data: the driver marker is the
  * driver's own device GPS, the destination is the coordinate captured at
- * checkout and the restaurant is the admin-configured kitchen anchor. The
- * only motion that is not a raw fix is the smoothing between two real fixes,
- * so the marker glides instead of jumping.
+ * checkout and the restaurant is the admin-configured kitchen anchor. The only
+ * motion that is not a raw fix is the smoothing between two real fixes, so the
+ * marker glides instead of jumping.
  */
 
-type MapGL = typeof import('maplibre-gl');
-/** Instance types for the lazily-imported engine (type-only, fully erased). */
-type GLMap = InstanceType<MapGL['Map']>;
-type GLMarker = InstanceType<MapGL['Marker']>;
-
-/** Single cached dynamic import (module + stylesheet) shared by every map. */
-let mapglPromise: Promise<MapGL> | null = null;
-function loadMapGL(): Promise<MapGL> {
-  if (!mapglPromise) {
-    mapglPromise = (async () => {
-      await import('maplibre-gl/dist/maplibre-gl.css');
-      return import('maplibre-gl');
-    })();
-  }
-  return mapglPromise;
-}
+/**
+ * Strict Mode mounts each screen twice (mount -> unmount -> mount). A second
+ * `new Map(...)` on a container that still carries a renderer throws
+ * ("Map container is already initialized"), so the live instance is remembered
+ * per container: re-entry always tears the previous engine down first and no
+ * container ever stacks two canvases.
+ */
+const activeMaps = new WeakMap<HTMLDivElement, GLMap>();
 
 export type MapMarkerKind = 'driver' | 'destination' | 'restaurant' | 'user';
 
@@ -74,6 +68,11 @@ function markerNode(kind: MapMarkerKind): HTMLElement {
   return node;
 }
 
+/** Branded placeholder — a failed map never leaves a blank pane behind. */
+function showFallback(container: HTMLElement, message: string): void {
+  container.innerHTML = `<div class="map-fallback">${message}</div>`;
+}
+
 function emptyCollection(): { type: 'FeatureCollection'; features: never[] } {
   return { type: 'FeatureCollection', features: [] };
 }
@@ -101,9 +100,20 @@ export interface UseLiveMapOptions {
   center?: LatLng;
   zoom?: number;
   interactive?: boolean;
-  /** Show MapLibre's built-in zoom control. App screens with their own floating
+  /** Show Mapbox's built-in zoom control. Screens with their own floating
    *  controls (the driver map) pass false; defaults to `interactive`. */
   navigation?: boolean;
+  /**
+   * Engage camera-follow immediately: the driver map starts following its own
+   * GPS fix, the customer screens keep both markers in view.
+   */
+  follow?: boolean;
+  /**
+   * `center` pins the followed driver marker to the middle of the map (driver
+   * navigation); `bounds` moves the camera only when the driver or the
+   * destination would leave the view (customer tracking). Defaults to `center`.
+   */
+  followMode?: 'center' | 'bounds';
   /** Notified when the user pans or zooms away from the followed position. */
   onUserInteract?: () => void;
 }
@@ -121,12 +131,12 @@ export function useLiveMap(
   optionsRef.current = options;
 
   // Lazily pull the GL engine; the map mounts the moment it lands.
-  const [mapgl, setMapgl] = useState<MapGL | null>(null);
+  const [mapgl, setMapgl] = useState<MapboxGL | null>(null);
   useEffect(() => {
     let cancelled = false;
     loadMapGL()
-      .then((module) => {
-        if (!cancelled) setMapgl(module);
+      .then((engine) => {
+        if (!cancelled) setMapgl(engine);
       })
       .catch(() => undefined);
     return () => {
@@ -135,287 +145,378 @@ export function useLiveMap(
   }, []);
 
   useEffect(() => {
-    const maplibregl = mapgl;
-    const container = containerRef.current;
-    if (!container || !maplibregl) return;
+    const mapboxgl = mapgl;
+    if (!mapboxgl) return;
 
-    const center = optionsRef.current.center ?? KITCHEN_ANCHOR;
-    const interactive = optionsRef.current.interactive ?? true;
-    const showNavigation = optionsRef.current.navigation ?? interactive;
     let cancelled = false;
-    let map: GLMap | null = null;
+    let timer = 0;
+    let dispose: (() => void) | null = null;
 
-    try {
-      map = new maplibregl.Map({
-        container,
-        style: mapStyleUrl(),
-        center: [center.lng, center.lat],
-        zoom: optionsRef.current.zoom ?? DEFAULT_MAP_ZOOM,
-        attributionControl: { compact: true },
-        interactive,
-        // Delivery focus: never a world view, never accidental rotation.
-        maxZoom: 18,
-        minZoom: 10,
-      });
-      if (showNavigation) {
-        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    const initMap = (container: HTMLDivElement): (() => void) => {
+      // A container that still carries a live renderer (Strict Mode re-entry or
+      // a fast remount) is torn down first — `new Map` would otherwise throw.
+      const stale = activeMaps.get(container);
+      if (stale) {
+        try {
+          stale.remove();
+        } catch {
+          /* the previous renderer was already half-torn-down */
+        }
+        activeMaps.delete(container);
       }
-    } catch {
-      container.innerHTML =
-        '<div class="map-fallback">Live map needs WebGL on this device — the delivery details are listed below.</div>';
+      if (!mapboxgl.supported()) {
+        showFallback(container, 'Live map needs WebGL on this device — the delivery details are listed below.');
+        return () => undefined;
+      }
+
+      const center = optionsRef.current.center ?? KITCHEN_ANCHOR;
+      const interactive = optionsRef.current.interactive ?? true;
+      const showNavigation = optionsRef.current.navigation ?? interactive;
+
+      let map: GLMap;
+      try {
+        map = new mapboxgl.Map({
+          container,
+          style: mapStyleUrl(),
+          center: [center.lng, center.lat],
+          zoom: optionsRef.current.zoom ?? DEFAULT_MAP_ZOOM,
+          // Attribution stays visible but compact — the provider always gets
+          // credit without a full-width bar over the delivery details.
+          attributionControl: false,
+          interactive,
+          // Delivery focus: never a world view, never accidental rotation.
+          maxZoom: 18,
+          minZoom: 10,
+        });
+        map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
+        if (showNavigation) {
+          map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+        }
+      } catch {
+        showFallback(container, 'Live map needs WebGL on this device — the delivery details are listed below.');
+        return () => undefined;
+      }
+
+      const mapInstance = map;
+      activeMaps.set(container, mapInstance);
+      let following = optionsRef.current.follow ?? false;
+      const followMode = (): 'center' | 'bounds' => optionsRef.current.followMode ?? 'center';
+      let animationFrame = 0;
+      let accuracyMarker: GLMarker | null = null;
+      const markers: Partial<Record<MapMarkerKind, GLMarker>> = {};
+      const targets: Partial<Record<MapMarkerKind, LatLng>> = {};
+      const displayed: Partial<Record<MapMarkerKind, LatLng>> = {};
+
+      const releaseFollow = () => {
+        if (!following) return;
+        following = false;
+        optionsRef.current.onUserInteract?.();
+      };
+      mapInstance.on('dragstart', releaseFollow);
+      mapInstance.on('zoomstart', (event: unknown) => {
+        const original = (event as { originalEvent?: unknown } | undefined)?.originalEvent;
+        if (original) releaseFollow();
+      });
+      // A dropped tile must never break tracking: markers keep updating regardless.
+      mapInstance.on('error', () => undefined);
+
+      const ensureRouteLayers = () => {
+        if (mapInstance.getSource(ROUTE_SOURCE)) return;
+        mapInstance.addSource(ROUTE_SOURCE, { type: 'geojson', data: emptyCollection() });
+        mapInstance.addSource(DONE_SOURCE, { type: 'geojson', data: emptyCollection() });
+        mapInstance.addLayer({
+          id: 'onyx-route-casing',
+          type: 'line',
+          source: ROUTE_SOURCE,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#ffffff', 'line-width': 11, 'line-opacity': 0.92 },
+        });
+        mapInstance.addLayer({
+          id: 'onyx-route-line',
+          type: 'line',
+          source: ROUTE_SOURCE,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#e30613', 'line-width': 6.5, 'line-opacity': 0.96 },
+        });
+        mapInstance.addLayer({
+          id: 'onyx-route-done',
+          type: 'line',
+          source: DONE_SOURCE,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#0b9663', 'line-width': 6.5, 'line-opacity': 0.96 },
+        });
+      };
+
+      // Arrow consts (not hoisted function declarations) so the non-null
+      // `mapboxgl` narrowing from the guard above is preserved inside them.
+      const setSourceData = (id: string, coordinates: Array<[number, number]>): void => {
+        if (!mapInstance.isStyleLoaded()) return;
+        const source = mapInstance.getSource(id) as import('mapbox-gl').GeoJSONSource | undefined;
+        if (!source) return;
+        source.setData(coordinates.length === 0 ? emptyCollection() : lineFeature(coordinates));
+      };
+
+      const placeMarker = (kind: MapMarkerKind, point: LatLng, animate: boolean): void => {
+        targets[kind] = point;
+        if (!mapInstance.isStyleLoaded()) return;
+        const previous = displayed[kind];
+        if (!previous || !animate || !markers[kind]) {
+          markers[kind]?.remove();
+          markers[kind] = new mapboxgl.Marker({
+            element: markerNode(kind),
+            anchor: kind === 'destination' || kind === 'restaurant' ? 'bottom' : 'center',
+          })
+            .setLngLat([point.lng, point.lat])
+            .addTo(mapInstance);
+          displayed[kind] = { ...point };
+          return;
+        }
+        // Ease between two real fixes so the marker glides instead of jumping:
+        // no invented positions, only interpolation between actual GPS samples.
+        const from = { ...previous };
+        const startedAt = performance.now();
+        const duration = 900;
+        cancelAnimationFrame(animationFrame);
+        const step = (now: number) => {
+          const t = Math.min(1, (now - startedAt) / duration);
+          const eased = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+          const lat = from.lat + (point.lat - from.lat) * eased;
+          const lng = from.lng + (point.lng - from.lng) * eased;
+          markers[kind]?.setLngLat([lng, lat]);
+          displayed[kind] = { lat, lng };
+          if (t < 1 && !cancelled) animationFrame = requestAnimationFrame(step);
+        };
+        animationFrame = requestAnimationFrame(step);
+      };
+
+      const updateAccuracyHalo = (point: LatLng, accuracyMetres: number | null): void => {
+        if (!accuracyMetres || accuracyMetres <= 0 || !mapInstance.isStyleLoaded()) {
+          accuracyMarker?.remove();
+          accuracyMarker = null;
+          return;
+        }
+        const size = Math.min(260, Math.max(28, Math.round(accuracyMetres * 2)));
+        if (!accuracyMarker) {
+          const node = document.createElement('div');
+          node.className = 'map-accuracy';
+          node.style.width = `${size}px`;
+          node.style.height = `${size}px`;
+          accuracyMarker = new mapboxgl.Marker({ element: node, anchor: 'center' })
+            .setLngLat([point.lng, point.lat])
+            .addTo(mapInstance);
+          return;
+        }
+        const element = accuracyMarker.getElement();
+        element.style.width = `${size}px`;
+        element.style.height = `${size}px`;
+        accuracyMarker.setLngLat([point.lng, point.lat]);
+      };
+
+      /**
+       * True when both tracked markers sit comfortably inside the current view.
+       * The 44px margin is deliberately smaller than the fit padding used below
+       * (~56px), so a re-fit always pushes the markers back inside the margin —
+       * the camera cannot ping-pong between two nearly identical fits.
+       */
+      const bothMarkersVisible = (driver: LatLng, destination: LatLng): boolean => {
+        const bounds = mapInstance.getBounds();
+        if (!bounds) return false;
+        const container = mapInstance.getContainer();
+        const minSide = Math.max(1, Math.min(container.clientWidth, container.clientHeight));
+        const ratio = Math.min(0.14, 44 / minSide);
+        const latMargin = (bounds.getNorth() - bounds.getSouth()) * ratio;
+        const lngMargin = (bounds.getEast() - bounds.getWest()) * ratio;
+        const within = (point: LatLng): boolean =>
+          point.lat >= bounds.getSouth() + latMargin &&
+          point.lat <= bounds.getNorth() - latMargin &&
+          point.lng >= bounds.getWest() + lngMargin &&
+          point.lng <= bounds.getEast() - lngMargin;
+        return within(driver) && within(destination);
+      };
+
+      const followIfNeeded = (force = false): void => {
+        const driver = targets.driver;
+        if (!following || !driver) return;
+        const destination = targets.destination;
+        if (followMode() === 'bounds' && destination) {
+          // Customer tracking: only move when a marker is about to leave the
+          // view, then fit both — the courier and the drop-off stay visible.
+          if (!force && bothMarkersVisible(driver, destination)) return;
+          handleRef.current.fit([driver, destination], {
+            padding: 56,
+            maxZoom: 15,
+            durationMs: force ? 600 : 700,
+          });
+          return;
+        }
+        const current = mapInstance.getCenter();
+        const movedMetres = distanceMeters({ lat: current.lat, lng: current.lng }, driver);
+        if (!force && movedMetres < 6) return;
+        mapInstance.easeTo({
+          center: [driver.lng, driver.lat],
+          duration: force ? 600 : Math.min(1400, Math.max(450, movedMetres * 14)),
+        });
+      };
+
+      mapInstance.on('load', () => {
+        if (cancelled) return;
+        ensureRouteLayers();
+        for (const kind of Object.keys(targets) as MapMarkerKind[]) {
+          const point = targets[kind];
+          if (point) placeMarker(kind, point, false);
+        }
+        followIfNeeded();
+      });
+
+      handleRef.current = {
+        getMap: () => mapInstance,
+        setRoute: (coordinates, routeOptions) => {
+          if (!mapInstance.isStyleLoaded()) {
+            mapInstance.once('load', () => handleRef.current.setRoute(coordinates, routeOptions));
+            return;
+          }
+          ensureRouteLayers();
+          setSourceData(ROUTE_SOURCE, coordinates);
+          setSourceData(DONE_SOURCE, []);
+          if (routeOptions?.fit !== false && coordinates.length > 1) {
+            const bounds = new mapboxgl.LngLatBounds();
+            for (const point of coordinates) bounds.extend(point);
+            mapInstance.fitBounds(bounds, {
+              padding: { top: 130, bottom: 250, left: 56, right: 56 },
+              maxZoom: 15,
+              duration: 700,
+            });
+          }
+        },
+        setProgress: (coordinates) => setSourceData(DONE_SOURCE, coordinates),
+        setDriver: (point, driverOptions) => {
+          if (!point) {
+            markers.driver?.remove();
+            delete markers.driver;
+            delete displayed.driver;
+            delete targets.driver;
+            accuracyMarker?.remove();
+            accuracyMarker = null;
+            return;
+          }
+          placeMarker('driver', point, driverOptions?.animate ?? true);
+          updateAccuracyHalo(point, driverOptions?.accuracyMetres ?? null);
+          followIfNeeded();
+        },
+        setDestination: (point) => {
+          if (!point) {
+            markers.destination?.remove();
+            delete markers.destination;
+            delete displayed.destination;
+            delete targets.destination;
+            return;
+          }
+          placeMarker('destination', point, false);
+          // A destination that lands after the first fix still pulls the
+          // customer camera back so both markers are visible together.
+          followIfNeeded();
+        },
+
+        setRestaurant: (point) => {
+          if (!point) {
+            markers.restaurant?.remove();
+            delete markers.restaurant;
+            delete displayed.restaurant;
+            delete targets.restaurant;
+            return;
+          }
+          placeMarker('restaurant', point, false);
+        },
+        setUser: (point, accuracyMetres) => {
+          if (!point) {
+            markers.user?.remove();
+            delete markers.user;
+            delete displayed.user;
+            delete targets.user;
+            accuracyMarker?.remove();
+            accuracyMarker = null;
+            return;
+          }
+          placeMarker('user', point, true);
+          updateAccuracyHalo(point, accuracyMetres ?? null);
+        },
+        focus: (point, camera) =>
+          mapInstance.easeTo({
+            center: [point.lng, point.lat],
+            zoom: camera?.zoom ?? Math.max(mapInstance.getZoom(), 15),
+            duration: camera?.durationMs ?? 700,
+            padding: camera?.padding
+              ? { top: camera.padding, bottom: camera.padding, left: camera.padding, right: camera.padding }
+              : undefined,
+          }),
+        fit: (points, fitOptions) => {
+          if (points.length === 0) return;
+          const padding = fitOptions?.padding ?? 72;
+          if (points.length === 1) {
+            handleRef.current.focus(points[0], { durationMs: fitOptions?.durationMs ?? 600 });
+            return;
+          }
+          const bounds = new mapboxgl.LngLatBounds();
+          for (const point of points) bounds.extend([point.lng, point.lat]);
+          mapInstance.fitBounds(bounds, {
+            padding: { top: padding, bottom: padding + 110, left: padding, right: padding },
+            maxZoom: fitOptions?.maxZoom ?? 15,
+            duration: fitOptions?.durationMs ?? 700,
+          });
+        },
+        setFollow: (next) => {
+          following = next;
+          if (!next) return;
+          const driver = targets.driver;
+          if (!driver) {
+            handleRef.current.focus(center, {
+              zoom: Math.max(mapInstance.getZoom(), 15.5),
+              durationMs: 600,
+            });
+            return;
+          }
+          followIfNeeded(true);
+        },
+        isFollowing: () => following,
+        resize: () => mapInstance.resize(),
+      };
+
       return () => {
         cancelled = true;
-      };
-    }
-
-    const mapInstance = map;
-    let following = false;
-    let animationFrame = 0;
-    let accuracyMarker: GLMarker | null = null;
-    const markers: Partial<Record<MapMarkerKind, GLMarker>> = {};
-    const targets: Partial<Record<MapMarkerKind, LatLng>> = {};
-    const displayed: Partial<Record<MapMarkerKind, LatLng>> = {};
-
-    const releaseFollow = () => {
-      if (!following) return;
-      following = false;
-      optionsRef.current.onUserInteract?.();
-    };
-    mapInstance.on('dragstart', releaseFollow);
-    mapInstance.on('zoomstart', (event: unknown) => {
-      const original = (event as { originalEvent?: unknown } | undefined)?.originalEvent;
-      if (original) releaseFollow();
-    });
-    // A dropped tile must never break tracking: markers keep updating regardless.
-    mapInstance.on('error', () => undefined);
-
-    const ensureRouteLayers = () => {
-      if (mapInstance.getSource(ROUTE_SOURCE)) return;
-      mapInstance.addSource(ROUTE_SOURCE, { type: 'geojson', data: emptyCollection() });
-      mapInstance.addSource(DONE_SOURCE, { type: 'geojson', data: emptyCollection() });
-      mapInstance.addLayer({
-        id: 'onyx-route-casing',
-        type: 'line',
-        source: ROUTE_SOURCE,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#ffffff', 'line-width': 11, 'line-opacity': 0.92 },
-      });
-      mapInstance.addLayer({
-        id: 'onyx-route-line',
-        type: 'line',
-        source: ROUTE_SOURCE,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#e30613', 'line-width': 6.5, 'line-opacity': 0.96 },
-      });
-      mapInstance.addLayer({
-        id: 'onyx-route-done',
-        type: 'line',
-        source: DONE_SOURCE,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#0b9663', 'line-width': 6.5, 'line-opacity': 0.96 },
-      });
-    };
-
-    // Arrow consts (not hoisted function declarations) so the non-null
-    // `maplibregl` narrowing from the guard above is preserved inside them.
-    const setSourceData = (id: string, coordinates: Array<[number, number]>): void => {
-      if (!mapInstance.isStyleLoaded()) return;
-      const source = mapInstance.getSource(id) as import('maplibre-gl').GeoJSONSource | undefined;
-      if (!source) return;
-      source.setData(coordinates.length === 0 ? emptyCollection() : lineFeature(coordinates));
-    };
-
-    const placeMarker = (kind: MapMarkerKind, point: LatLng, animate: boolean): void => {
-      targets[kind] = point;
-      if (!mapInstance.isStyleLoaded()) return;
-      const previous = displayed[kind];
-      const existing = markers[kind];
-
-      if (!existing) {
-        markers[kind] = new maplibregl.Marker({
-          element: markerNode(kind),
-          anchor: kind === 'user' ? 'center' : 'bottom',
-        })
-          .setLngLat([point.lng, point.lat])
-          .addTo(mapInstance);
-        displayed[kind] = point;
-        return;
-      }
-
-      if (!animate || !previous) {
-        existing.setLngLat([point.lng, point.lat]);
-        displayed[kind] = point;
-        return;
-      }
-
-      // Glide between two real fixes — the path is the device's own tracking.
-      const from = { ...previous };
-      const startedAt = performance.now();
-      const duration = 900;
-      cancelAnimationFrame(animationFrame);
-      const step = (now: number) => {
-        const t = Math.min(1, (now - startedAt) / duration);
-        const eased = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-        const lat = from.lat + (point.lat - from.lat) * eased;
-        const lng = from.lng + (point.lng - from.lng) * eased;
-        markers[kind]?.setLngLat([lng, lat]);
-        displayed[kind] = { lat, lng };
-        if (t < 1 && !cancelled) animationFrame = requestAnimationFrame(step);
-      };
-      animationFrame = requestAnimationFrame(step);
-    };
-
-    const updateAccuracyHalo = (point: LatLng, accuracyMetres: number | null): void => {
-      if (!accuracyMetres || accuracyMetres <= 0 || !mapInstance.isStyleLoaded()) {
+        cancelAnimationFrame(animationFrame);
+        for (const marker of Object.values(markers)) marker?.remove();
         accuracyMarker?.remove();
-        accuracyMarker = null;
-        return;
-      }
-      const size = Math.min(260, Math.max(28, Math.round(accuracyMetres * 2)));
-      if (!accuracyMarker) {
-        const node = document.createElement('div');
-        node.className = 'map-accuracy';
-        node.style.width = `${size}px`;
-        node.style.height = `${size}px`;
-        accuracyMarker = new maplibregl.Marker({ element: node, anchor: 'center' })
-          .setLngLat([point.lng, point.lat])
-          .addTo(mapInstance);
-        return;
-      }
-      const element = accuracyMarker.getElement();
-      element.style.width = `${size}px`;
-      element.style.height = `${size}px`;
-      accuracyMarker.setLngLat([point.lng, point.lat]);
+        if (activeMaps.get(container) === mapInstance) activeMaps.delete(container);
+        try {
+          mapInstance.remove();
+        } catch {
+          /* already removed */
+        }
+        handleRef.current = emptyHandle();
+      };
     };
 
-    const followIfNeeded = (): void => {
-      const driver = targets.driver;
-      if (!following || !driver) return;
-      const current = mapInstance.getCenter();
-      const movedMetres = distanceMeters({ lat: current.lat, lng: current.lng }, driver);
-      if (movedMetres < 6) return;
-      mapInstance.easeTo({
-        center: [driver.lng, driver.lat],
-        duration: Math.min(1400, Math.max(450, movedMetres * 14)),
-      });
-    };
-
-    mapInstance.on('load', () => {
+    /**
+     * The container can mount later than this effect (the customer order card
+     * renders the map only once the delivery is live) and can still be 0x0 on
+     * the first frame. Wait for a real, measurable box before constructing: a
+     * 0x0 renderer paints nothing and never recovers on its own.
+     */
+    const attempt = (): void => {
       if (cancelled) return;
-      ensureRouteLayers();
-      for (const kind of Object.keys(targets) as MapMarkerKind[]) {
-        const point = targets[kind];
-        if (point) placeMarker(kind, point, false);
+      const container = containerRef.current;
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) {
+        timer = window.setTimeout(attempt, 120);
+        return;
       }
-    });
-
-
-    handleRef.current = {
-      getMap: () => mapInstance,
-      setRoute: (coordinates, routeOptions) => {
-        if (!mapInstance.isStyleLoaded()) {
-          mapInstance.once('load', () => handleRef.current.setRoute(coordinates, routeOptions));
-          return;
-        }
-        ensureRouteLayers();
-        setSourceData(ROUTE_SOURCE, coordinates);
-        setSourceData(DONE_SOURCE, []);
-        if (routeOptions?.fit !== false && coordinates.length > 1) {
-          const bounds = new maplibregl.LngLatBounds();
-          for (const point of coordinates) bounds.extend(point);
-          mapInstance.fitBounds(bounds, {
-            padding: { top: 130, bottom: 250, left: 56, right: 56 },
-            maxZoom: 15,
-            duration: 700,
-          });
-        }
-      },
-      setProgress: (coordinates) => setSourceData(DONE_SOURCE, coordinates),
-      setDriver: (point, driverOptions) => {
-        if (!point) {
-          markers.driver?.remove();
-          delete markers.driver;
-          delete displayed.driver;
-          delete targets.driver;
-          accuracyMarker?.remove();
-          accuracyMarker = null;
-          return;
-        }
-        placeMarker('driver', point, driverOptions?.animate ?? true);
-        updateAccuracyHalo(point, driverOptions?.accuracyMetres ?? null);
-        followIfNeeded();
-      },
-      setDestination: (point) => {
-        if (!point) {
-          markers.destination?.remove();
-          delete markers.destination;
-          return;
-        }
-        placeMarker('destination', point, false);
-      },
-      setRestaurant: (point) => {
-        if (!point) {
-          markers.restaurant?.remove();
-          delete markers.restaurant;
-          return;
-        }
-        placeMarker('restaurant', point, false);
-      },
-      setUser: (point, accuracyMetres) => {
-        if (!point) {
-          markers.user?.remove();
-          delete markers.user;
-          accuracyMarker?.remove();
-          accuracyMarker = null;
-          return;
-        }
-        placeMarker('user', point, true);
-        updateAccuracyHalo(point, accuracyMetres ?? null);
-      },
-      focus: (point, camera) =>
-        mapInstance.easeTo({
-          center: [point.lng, point.lat],
-          zoom: camera?.zoom ?? Math.max(mapInstance.getZoom(), 15),
-          duration: camera?.durationMs ?? 700,
-          padding: camera?.padding
-            ? { top: camera.padding, bottom: camera.padding, left: camera.padding, right: camera.padding }
-            : undefined,
-        }),
-      fit: (points, fitOptions) => {
-        if (points.length === 0) return;
-        const padding = fitOptions?.padding ?? 72;
-        if (points.length === 1) {
-          handleRef.current.focus(points[0], { durationMs: fitOptions?.durationMs ?? 600 });
-          return;
-        }
-        const bounds = new maplibregl.LngLatBounds();
-        for (const point of points) bounds.extend([point.lng, point.lat]);
-        mapInstance.fitBounds(bounds, {
-          padding: { top: padding, bottom: padding + 110, left: padding, right: padding },
-          maxZoom: fitOptions?.maxZoom ?? 15,
-          duration: fitOptions?.durationMs ?? 700,
-        });
-      },
-      setFollow: (next) => {
-        following = next;
-        if (next) {
-          handleRef.current.focus(targets.driver ?? center, {
-            zoom: Math.max(mapInstance.getZoom(), 15.5),
-            durationMs: 600,
-          });
-        }
-      },
-      isFollowing: () => following,
-      resize: () => mapInstance.resize(),
+      dispose = initMap(container);
     };
+    attempt();
 
     return () => {
       cancelled = true;
-      cancelAnimationFrame(animationFrame);
-      for (const marker of Object.values(markers)) marker?.remove();
-      accuracyMarker?.remove();
-      mapInstance.remove();
-      handleRef.current = emptyHandle();
+      window.clearTimeout(timer);
+      dispose?.();
     };
     // The map is created once per mounted container on purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -460,3 +561,8 @@ export function LiveMap({
     </div>
   );
 }
+
+
+
+
+

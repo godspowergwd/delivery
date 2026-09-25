@@ -8,7 +8,7 @@ import { useOrderTracking } from '../../lib/tracking';
 import { useDeviceLocation } from '../../lib/geolocation';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
-import { ArrowLeftIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
+import { ArrowLeftIcon, LocateIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
 
 /**
  * Step tones follow the brand's status table: every step pairs red and green
@@ -62,7 +62,14 @@ export default function CustomerTracking() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const mapHostRef = useRef<HTMLDivElement>(null);
-  const mapRef = useLiveMap(mapHostRef);
+  const [followCourier, setFollowCourier] = useState(true);
+  const mapRef = useLiveMap(mapHostRef, {
+    // Auto-follow: the camera keeps the courier and the customer's drop-off in
+    // view, and hands control over the moment the customer pans or zooms.
+    follow: true,
+    followMode: 'bounds',
+    onUserInteract: () => setFollowCourier(false),
+  });
   const location = useDeviceLocation({ enabled: true });
   const activeLatest = useQuery({
     queryKey: ['active-orders'],
@@ -131,12 +138,27 @@ export default function CustomerTracking() {
 
     return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
-      {/* The map container is always mounted so useLiveMap can construct the MapLibre
+      {/* The map container is always mounted so useLiveMap can construct the Mapbox
           instance on the first render — the hook builds the map once, on mount, and
           never re-runs for the same ref object. Rendering the container here (instead
           of inside the `!orderData` branch) is what makes the map actually appear;
           the loading spinner below simply overlays it while the order resolves. */}
       <LiveMap mapRef={mapHostRef} ariaLabel="Live delivery map" />
+
+      {isLive && !followCourier && (
+        <button
+          type="button"
+          onClick={() => {
+            setFollowCourier(true);
+            mapRef.current.setFollow(true);
+          }}
+          className="map-control-btn map-control-btn-green absolute right-4 top-[calc(max(env(safe-area-inset-top),0.75rem)+3.5rem)] z-20"
+          aria-label="Centre the map on the courier and your address"
+          title="Centre on the courier"
+        >
+          <LocateIcon className="h-5 w-5" />
+        </button>
+      )}
 
       {!orderData && (
         <div className="absolute inset-0 flex h-[100dvh] items-center justify-center bg-white px-6">
