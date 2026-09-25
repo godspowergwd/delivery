@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { DEFAULT_MAP_ZOOM, KITCHEN_ANCHOR, mapFallbackStyleUrl, mapStyleUrl, type LatLng } from '../lib/live-map';
-import { loadMapGL, type GLMap, type GLMarker, type MapboxGL } from '../lib/map-engine';
+import {
+  handleMissingStyleImage,
+  loadMapGL,
+  relaxStyleFilters,
+  type GLMap,
+  type GLMarker,
+  type MapboxGL,
+} from '../lib/map-engine';
 
 /**
  * Mapbox GL wrapper for the delivery maps.
@@ -564,10 +571,19 @@ export function useLiveMap(
         if (cancelled) return;
         styleReady = true;
         window.clearTimeout(styleWatchdog);
+        // Before the first tile request goes out: neutralise the style's strict
+        // numeric filters (Mapbox v3 vs MapLibre-tolerant styles) so the worker
+        // never logs `… evaluated to null but was expected to be of type number`.
+        relaxStyleFilters(mapInstance);
         ensureRouteLayers();
         applyRoute(true);
       };
       mapInstance.on('style.load', onStyleLoad);
+
+      // Missing sprite images become a transparent pixel instead of an error
+      // (`Image "recycling" could not be loaded`, once per tile).
+      const onMissingImage = (event: unknown): void => handleMissingStyleImage(mapInstance, event);
+      mapInstance.on('styleimagemissing', onMissingImage);
 
       // WebGL context loss: ask for a restore, and rebuild if it never comes.
       let rebuildTimer = 0;
@@ -776,6 +792,7 @@ export function useLiveMap(
         mapInstance.off('error', onMapError);
         mapInstance.off('styledata', onStyleData);
         mapInstance.off('style.load', onStyleLoad);
+        mapInstance.off('styleimagemissing', onMissingImage);
         cancelAnimationFrame(animationFrame);
         for (const marker of Object.values(markers)) marker?.remove();
         accuracyMarker?.remove();

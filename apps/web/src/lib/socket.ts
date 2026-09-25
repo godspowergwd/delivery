@@ -17,4 +17,28 @@ export function createAppSocket(token: string | null): AppSocket {
   });
 }
 
+/**
+ * Closes a socket without the browser console error
+ * `WebSocket is closed before the connection is established`.
+ *
+ * That error is exactly what aborting an in-flight handshake does, which is
+ * what an effect cleanup does on a quick sign-out or route change. An open
+ * socket is closed right away; a *connecting* one waits (bounded) for the
+ * handshake to finish and is then closed cleanly.
+ */
+export function safeDisconnect(socket: AppSocket | null | undefined): void {
+  if (!socket) return;
+  if (socket.connected || !socket.active) {
+    socket.disconnect();
+    return;
+  }
+  let timer = 0;
+  const finish = (): void => {
+    window.clearTimeout(timer);
+    socket.disconnect();
+  };
+  timer = window.setTimeout(finish, 3000);
+  socket.once('connect', finish);
+}
+
 export type { ClientToServerEvents, ServerToClientEvents };

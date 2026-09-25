@@ -115,11 +115,13 @@ function NotificationItem({ notification, onMarkRead }: {
   notification: NotificationDTO;
   onMarkRead: (id: string) => void;
 }) {
+  const navigate = useNavigate();
+
   return (
     <div
       onClick={() => {
         if (!notification.isRead) void onMarkRead(notification.id);
-        if (notification.orderId) window.location.assign(`/app/orders/${notification.orderId}`);
+        if (notification.orderId) navigate(`/app/orders/${notification.orderId}`);
       }}
       className="cursor-pointer px-3 py-2 text-left transition hover:bg-slate-100"
     >

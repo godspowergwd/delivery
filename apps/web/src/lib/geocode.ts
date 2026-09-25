@@ -39,6 +39,13 @@ interface LocalPlace {
 const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined)?.trim() || null;
 const GHANA_CENTER = [-0.21, 5.6] as const;
 const CACHE_TTL_MS = 5 * 60_000;
+/**
+ * Cap on how long one keystroke waits for a remote geocoder. Local landmarks
+ * are instant by construction; a slow or unreachable provider only delays its
+ * own extra results — never the whole dropdown (the autocomplete contract the
+ * tests assert: "resolves instantly … without any network").
+ */
+const REMOTE_WAIT_MS = 1000;
 
 const cache = new Map<string, { at: number; results: PlaceSuggestion[] }>();
 
@@ -176,9 +183,13 @@ export async function suggestPlaces(
   // Remote providers need >= 3 characters (matches the API's validation).
   if (clean.length >= 3) {
     try {
-      remote = MAPBOX_TOKEN
-        ? await mapboxMatches(clean, signal)
-        : await nominatimMatches(clean, signal);
+      const remoteRequest = MAPBOX_TOKEN ? mapboxMatches(clean, signal) : nominatimMatches(clean, signal);
+      remote = await Promise.race([
+        remoteRequest,
+        new Promise<PlaceSuggestion[]>((resolve) => {
+          setTimeout(() => resolve([]), REMOTE_WAIT_MS);
+        }),
+      ]);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') throw error;
       remote = [];

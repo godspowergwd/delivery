@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { mapStyleUrl } from '../lib/live-map';
-import { loadMapGL, type GLMap } from '../lib/map-engine';
+import { handleMissingStyleImage, loadMapGL, relaxStyleFilters, type GLMap } from '../lib/map-engine';
 
 /** Branded placeholder — a failed preview never leaves a blank pane behind. */
 const PREVIEW_FALLBACK = '<div class="map-fallback">Map preview needs WebGL</div>';
@@ -59,7 +59,21 @@ export function MapPreview({
               .setLngLat([centerLng, centerLat])
               .addTo(map!);
           });
-          cleanup = () => map?.remove();
+          // Same console-cleanliness fixes as the live map: null-safe numeric
+          // filters before the first tile, transparent pixels for sprite gaps.
+          const onStyleLoad = (): void => {
+            relaxStyleFilters(map!);
+          };
+          const onMissingImage = (event: unknown): void => {
+            handleMissingStyleImage(map!, event);
+          };
+          map.on('style.load', onStyleLoad);
+          map.on('styleimagemissing', onMissingImage);
+          cleanup = () => {
+            map?.off('style.load', onStyleLoad);
+            map?.off('styleimagemissing', onMissingImage);
+            map?.remove();
+          };
         } catch {
           host.innerHTML = PREVIEW_FALLBACK;
         }

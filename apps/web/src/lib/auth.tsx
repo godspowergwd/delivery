@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { AuthUser } from '@delivery/shared';
 import { api, clearAuthStorage, getCsrfToken, getToken, hasRefreshCookie, refreshSession, setTokens } from './api';
-import { createAppSocket, type AppSocket } from './socket';
+import { createAppSocket, safeDisconnect, type AppSocket } from './socket';
 
 const USER_KEY = 'ds_user';
 
@@ -288,7 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = socketToken ?? getToken();
     if (!user || !token) {
-      socketRef.current?.disconnect();
+      safeDisconnect(socketRef.current);
       socketRef.current = null;
       setSocket(null);
       return;
@@ -297,7 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     socketRef.current = next;
     setSocket(next);
     return () => {
-      next.disconnect();
+      safeDisconnect(next);
       if (socketRef.current === next) {
         socketRef.current = null;
         setSocket(null);

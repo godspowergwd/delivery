@@ -64,7 +64,7 @@ export function AuthSheet() {
 
         {/* One real credential form: identifier first, password second — the
             exact order and semantics every password manager expects. */}
-        <form onSubmit={submit} className="space-y-3" method="post" action="/login" autoComplete="on">
+        <form onSubmit={submit} className="space-y-3" autoComplete="on">
           <Field label="Email or username" htmlFor="authsheet-identifier">
             <Input
               id="authsheet-identifier"
