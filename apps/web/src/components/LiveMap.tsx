@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { DEFAULT_MAP_ZOOM, KITCHEN_ANCHOR, mapStyleUrl, type LatLng } from '../lib/live-map';
+import { DEFAULT_MAP_ZOOM, KITCHEN_ANCHOR, mapFallbackStyleUrl, mapStyleUrl, type LatLng } from '../lib/live-map';
 import { loadMapGL, type GLMap, type GLMarker, type MapboxGL } from '../lib/map-engine';
 
 /**
@@ -71,6 +71,18 @@ function markerNode(kind: MapMarkerKind): HTMLElement {
 /** Branded placeholder — a failed map never leaves a blank pane behind. */
 function showFallback(container: HTMLElement, message: string): void {
   container.innerHTML = `<div class="map-fallback">${message}</div>`;
+}
+
+/** Camera inputs are only ever finite, real coordinates. */
+function isUsablePoint(point: LatLng | null | undefined): point is LatLng {
+  return Boolean(point) && Number.isFinite(point?.lat) && Number.isFinite(point?.lng);
+}
+
+/** Recovery card with a real retry action (never a page reload). */
+function showRecovery(container: HTMLElement, message: string, onRetry: () => void): void {
+  container.innerHTML =
+    `<div class="map-fallback"><p>${message}</p><button type="button" data-map-retry>Retry map</button></div>`;
+  container.querySelector('button[data-map-retry]')?.addEventListener('click', onRetry);
 }
 
 function emptyCollection(): { type: 'FeatureCollection'; features: never[] } {
@@ -151,6 +163,39 @@ export function useLiveMap(
     let cancelled = false;
     let timer = 0;
     let dispose: (() => void) | null = null;
+    /** Assigned below; the indirection lets the retry card restart the map. */
+    let start: () => void = () => undefined;
+    /**
+     * Self-healing budget, shared across every attempt so a permanently broken
+     * renderer ends in the retry card instead of rebuilding forever.
+     */
+    let rebuilds = 0;
+
+    /**
+     * Full in-place restart — used by the retry button and by self-healing.
+     * It drops the current renderer, clears any recovery content and starts a
+     * fresh attempt on the same container (no page reload, no duplicate maps).
+     * Returns `false` once the budget is spent.
+     */
+    const rebuild = (): boolean => {
+      if (cancelled || rebuilds >= 3) return false;
+      rebuilds += 1;
+      dispose?.();
+      dispose = null;
+      // The old renderer's dispose flips the shared flag; the effect itself is
+      // still mounted, so re-arm it before the fresh attempt.
+      cancelled = false;
+      const container = containerRef.current;
+      if (container) container.innerHTML = '';
+      start();
+      return true;
+    };
+
+    /** User-driven retry: always allowed, and it resets the self-healing budget. */
+    const retry = (): void => {
+      rebuilds = 0;
+      rebuild();
+    };
 
     const initMap = (container: HTMLDivElement): (() => void) => {
       // A container that still carries a live renderer (Strict Mode re-entry or
@@ -164,6 +209,9 @@ export function useLiveMap(
         }
         activeMaps.delete(container);
       }
+      // Content from an earlier attempt (fallback/retry card) must not survive
+      // underneath the new renderer.
+      container.innerHTML = '';
       if (!mapboxgl.supported()) {
         showFallback(container, 'Live map needs WebGL on this device — the delivery details are listed below.');
         return () => undefined;
@@ -193,7 +241,11 @@ export function useLiveMap(
           map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
         }
       } catch {
-        showFallback(container, 'Live map needs WebGL on this device — the delivery details are listed below.');
+        showRecovery(
+          container,
+          'The live map could not start. Check your connection and try again.',
+          retry,
+        );
         return () => undefined;
       }
 
@@ -217,8 +269,8 @@ export function useLiveMap(
         const original = (event as { originalEvent?: unknown } | undefined)?.originalEvent;
         if (original) releaseFollow();
       });
-      // A dropped tile must never break tracking: markers keep updating regardless.
-      mapInstance.on('error', () => undefined);
+      // Errors are handled in the resilience block below (style fallback etc.).
+      // Tile hiccups stay quiet there: markers keep updating regardless.
 
       const ensureRouteLayers = () => {
         if (mapInstance.getSource(ROUTE_SOURCE)) return;
@@ -257,6 +309,7 @@ export function useLiveMap(
       };
 
       const placeMarker = (kind: MapMarkerKind, point: LatLng, animate: boolean): void => {
+        if (!isUsablePoint(point)) return; // never place a marker on a broken coordinate
         targets[kind] = point;
         if (!mapInstance.isStyleLoaded()) return;
         const previous = displayed[kind];
@@ -290,7 +343,7 @@ export function useLiveMap(
       };
 
       const updateAccuracyHalo = (point: LatLng, accuracyMetres: number | null): void => {
-        if (!accuracyMetres || accuracyMetres <= 0 || !mapInstance.isStyleLoaded()) {
+        if (!isUsablePoint(point) || !accuracyMetres || accuracyMetres <= 0 || !mapInstance.isStyleLoaded()) {
           accuracyMarker?.remove();
           accuracyMarker = null;
           return;
@@ -336,7 +389,7 @@ export function useLiveMap(
 
       const followIfNeeded = (force = false): void => {
         const driver = targets.driver;
-        if (!following || !driver) return;
+        if (!following || !isUsablePoint(driver) || !containerSized()) return;
         const destination = targets.destination;
         if (followMode() === 'bounds' && destination) {
           // Customer tracking: only move when a marker is about to leave the
@@ -351,6 +404,7 @@ export function useLiveMap(
         }
         const current = mapInstance.getCenter();
         const movedMetres = distanceMeters({ lat: current.lat, lng: current.lng }, driver);
+        if (!Number.isFinite(movedMetres)) return;
         if (!force && movedMetres < 6) return;
         mapInstance.easeTo({
           center: [driver.lng, driver.lat],
@@ -358,37 +412,250 @@ export function useLiveMap(
         });
       };
 
+      // ---------------------------------------------------------------------
+      // Resilience: the map must never stay white.
+      //
+      // Everything below watches the renderer's real state — canvas attached,
+      // canvas matched to its container, style loaded, camera finite — and
+      // repairs or rebuilds in place instead of leaving a blank pane behind.
+      // ---------------------------------------------------------------------
+      const canvas = mapInstance.getCanvas();
+      const containerSized = (): boolean => container.clientWidth > 0 && container.clientHeight > 0;
+
+      /** Zoom is always finite (a NaN transform paints nothing). */
+      const safeZoom = (): number => {
+        const zoom = mapInstance.getZoom();
+        return Number.isFinite(zoom) ? zoom : optionsRef.current.zoom ?? DEFAULT_MAP_ZOOM;
+      };
+
+      /** Fit padding that can never swallow the viewport (that yields an infinite zoom). */
+      const clampPadding = (
+        top: number,
+        bottom: number,
+        side: number,
+      ): { top: number; bottom: number; left: number; right: number } => {
+        const height = Math.max(1, container.clientHeight);
+        const width = Math.max(1, container.clientWidth);
+        return {
+          top: Math.min(top, Math.floor(height / 3)),
+          bottom: Math.min(bottom, Math.floor(height / 3)),
+          left: Math.min(side, Math.floor(width / 4)),
+          right: Math.min(side, Math.floor(width / 4)),
+        };
+      };
+
+      /**
+       * Route + progress survive a style (re)load. A deferred first style and a
+       * swapped-in fallback style both recreate empty sources, so the last known
+       * geometry is re-applied on every style event instead of silently vanishing.
+       */
+      let pendingRoute: Array<[number, number]> | null = null;
+      let pendingProgress: Array<[number, number]> = [];
+      let appliedRoute: Array<[number, number]> | null = null;
+      let appliedProgress: Array<[number, number]> = [];
+      const applyRoute = (force = false): void => {
+        if (!pendingRoute || !mapInstance.isStyleLoaded()) return;
+        ensureRouteLayers();
+        // Identity-guarded so repeated style events cannot feed themselves.
+        if (force || appliedRoute !== pendingRoute) {
+          setSourceData(ROUTE_SOURCE, pendingRoute);
+          appliedRoute = pendingRoute;
+        }
+        if (force || appliedProgress !== pendingProgress) {
+          setSourceData(DONE_SOURCE, pendingProgress.length > 1 ? pendingProgress : []);
+          appliedProgress = pendingProgress;
+        }
+      };
+
+      /** Keeps the drawing buffer matched to the real container box. */
+      const syncCanvas = (): void => {
+        if (cancelled || !containerSized()) return;
+        const live = mapInstance.getCanvas();
+        if (!live || !live.isConnected) return;
+        if (live.clientWidth !== container.clientWidth || live.clientHeight !== container.clientHeight) {
+          try {
+            mapInstance.resize();
+          } catch {
+            /* the watchdog / context handlers own the recovery */
+          }
+        }
+      };
+
+      /** A broken camera (NaN zoom or centre) paints nothing: snap it back. */
+      let cameraHeals = 0;
+      const healCamera = (): void => {
+        const centerNow = mapInstance.getCenter();
+        const zoomNow = mapInstance.getZoom();
+        if (Number.isFinite(zoomNow) && Number.isFinite(centerNow.lng) && Number.isFinite(centerNow.lat)) {
+          cameraHeals = 0;
+          return;
+        }
+        cameraHeals += 1;
+        const anchor = isUsablePoint(targets.driver) ? targets.driver : center;
+        try {
+          // A jump that keeps failing means the renderer itself is gone.
+          if (cameraHeals <= 2) {
+            mapInstance.jumpTo({ center: [anchor.lng, anchor.lat], zoom: safeZoom(), bearing: 0, pitch: 0 });
+          } else if (!rebuild()) {
+            showRecovery(container, 'The live map stopped rendering on this device.', retry);
+            return;
+          }
+        } catch {
+          if (!rebuild()) showRecovery(container, 'The live map stopped rendering on this device.', retry);
+          return;
+        }
+        syncCanvas();
+      };
+
+      // Style failures (offline first paint, blocked domain, revoked token):
+      // switch to the keyless style once, then offer the retry card.
+      //
+      // `styleReady` flips as soon as the first style data lands. It is the only
+      // safe trigger: `isStyleLoaded()` stays false until *all sources* (tiles
+      // included) finish, so a transient tile hiccup must never swap the style.
+      let styleReady = false;
+      let triedFallbackStyle = false;
+      const styleWatchdog = window.setTimeout(() => {
+        if (cancelled || styleReady) return;
+        if (!triedFallbackStyle) {
+          triedFallbackStyle = true;
+          try {
+            mapInstance.setStyle(mapFallbackStyleUrl());
+          } catch {
+            showRecovery(container, 'The map style could not be loaded. Check your connection and retry.', retry);
+          }
+        }
+      }, 12_000);
+
+      const onMapError = (event: unknown): void => {
+        // Tile hiccups are normal on a flaky network and stay quiet: they are
+        // recoverable and the markers keep updating regardless. Only a style
+        // that never produced any data is worth a real recovery.
+        if (styleReady) return;
+        const error = (event as { error?: { status?: number; message?: string } } | undefined)?.error;
+        const message = typeof error?.message === 'string' ? error.message : '';
+        const looksLikeStyle = /style|token|401|403|unauthor/i.test(message);
+        if (!looksLikeStyle) return;
+        if (!triedFallbackStyle) {
+          triedFallbackStyle = true;
+          try {
+            mapInstance.setStyle(mapFallbackStyleUrl());
+          } catch {
+            showRecovery(container, 'The map style could not be loaded. Check your connection and retry.', retry);
+          }
+          return;
+        }
+        showRecovery(container, 'The map style could not be loaded. Check your connection and retry.', retry);
+      };
+      mapInstance.on('error', onMapError);
+
+      // A style swap (fallback provider) drops sources and layers: re-add them.
+      const onStyleData = (): void => {
+        if (cancelled) return;
+        styleReady = true;
+        ensureRouteLayers();
+      };
+      mapInstance.on('styledata', onStyleData);
+
+      // `style.load` fires for every style the map installs — the initial one and
+      // each swapped-in fallback. The sources are empty at that point, so the
+      // last known geometry is force-re-applied instead of silently vanishing.
+      const onStyleLoad = (): void => {
+        if (cancelled) return;
+        styleReady = true;
+        window.clearTimeout(styleWatchdog);
+        ensureRouteLayers();
+        applyRoute(true);
+      };
+      mapInstance.on('style.load', onStyleLoad);
+
+      // WebGL context loss: ask for a restore, and rebuild if it never comes.
+      let rebuildTimer = 0;
+      const onContextLost = (event: Event): void => {
+        event.preventDefault();
+        window.clearTimeout(rebuildTimer);
+        rebuildTimer = window.setTimeout(() => {
+          if (cancelled) return;
+          if (!rebuild()) showRecovery(container, 'The live map stopped rendering on this device.', retry);
+        }, 4_000);
+      };
+      const onContextRestored = (): void => {
+        window.clearTimeout(rebuildTimer);
+        try {
+          mapInstance.resize();
+          mapInstance.triggerRepaint();
+        } catch {
+          if (!rebuild()) showRecovery(container, 'The live map stopped rendering on this device.', retry);
+        }
+      };
+      canvas.addEventListener('webglcontextlost', onContextLost, false);
+      canvas.addEventListener('webglcontextrestored', onContextRestored, false);
+
+      // Container box changes (sheet snaps, rotation, URL-bar shifts) are not
+      // seen by the engine on its own — mirror them onto the canvas.
+      let observer: ResizeObserver | null = null;
+      if (typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(() => {
+          healCamera();
+          syncCanvas();
+        });
+        observer.observe(container);
+      }
+
+      // Watchdog: catches layouts that never resize (so the observer stays
+      // silent) and the one failure the engine cannot report — a canvas that
+      // got detached or zeroed. Self-heals in place; when the shared budget is
+      // spent it hands over to the retry card instead of looping.
+      const watchdog = window.setInterval(() => {
+        if (cancelled || !containerSized()) return;
+        const live = mapInstance.getCanvas();
+        if (!live || !live.isConnected || live.width === 0 || live.height === 0) {
+          window.console.warn('[map] renderer canvas went missing — rebuilding the map');
+          if (!rebuild()) {
+            window.clearInterval(watchdog);
+            showRecovery(container, 'The live map stopped rendering on this device.', retry);
+          }
+          return;
+        }
+        healCamera();
+        syncCanvas();
+      }, 1_500);
+
       mapInstance.on('load', () => {
         if (cancelled) return;
+        window.clearTimeout(styleWatchdog);
         ensureRouteLayers();
+        applyRoute();
         for (const kind of Object.keys(targets) as MapMarkerKind[]) {
           const point = targets[kind];
           if (point) placeMarker(kind, point, false);
         }
         followIfNeeded();
+        syncCanvas();
       });
 
       handleRef.current = {
         getMap: () => mapInstance,
         setRoute: (coordinates, routeOptions) => {
-          if (!mapInstance.isStyleLoaded()) {
-            mapInstance.once('load', () => handleRef.current.setRoute(coordinates, routeOptions));
-            return;
-          }
-          ensureRouteLayers();
-          setSourceData(ROUTE_SOURCE, coordinates);
-          setSourceData(DONE_SOURCE, []);
-          if (routeOptions?.fit !== false && coordinates.length > 1) {
+          pendingRoute = coordinates.length > 0 ? coordinates : null;
+          // Not ready yet (style still loading, or swapped to another provider):
+          // `applyRoute` re-applies this exact geometry on the next style event.
+          if (!mapInstance.isStyleLoaded()) return;
+          applyRoute();
+          if (routeOptions?.fit !== false && coordinates.length > 1 && containerSized()) {
             const bounds = new mapboxgl.LngLatBounds();
             for (const point of coordinates) bounds.extend(point);
             mapInstance.fitBounds(bounds, {
-              padding: { top: 130, bottom: 250, left: 56, right: 56 },
+              padding: clampPadding(130, 250, 56),
               maxZoom: 15,
               duration: 700,
             });
           }
         },
-        setProgress: (coordinates) => setSourceData(DONE_SOURCE, coordinates),
+        setProgress: (coordinates) => {
+          pendingProgress = coordinates;
+          setSourceData(DONE_SOURCE, coordinates);
+        },
         setDriver: (point, driverOptions) => {
           if (!point) {
             markers.driver?.remove();
@@ -440,37 +707,44 @@ export function useLiveMap(
           placeMarker('user', point, true);
           updateAccuracyHalo(point, accuracyMetres ?? null);
         },
-        focus: (point, camera) =>
+        focus: (point, camera) => {
+          if (!isUsablePoint(point) || !containerSized()) return;
           mapInstance.easeTo({
             center: [point.lng, point.lat],
-            zoom: camera?.zoom ?? Math.max(mapInstance.getZoom(), 15),
+            zoom: camera?.zoom ?? Math.max(safeZoom(), 15),
             duration: camera?.durationMs ?? 700,
             padding: camera?.padding
               ? { top: camera.padding, bottom: camera.padding, left: camera.padding, right: camera.padding }
               : undefined,
-          }),
+          });
+        },
         fit: (points, fitOptions) => {
-          if (points.length === 0) return;
+          const usable = points.filter(isUsablePoint);
+          if (usable.length === 0 || !containerSized()) return;
           const padding = fitOptions?.padding ?? 72;
-          if (points.length === 1) {
-            handleRef.current.focus(points[0], { durationMs: fitOptions?.durationMs ?? 600 });
+          if (usable.length === 1) {
+            handleRef.current.focus(usable[0], { durationMs: fitOptions?.durationMs ?? 600 });
             return;
           }
           const bounds = new mapboxgl.LngLatBounds();
-          for (const point of points) bounds.extend([point.lng, point.lat]);
-          mapInstance.fitBounds(bounds, {
-            padding: { top: padding, bottom: padding + 110, left: padding, right: padding },
-            maxZoom: fitOptions?.maxZoom ?? 15,
-            duration: fitOptions?.durationMs ?? 700,
-          });
+          for (const point of usable) bounds.extend([point.lng, point.lat]);
+          try {
+            mapInstance.fitBounds(bounds, {
+              padding: clampPadding(padding, padding + 110, padding),
+              maxZoom: fitOptions?.maxZoom ?? 15,
+              duration: fitOptions?.durationMs ?? 700,
+            });
+          } catch {
+            /* never let a camera hiccup break the screen */
+          }
         },
         setFollow: (next) => {
           following = next;
           if (!next) return;
           const driver = targets.driver;
-          if (!driver) {
+          if (!isUsablePoint(driver)) {
             handleRef.current.focus(center, {
-              zoom: Math.max(mapInstance.getZoom(), 15.5),
+              zoom: Math.max(safeZoom(), 15.5),
               durationMs: 600,
             });
             return;
@@ -478,11 +752,30 @@ export function useLiveMap(
           followIfNeeded(true);
         },
         isFollowing: () => following,
-        resize: () => mapInstance.resize(),
+        resize: () => {
+          // A 0×0 resize would break the camera; a stale box is healed instead.
+          if (!containerSized()) return;
+          try {
+            mapInstance.resize();
+          } catch {
+            /* the watchdog owns the recovery */
+          }
+          healCamera();
+          syncCanvas();
+        },
       };
 
       return () => {
         cancelled = true;
+        window.clearTimeout(styleWatchdog);
+        window.clearTimeout(rebuildTimer);
+        window.clearInterval(watchdog);
+        observer?.disconnect();
+        canvas.removeEventListener('webglcontextlost', onContextLost);
+        canvas.removeEventListener('webglcontextrestored', onContextRestored);
+        mapInstance.off('error', onMapError);
+        mapInstance.off('styledata', onStyleData);
+        mapInstance.off('style.load', onStyleLoad);
         cancelAnimationFrame(animationFrame);
         for (const marker of Object.values(markers)) marker?.remove();
         accuracyMarker?.remove();
@@ -501,17 +794,20 @@ export function useLiveMap(
      * renders the map only once the delivery is live) and can still be 0x0 on
      * the first frame. Wait for a real, measurable box before constructing: a
      * 0x0 renderer paints nothing and never recovers on its own.
+     *
+     * `start` is the single entry point for map creation, so a Strict Mode
+     * re-entry, a retry tap and self-healing can never stack two renderers.
      */
-    const attempt = (): void => {
-      if (cancelled) return;
+    start = (): void => {
+      if (cancelled || dispose) return;
       const container = containerRef.current;
       if (!container || container.clientWidth === 0 || container.clientHeight === 0) {
-        timer = window.setTimeout(attempt, 120);
+        timer = window.setTimeout(start, 120);
         return;
       }
       dispose = initMap(container);
     };
-    attempt();
+    start();
 
     return () => {
       cancelled = true;

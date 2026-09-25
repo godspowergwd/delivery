@@ -510,6 +510,7 @@ img {
    =========================================================================== */
 .map-shell {
   position: relative;
+  width: 100%;
   overflow: hidden;
   border-radius: var(--radius-card);
   border: 1px solid var(--line);
@@ -523,7 +524,27 @@ img {
  * positioned no matter which stylesheet lands last — a relative canvas
  * collapses to 0px and paints nothing.
  */
-.map-shell .map-canvas { position: absolute; inset: 0; }
+.map-shell .map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/**
+ * Hard visibility guarantee for the renderer itself. The engine anchors the
+ * canvas at 0,0 with inline pixel sizes; whatever happens to stylesheet order,
+ * resize timing or sibling overlays, the canvas stays attached, block-level,
+ * opaque and visible — so "map flashes then turns white" can never come from
+ * CSS.
+ */
+.map-shell canvas.mapboxgl-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  opacity: 1;
+  visibility: visible;
+}
 
 
 /**
@@ -646,16 +667,40 @@ img {
   pointer-events: none;
 }
 
-/** Branded placeholder when WebGL/tiles are unavailable — never a blank pane. */
+/** Branded placeholder/recovery card — never a blank pane. */
 .map-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
   display: grid;
-  place-items: center;
-  height: 100%;
+  align-content: center;
+  justify-items: center;
+  gap: 0.85rem;
   padding: 1.25rem;
   text-align: center;
   font-size: 0.875rem;
   font-weight: 600;
+  line-height: 1.5;
   color: var(--ink-muted, #6a7383);
   background: #eef1f6;
+}
+.map-fallback p {
+  margin: 0;
+  max-width: 28rem;
+}
+.map-fallback button {
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border: 0;
+  border-radius: 1rem;
+  background: var(--brand, #e30613);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-brand-soft);
+}
+.map-fallback button:hover {
+  filter: brightness(1.05);
 }
 
