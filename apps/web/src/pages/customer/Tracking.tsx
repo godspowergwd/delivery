@@ -2,14 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { OrderDTO, OrderStatus } from '@delivery/shared';
-import { ORDER_STATUS_DESCRIPTIONS, ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, ORDER_STATUS_TONE, orderStatusIndex } from '@delivery/shared';
+import { ORDER_STATUS_DESCRIPTIONS, ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, ORDER_STATUS_TONE, formatDistance, orderStatusIndex } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useOrderTracking } from '../../lib/tracking';
 import { useDeviceLocation } from '../../lib/geolocation';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
 import { ArrowLeftIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
-import { estimateAddressCoordinates, formatDistance } from '../../lib/live-map';
 
 /**
  * Step tones follow the brand's status table: every step pairs red and green
@@ -85,14 +84,23 @@ export default function CustomerTracking() {
   const driverLocation = trackingData?.driver?.location;
   const destination = useMemo(() => {
     if (!orderData) return null;
-    if (orderData.deliveryLatitude != null && orderData.deliveryLongitude != null) {
+    // Real checkout GPS first; the server's geocoded snapshot second.
+    // A typed address with no coordinates never creates a fake pin.
+    if (
+      typeof orderData.deliveryLatitude === 'number' &&
+      typeof orderData.deliveryLongitude === 'number' &&
+      Number.isFinite(orderData.deliveryLatitude) &&
+      Number.isFinite(orderData.deliveryLongitude) &&
+      (orderData.deliveryLatitude !== 0 || orderData.deliveryLongitude !== 0)
+    ) {
       return { lat: orderData.deliveryLatitude, lng: orderData.deliveryLongitude };
     }
-    // Fall back to a geocoded estimate of the written address so the driver's
-    // route still points at the right neighbourhood when GPS was declined.
-    const estimate = estimateAddressCoordinates(orderData.deliveryAddress, orderData.deliveryArea);
-    return { lat: estimate.lat, lng: estimate.lng };
-  }, [orderData]);
+    const server = tracking.data?.tracking?.destination;
+    if (server && server.source === 'gps') {
+      return { lat: server.latitude, lng: server.longitude };
+    }
+    return null;
+  }, [orderData, tracking.data?.tracking?.destination]);
 
   useEffect(() => {
     if (driverLocation && mapRef.current) {

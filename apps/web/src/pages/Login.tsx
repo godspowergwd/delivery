@@ -66,22 +66,29 @@ export function Login() {
         <p className="text-sm text-slate-500">Hot waakye around Malam & Gbawe — sign in to order.</p>
       </div>
       <Card className="duo-top">
-        <form onSubmit={submit} className="space-y-4">
-          <Field label="Email or username">
+        {/* One real credential form: identifier first, password second — the
+            exact order and semantics every password manager expects. */}
+        <form onSubmit={submit} className="space-y-4" method="post" action="/login" autoComplete="on">
+          <Field label="Email or username" htmlFor="login-identifier">
             <Input
+              id="login-identifier"
+              name="username"
               type="text"
               required
               autoComplete="username"
               inputMode="email"
               autoCapitalize="none"
+              autoCorrect="off"
               spellCheck={false}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com or admin"
             />
           </Field>
-          <Field label="Password">
+          <Field label="Password" htmlFor="login-password">
             <Input
+              id="login-password"
+              name="password"
               type="password"
               required
               autoComplete="current-password"

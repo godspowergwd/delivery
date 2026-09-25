@@ -87,8 +87,11 @@ export function createCsrfToken(): string {
 export function refreshCookieOptions(maxAgeMs: number): CookieOptions {
   return {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: isProduction,
+    // Cross-origin deployments (PWA on GitHub Pages calling the API on
+    // Render) require SameSite=None + Secure, otherwise the browser never
+    // sends the refresh cookie and every reload looks like an expiry.
+    sameSite: isProduction ? 'none' : 'lax',
+    secure: isProduction ? true : false,
     path: '/',
     maxAge: maxAgeMs,
   };
@@ -97,8 +100,8 @@ export function refreshCookieOptions(maxAgeMs: number): CookieOptions {
 export function csrfCookieOptions(maxAgeMs: number): CookieOptions {
   return {
     httpOnly: false, // must be readable by the client to echo it back in the header
-    sameSite: 'lax',
-    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    secure: isProduction ? true : false,
     path: '/',
     maxAge: maxAgeMs,
   };

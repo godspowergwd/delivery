@@ -47,7 +47,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>(load);
 
   useEffect(() => {
-    localStorage.setItem(CART_KEY, JSON.stringify(lines));
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(lines));
+    } catch {
+      // Storage failures (private mode / quota) must never blank the UI.
+    }
   }, [lines]);
 
   const add = useCallback((product: ProductDTO, quantity = 1, notes?: string | null) => {

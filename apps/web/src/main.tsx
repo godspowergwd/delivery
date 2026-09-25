@@ -1,7 +1,7 @@
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { keepPreviousData, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import { AuthProvider, useAuth } from './lib/auth';
 import { CartProvider } from './lib/cart';
@@ -30,8 +30,14 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 15_000,
+      // A failed request retries once briefly, then surfaces a real error
+      // state — it never destroys the whole UI.
       retry: 1,
+      retryDelay: 800,
       refetchOnWindowFocus: true,
+      // Keep last-good data on screen while refetching instead of flashing
+      // an empty state.
+      placeholderData: keepPreviousData,
     },
   },
 });

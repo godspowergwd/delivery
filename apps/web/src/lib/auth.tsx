@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { AuthUser } from '@delivery/shared';
-import { api, getCsrfToken, getToken, refreshSession, setTokens } from './api';
+import { api, clearAuthStorage, getCsrfToken, getToken, hasRefreshCookie, refreshSession, setTokens } from './api';
 import { createAppSocket, type AppSocket } from './socket';
 
 const USER_KEY = 'ds_user';
@@ -51,14 +51,18 @@ function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
 
 /**
  * True when this browser might still hold a refresh session (the CSRF companion
- * cookie is readable; the refresh cookie itself is httpOnly by design).
+ * cookie/token is readable; the refresh cookie itself is httpOnly by design,
+ * so on cross-origin deployments we also sniff document.cookie — when it is
+ * visible — and always attempt a refresh if a cached token exists).
  */
 function hasRefreshHint(): boolean {
   try {
     if (getCsrfToken()) return true;
-    return document.cookie.includes('ds_refresh');
+    if (getToken()) return true;
+    if (hasRefreshCookie()) return true;
+    return document.cookie.includes('ds_refresh') || document.cookie.includes('ds_csrf');
   } catch {
-    return false;
+    return Boolean(getCsrfToken() || getToken());
   }
 }
 
@@ -72,8 +76,12 @@ function loadCachedUser(): AuthUser | null {
 }
 
 function cacheUser(user: AuthUser | null): void {
-  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
-  else localStorage.removeItem(USER_KEY);
+  try {
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    else localStorage.removeItem(USER_KEY);
+  } catch {
+    // Private-mode / quota failures must never break auth.
+  }
 }
 
 export interface LoginPayload {
@@ -150,13 +158,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         if (token) {
-          const { user: me } = await withTimeout(
-            api.get<{ user: AuthUser }>('/auth/me'),
-            'Session check',
-          );
-          if (!cancelled) setUser(me);
-          finish();
-          return;
+          try {
+            const { user: me } = await withTimeout(
+              api.get<{ user: AuthUser }>('/auth/me'),
+              'Session check',
+            );
+            if (!cancelled) setUser(me);
+            finish();
+            return;
+          } catch (meError) {
+            // The access token is expired but the httpOnly refresh session may
+            // still be alive: fall through to the refresh below instead of
+            // signing anyone out.
+            const status = (meError as { status?: number })?.status;
+            const code = (meError as { code?: string })?.code;
+            const refreshable =
+              status === 401 || code === 'SESSION_EXPIRED' || code === 'UNAUTHORIZED';
+            if (!refreshable) throw meError;
+          }
         }
         const refreshed = await withTimeout(refreshSession(), 'Session refresh');
         if (refreshed) {
@@ -170,7 +189,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         // The server actively refused a renewal: the session really is gone
         // (signed out elsewhere, revoked, or the account was disabled).
-        if (!cancelled) setUser(null);
+        if (!cancelled) {
+          clearAuthStorage();
+          setUser(null);
+        }
         finish();
       } catch {
         // Transient: cold API, offline, flaky network. Keep the cached user and
@@ -254,9 +276,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('ds:session-expired', handler);
   }, [setUser]);
 
-  // Keep one live socket while signed in; rebuild it when the token changes.
+  // Keep one live socket while signed in; rebuild it when the token changes
+  // (including silent refreshes) so realtime never runs on an expired token.
+  const [socketToken, setSocketToken] = useState<string | null>(null);
   useEffect(() => {
-    const token = getToken();
+    const syncToken = () => setSocketToken(getToken());
+    syncToken();
+    window.addEventListener('ds:token-refreshed', syncToken);
+    return () => window.removeEventListener('ds:token-refreshed', syncToken);
+  }, [user?.id]);
+  useEffect(() => {
+    const token = socketToken ?? getToken();
     if (!user || !token) {
       socketRef.current?.disconnect();
       socketRef.current = null;
@@ -273,19 +303,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSocket(null);
       }
     };
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Global session expiry -> force a fresh sign in.
-  useEffect(() => {
-    const handler = () => {
-      setUser(null);
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.assign('/login?expired=1');
-      }
-    };
-    window.addEventListener('ds:session-expired', handler);
-    return () => window.removeEventListener('ds:session-expired', handler);
-  }, [setUser]);
+  }, [user?.id, socketToken]);
 
   const login = useCallback(
     async (payload: LoginPayload) => {
@@ -317,7 +335,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Sign out must always succeed locally.
     }
-    setTokens(null, null);
+    clearAuthStorage();
     setUser(null);
   }, [setUser]);
 

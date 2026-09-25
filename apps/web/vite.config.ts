@@ -118,6 +118,23 @@ export default defineConfig(({ mode }) => {
             },
           },
           {
+            // Versioned JS/CSS/HTML: NetworkFirst so a deploy can never serve
+            // a stale/mismatched bundle behind a white screen. Precached
+            // hashed assets already make repeat visits instant.
+            urlPattern: ({ url, request }) =>
+              url.origin === (globalThis as unknown as { location: { origin: string } }).location.origin &&
+              (request.destination === 'script' ||
+                request.destination === 'style' ||
+                request.destination === 'document'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-shell',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: /\.(?:png|jpg|jpeg|svg|webp|avif|gif|ico)$/i,
             handler: 'StaleWhileRevalidate',
             options: {
@@ -135,6 +152,8 @@ export default defineConfig(({ mode }) => {
           },
           {
             urlPattern: ({ url }) => url.origin === (globalThis as unknown as { location: { origin: string } }).location.origin,
+            // Images/fonts only: JS/CSS/HTML have their own NetworkFirst rule
+            // above, so app bundles can never go stale behind this cache.
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'same-origin-assets',

@@ -38,10 +38,19 @@ const createOrderSchema = z.object({
   deliveryPhone: z.string().trim().min(7, 'Enter a contact phone number').max(20),
   notes: z.string().trim().max(300).optional(),
   paymentMethod: z.enum(PAYMENT_METHODS),
-  // Optional device GPS captured at checkout — makes live delivery tracking
-  // accurate. Supplying them is never required and never blocks an order.
-  deliveryLatitude: z.coerce.number().min(-90).max(90).optional(),
-  deliveryLongitude: z.coerce.number().min(-180).max(180).optional(),
+  // Real delivery coordinates are required: the frontend only sends the
+  // geocoded pin of a validated suggestion — free-typed text is rejected.
+  // 0/0 means "no pin" (saved addresses without GPS) and is refused.
+  deliveryLatitude: z.coerce
+    .number()
+    .min(-90)
+    .max(90)
+    .refine((value) => value !== 0, 'Pick your delivery location from the suggestions.'),
+  deliveryLongitude: z.coerce
+    .number()
+    .min(-180)
+    .max(180)
+    .refine((value) => value !== 0, 'Pick your delivery location from the suggestions.'),
 });
 
 const listOrderQuerySchema = paginationSchema.extend({

@@ -177,6 +177,8 @@ export default function CustomerHome() {
             </Link>
           </div>
           <MapPreview
+            lat={settingsData?.settings.businessLatitude ?? 5.571264}
+            lng={settingsData?.settings.businessLongitude ?? -0.284093}
             address={settingsData?.settings.businessAddress ?? 'Mallam Junction, Accra'}
             className="h-40 !rounded-none border-0"
             label="Maame’s Waakye delivery area"

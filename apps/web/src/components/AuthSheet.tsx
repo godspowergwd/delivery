@@ -62,22 +62,29 @@ export function AuthSheet() {
           </div>
         </div>
 
-        <form onSubmit={submit} className="space-y-3">
-          <Field label="Email or username">
+        {/* One real credential form: identifier first, password second — the
+            exact order and semantics every password manager expects. */}
+        <form onSubmit={submit} className="space-y-3" method="post" action="/login" autoComplete="on">
+          <Field label="Email or username" htmlFor="authsheet-identifier">
             <Input
+              id="authsheet-identifier"
+              name="username"
               type="text"
               required
               autoComplete="username"
               inputMode="email"
               autoCapitalize="none"
+              autoCorrect="off"
               spellCheck={false}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
             />
           </Field>
-          <Field label="Password">
+          <Field label="Password" htmlFor="authsheet-password">
             <Input
+              id="authsheet-password"
+              name="password"
               type="password"
               required
               autoComplete="current-password"

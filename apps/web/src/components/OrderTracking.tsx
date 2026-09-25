@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { OrderDTO } from '@delivery/shared';
 import { ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, orderStatusIndex } from '@delivery/shared';
-import { estimateAddressCoordinates, formatDistance, distanceKm } from '../lib/live-map';
+import { formatDistance, distanceKm } from '../lib/live-map';
 import { fetchRoadRoute } from '../lib/route';
 import { useLiveMap } from './LiveMap';
 import { useOrderTracking } from '../lib/tracking';
@@ -24,20 +24,25 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
   const mapRef = useLiveMap(mapHostRef);
   const tracking = useOrderTracking(order.id);
 
-  const dropoff = useMemo(
-    () =>
-      typeof order.deliveryLatitude === 'number' && typeof order.deliveryLongitude === 'number'
-        ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude }
-        : estimateAddressCoordinates(order.deliveryAddress, order.deliveryArea),
-    [order.deliveryLatitude, order.deliveryLongitude, order.deliveryAddress, order.deliveryArea],
-  );
-
+  // Real checkout GPS only — never invent a pin for a typed address.
+  // The server's geocoded destination is used as a fallback so older orders
+  // with GPS still pin the map; a typed address with no coordinates never
+  // creates a fake pin.
   const orderTracking = tracking.data?.tracking;
   const driverLocation = orderTracking?.driver?.location ?? null;
-  const destinationLatLng = useMemo(
-    () => ({ lat: dropoff.lat, lng: dropoff.lng }),
-    [dropoff],
-  );
+  const serverDestination =
+    orderTracking?.destination && orderTracking.destination.source === 'gps'
+      ? { lat: orderTracking.destination.latitude, lng: orderTracking.destination.longitude }
+      : null;
+  const hasRealDropoff =
+    typeof order.deliveryLatitude === 'number' &&
+    typeof order.deliveryLongitude === 'number' &&
+    Number.isFinite(order.deliveryLatitude) &&
+    Number.isFinite(order.deliveryLongitude) &&
+    (order.deliveryLatitude !== 0 || order.deliveryLongitude !== 0);
+  const destinationLatLng = hasRealDropoff
+    ? { lat: order.deliveryLatitude as number, lng: order.deliveryLongitude as number }
+    : serverDestination;
 
   useEffect(() => {
     if (!orderTracking?.driver?.location) return;
@@ -53,7 +58,7 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
 
   const routeKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (order.status !== 'OUT_FOR_DELIVERY' || !driverLocation) return;
+    if (order.status !== 'OUT_FOR_DELIVERY' || !driverLocation || !destinationLatLng) return;
     const key = `${driverLocation.latitude.toFixed(5)},${driverLocation.longitude.toFixed(5)}`;
     if (routeKeyRef.current === key) return;
     routeKeyRef.current = key;

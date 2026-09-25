@@ -32,9 +32,9 @@ export interface CreateOrderInput {
   deliveryPhone: string;
   notes?: string | null;
   paymentMethod: PaymentMethod;
-  /** Device GPS captured at checkout; omitted when the customer declines. */
-  deliveryLatitude?: number | null;
-  deliveryLongitude?: number | null;
+  /** Real geocoded delivery pin from a validated suggestion (required). */
+  deliveryLatitude: number;
+  deliveryLongitude: number;
 }
 
 interface LineDraft {
@@ -179,8 +179,9 @@ async function persistOrder(params: {
             deliveryArea: input.deliveryArea?.trim() || null,
             deliveryPhone: input.deliveryPhone.trim(),
             notes: input.notes?.trim() || null,
-            deliveryLatitude: isValidLatitude(input.deliveryLatitude) ? input.deliveryLatitude : null,
-            deliveryLongitude: isValidLongitude(input.deliveryLongitude) ? input.deliveryLongitude : null,
+            // Coordinates are validated by the route schema (required, non 0/0).
+            deliveryLatitude: input.deliveryLatitude,
+            deliveryLongitude: input.deliveryLongitude,
             subtotal: new Prisma.Decimal(draft.totals.subtotal),
             deliveryFee: new Prisma.Decimal(draft.totals.deliveryFee),
             tax: new Prisma.Decimal(draft.totals.tax),
@@ -221,20 +222,10 @@ async function persistOrder(params: {
 /**
  * Service-area gate for checkout.
  *
- * Coordinates captured on the customer's device are authoritative, so an order
- * from outside the configured delivery radius is refused here as well as in the
- * browser. Customers who declined GPS are not blocked — the kitchen confirms
- * their street address by phone — but they are told up front in the UI.
+ * The validated geocoded pin is authoritative, so an order from outside the
+ * configured delivery radius is refused here as well as in the browser.
  */
-async function assertDeliverableTo(
-  latitude?: number | null,
-  longitude?: number | null,
-): Promise<void> {
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-  // Saved addresses without GPS are stored as 0,0 and must not be read as a real point.
-  if (latitude === 0 && longitude === 0) return;
-
+async function assertDeliverableTo(latitude: number, longitude: number): Promise<void> {
   const settings = await getSettings();
   const zone = isWithinDeliveryZone(
     latitude,

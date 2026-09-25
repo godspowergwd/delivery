@@ -95,12 +95,14 @@ export function Checkout() {
           quantity: line.quantity,
           notes: line.notes || undefined,
         })),
+        // Real validated coordinates are required: the selected suggestion's
+        // geocoded pin is the delivery destination (server re-validates).
         deliveryAddress: selected?.address ?? addressText,
         deliveryPhone,
         notes: notes || undefined,
         paymentMethod,
-        deliveryLatitude: selected && (selected.lat !== 0 || selected.lng !== 0) ? selected.lat : null,
-        deliveryLongitude: selected && (selected.lat !== 0 || selected.lng !== 0) ? selected.lng : null,
+        deliveryLatitude: selected?.lat ?? null,
+        deliveryLongitude: selected?.lng ?? null,
       }),
     onSuccess: (data) => {
       clear();
@@ -137,6 +139,12 @@ export function Checkout() {
     }
     if (!selected && !addressText.trim()) {
       toast('Please choose a delivery address.', 'error');
+      return;
+    }
+    // A real geocoded pin is mandatory: free-typed text with no selected
+    // suggestion is not a valid delivery destination.
+    if (!selected || selected.lat === 0 || selected.lng === 0) {
+      toast('Pick your delivery location from the suggestions so the courier gets an exact pin.', 'error');
       return;
     }
     if (outOfZone) {
@@ -191,11 +199,18 @@ export function Checkout() {
         {selected && (selected.lat !== 0 || selected.lng !== 0) && (
           <div className="pt-2">
             <MapPreview
+              lat={selected.lat}
+              lng={selected.lng}
               address={selected.address}
               className="h-40"
               label={`Delivery pin for ${selected.label}`}
             />
           </div>
+        )}
+        {selected && selected.lat === 0 && selected.lng === 0 && (
+          <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+            That saved address has no GPS pin yet — pick a suggestion above so the courier gets an exact pin.
+          </p>
         )}
       </Card>
 

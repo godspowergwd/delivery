@@ -8,7 +8,7 @@ import { fetchDriverDeliveries, postDriverAction } from '../../lib/driver-api';
 import { useRealtimeSync, toast } from '../../lib/realtime';
 import { useDeviceLocation } from '../../lib/geolocation';
 import { useLocationPublisher } from '../../lib/tracking';
-import { estimateAddressCoordinates, MALAM_CENTER } from '../../lib/live-map';
+import { MALAM_CENTER } from '../../lib/live-map';
 import { fetchRoadRoute, type RoadRoute } from '../../lib/route';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { DragSheet, sheetSnapHeights, type SheetSnap } from '../../components/DragSheet';
@@ -106,14 +106,19 @@ export default function DriverMap() {
     if (requestedOrderId) setSelectedId(requestedOrderId);
   }, [requestedOrderId]);
 
-  /** Delivery point: real checkout GPS when captured, otherwise a labelled estimate. */
+  /** Delivery point: the REAL checkout GPS coordinate — never a fake pin. */
   const destination = useMemo(() => {
     if (!selected) return null;
-    if (typeof selected.deliveryLatitude === 'number' && typeof selected.deliveryLongitude === 'number') {
+    if (
+      typeof selected.deliveryLatitude === 'number' &&
+      typeof selected.deliveryLongitude === 'number' &&
+      Number.isFinite(selected.deliveryLatitude) &&
+      Number.isFinite(selected.deliveryLongitude) &&
+      (selected.deliveryLatitude !== 0 || selected.deliveryLongitude !== 0)
+    ) {
       return { lat: selected.deliveryLatitude, lng: selected.deliveryLongitude, exact: true };
     }
-    const estimate = estimateAddressCoordinates(selected.deliveryAddress, selected.deliveryArea);
-    return { lat: estimate.lat, lng: estimate.lng, exact: false };
+    return null;
   }, [selected]);
 
   const delivering = selected?.status === 'OUT_FOR_DELIVERY';
@@ -640,11 +645,15 @@ function DeliveryDetails({
   onIssue: () => void;
   onSelectOther: () => void;
 }) {
-  // An ETA is only ever shown when it comes from a real road route.
+   // An ETA is only ever shown when it comes from a real road route.
   const eta = routeReady && remainingKm !== null ? etaText(remainingKm) : null;
   const targetLabel = delivering ? 'Customer' : 'Restaurant';
   const navPoint =
-    typeof order.deliveryLatitude === 'number' && typeof order.deliveryLongitude === 'number'
+    typeof order.deliveryLatitude === 'number' &&
+    typeof order.deliveryLongitude === 'number' &&
+    Number.isFinite(order.deliveryLatitude) &&
+    Number.isFinite(order.deliveryLongitude) &&
+    (order.deliveryLatitude !== 0 || order.deliveryLongitude !== 0)
       ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude }
       : null;
 
@@ -695,7 +704,14 @@ function DeliveryDetails({
           </p>
           {!destinationExact && (
             <p className="mt-1 text-[12px] font-semibold text-amber-700">
-              Approximate point — the customer did not share GPS at checkout.
+              {navPoint
+                ? 'Exact customer GPS pin.'
+                : 'No customer GPS on this order yet — call the customer for directions.'}
+            </p>
+          )}
+          {destinationExact && (
+            <p className="mt-1 text-[12px] font-semibold text-green-700">
+              Exact customer GPS pin.
             </p>
           )}
           {order.notes && (
