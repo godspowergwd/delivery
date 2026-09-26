@@ -280,7 +280,8 @@ export function useLiveMap(
       // Tile hiccups stay quiet there: markers keep updating regardless.
 
       const ensureRouteLayers = () => {
-        if (mapInstance.getSource(ROUTE_SOURCE)) return;
+        if (cancelled || mapInstance._removed) return;
+        if (mapInstance.getSource(ROUTE_SOURCE) && mapInstance.getLayer('onyx-route-line')) return;
         mapInstance.addSource(ROUTE_SOURCE, { type: 'geojson', data: emptyCollection() });
         mapInstance.addSource(DONE_SOURCE, { type: 'geojson', data: emptyCollection() });
         mapInstance.addLayer({
@@ -541,7 +542,12 @@ export function useLiveMap(
         if (styleReady) return;
         const error = (event as { error?: { status?: number; message?: string } } | undefined)?.error;
         const message = typeof error?.message === 'string' ? error.message : '';
-        const looksLikeStyle = /style|token|401|403|unauthor/i.test(message);
+        // An explicit style/resource failure must name the style document, the
+        // token, or an auth status — never a layer id from application code
+        // (e.g. a `queryRenderedFeatures` on a not-yet-added layer, which the
+        // engine re-fires as an `error` event).
+        const looksLikeStyle =
+          error?.status === 401 || error?.status === 403 || /style\.json|stylesheet|sprite|glyphs|token|unauthor/i.test(message);
         if (!looksLikeStyle) return;
         if (!triedFallbackStyle) {
           triedFallbackStyle = true;
@@ -557,10 +563,18 @@ export function useLiveMap(
       mapInstance.on('error', onMapError);
 
       // A style swap (fallback provider) drops sources and layers: re-add them.
+      // `getSource` answers from the new style document while the old layers
+      // are still being torn down, so the check must cover the layer as well —
+      // otherwise one swap registers the same layer id twice and the engine
+      // throws `Layer with id "…" already exists`.
       const onStyleData = (): void => {
-        if (cancelled) return;
+        if (cancelled || mapInstance._removed) return;
         styleReady = true;
-        ensureRouteLayers();
+        try {
+          ensureRouteLayers();
+        } catch {
+          /* a torn-down transition re-applies `applyRoute` on the next event */
+        }
       };
       mapInstance.on('styledata', onStyleData);
 
@@ -568,15 +582,23 @@ export function useLiveMap(
       // each swapped-in fallback. The sources are empty at that point, so the
       // last known geometry is force-re-applied instead of silently vanishing.
       const onStyleLoad = (): void => {
-        if (cancelled) return;
+        if (cancelled || mapInstance._removed) return;
         styleReady = true;
         window.clearTimeout(styleWatchdog);
         // Before the first tile request goes out: neutralise the style's strict
         // numeric filters (Mapbox v3 vs MapLibre-tolerant styles) so the worker
         // never logs `… evaluated to null but was expected to be of type number`.
         relaxStyleFilters(mapInstance);
-        ensureRouteLayers();
-        applyRoute(true);
+        try {
+          ensureRouteLayers();
+        } catch {
+          /* a torn-down transition re-applies `applyRoute` on the next event */
+        }
+        try {
+          applyRoute(true);
+        } catch {
+          /* the geometry re-applies on the next style event */
+        }
       };
       mapInstance.on('style.load', onStyleLoad);
 

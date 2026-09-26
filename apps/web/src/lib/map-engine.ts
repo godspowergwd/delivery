@@ -151,3 +151,122 @@ export function handleMissingStyleImage(map: GLMap, event: unknown): void {
   if (typeof id !== 'string' || id.length === 0 || map.hasImage(id)) return;
   map.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) });
 }
+
+/* -------------------------------------------------------------------------------------------
+ * Development instrumentation — never called by the app itself.
+ *
+ * `instrumentGL` wraps the engine's constructor, teardown, style swaps and the paint
+ * entry point so the navigation-audit page (`src/map-audit.tsx`, served by Vite at
+ * `/map-audit.html`) can tell a React unmount apart from an in-place renderer
+ * restart apart from a frozen frame loop. Every lifecycle entry carries a JS stack.
+ * Nothing here changes paint behaviour: each wrap calls through to the original.
+ * ---------------------------------------------------------------------------------------- */
+
+/** Lifecycle entries the audit page merges into its own timeline. */
+export interface InstrumentEvent {
+  /** ms since `performance.timeOrigin`, comparable with the audit sampler. */
+  t: number;
+  kind: 'new Map' | 'map.remove' | 'map.setStyle';
+  detail: string;
+  stack?: string;
+}
+
+/** Paint-loop counters the audit verdict reads (stalled growth = frozen frames). */
+export interface PaintProbe {
+  installed: boolean;
+  paints: number;
+  lastPaintAt: number | null;
+  removeCalls: number;
+  styleSwaps: number;
+}
+
+const instrumentLog: InstrumentEvent[] = [];
+const paintState: PaintProbe = { installed: false, paints: 0, lastPaintAt: null, removeCalls: 0, styleSwaps: 0 };
+
+function shortInstrumentationStack(): string | undefined {
+  const raw = new Error().stack;
+  if (!raw) return undefined;
+  return raw
+    .split('\n')
+    .slice(2, 8)
+    .map((line) => line.trim())
+    .join(' | ')
+    .slice(0, 900);
+}
+
+export function instrumentGL(mapboxgl: MapboxGL): void {
+  const proto = mapboxgl.Map.prototype as unknown as Record<string, unknown>;
+  // The harness mounts twice under StrictMode on one cached engine object, so
+  // re-entry is expected and must stay a no-op (the wraps persist).
+  const flags = proto as { __onyxInstrumented?: boolean };
+  if (flags.__onyxInstrumented) return;
+  flags.__onyxInstrumented = true;
+
+  const originalRemove = proto.remove;
+  if (typeof originalRemove === 'function') {
+    const wrappedRemove = function instrumentedRemove(this: unknown, ...args: never[]): void {
+      paintState.removeCalls += 1;
+      instrumentLog.push({
+        t: Math.round(performance.now()),
+        kind: 'map.remove',
+        detail: 'Map#remove() called',
+        stack: shortInstrumentationStack(),
+      });
+      (originalRemove as (...callArgs: never[]) => void).apply(this, args);
+    };
+    (proto as Record<string, unknown>).remove = wrappedRemove;
+  }
+
+  const originalSetStyle = proto.setStyle;
+  if (typeof originalSetStyle === 'function') {
+    const wrappedSetStyle = function instrumentedSetStyle(this: unknown, style: never): void {
+      paintState.styleSwaps += 1;
+      instrumentLog.push({
+        t: Math.round(performance.now()),
+        kind: 'map.setStyle',
+        detail: typeof style === 'string' ? style : 'object style',
+        stack: shortInstrumentationStack(),
+      });
+      (originalSetStyle as (this: unknown, style: never) => void).call(this, style);
+    };
+    (proto as Record<string, unknown>).setStyle = wrappedSetStyle;
+  }
+
+  // `_render` is the engine's paint entry point: counting its executions shows
+  // whether the frame loop is alive without touching camera or style state.
+  const originalRender = proto._render;
+  if (typeof originalRender === 'function') {
+    paintState.installed = true;
+    const wrappedRender = function instrumentedRender(this: unknown, ...args: never[]): void {
+      paintState.paints += 1;
+      paintState.lastPaintAt = Date.now();
+      (originalRender as (...callArgs: never[]) => void).apply(this, args);
+    };
+    (proto as Record<string, unknown>)._render = wrappedRender;
+  }
+
+  const RealMap = mapboxgl.Map as unknown as new (options: never) => GLMap;
+  function InstrumentedMap(this: unknown, options: never): unknown {
+    const instance = new RealMap(options);
+    const container = (options as { container?: { className?: string } } | null)?.container;
+    instrumentLog.push({
+      t: Math.round(performance.now()),
+      kind: 'new Map',
+      detail: `container=${container?.className ?? '?'}`,
+      stack: shortInstrumentationStack(),
+    });
+    return instance;
+  }
+  InstrumentedMap.prototype = mapboxgl.Map.prototype;
+  (mapboxgl as unknown as { Map: unknown }).Map = InstrumentedMap as unknown;
+}
+
+/** The construction/teardown/style-swap log (append-only for the session). */
+export function instrumentationEvents(): InstrumentEvent[] {
+  return instrumentLog;
+}
+
+/** Snapshot of the paint-loop counters. */
+export function instrumentationReport(): PaintProbe & { events: number } {
+  return { ...paintState, events: instrumentLog.length };
+}

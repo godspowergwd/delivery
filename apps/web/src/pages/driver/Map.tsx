@@ -150,6 +150,7 @@ export default function DriverMap() {
   // Route from the driver's real position to the next stop, refreshed on
   // movement instead of on a timer so we never burn data while parked.
   const routeKeyRef = useRef<{ at: number; lat: number; lng: number; target: string } | null>(null);
+  const routeFetchRef = useRef(0);
   useEffect(() => {
     if (!target || !location.position) return;
     const targetKey = `${target.lat.toFixed(5)},${target.lng.toFixed(5)}`;
@@ -169,6 +170,7 @@ export default function DriverMap() {
       target: targetKey,
     };
 
+    const requestId = (routeFetchRef.current += 1);
     const controller = new AbortController();
     fetchRoadRoute(
       { lat: location.position.lat, lng: location.position.lng },
@@ -176,6 +178,8 @@ export default function DriverMap() {
       controller.signal,
     )
       .then((next) => {
+        // A newer fix already started its own fetch: let it own the canvas.
+        if (requestId !== routeFetchRef.current) return;
         setRoute(next);
         mapRef.current.setRoute(next.coordinates, { fit: false });
       })
