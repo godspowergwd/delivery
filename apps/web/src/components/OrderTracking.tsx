@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { OrderDTO } from '@delivery/shared';
 import { ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, orderStatusIndex } from '@delivery/shared';
 import { formatDistance, distanceKm } from '../lib/live-map';
-import { fetchRoadRoute } from '../lib/route';
+import { useDeliveryRoute } from '../lib/route';
 import { useLiveMap } from './LiveMap';
 import { useOrderTracking } from '../lib/tracking';
 
@@ -13,15 +13,6 @@ const ORDER_PROGRESS_TONES = [
   /* Out for delivery*/ 'duo-progress',
   /* Delivered       */ 'bg-green-700',
 ] as const;
-
-/**
- * Route refresh policy, shared with the driver and tracking screens: a new
- * Directions request only after a meaningful move or a minute. The previous key
- * here was the driver's position at five decimals (~1 m), which asked the
- * Directions API for a new leg on essentially every GPS fix.
- */
-const ROUTE_REFRESH_MS = 60_000;
-const ROUTE_REFRESH_METRES = 250;
 
 /**
  * Live tracking section for the customer order page: real Accra roads,
@@ -71,43 +62,17 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
     mapRef.current.setDestination(destinationLatLng);
   }, [destinationLatLng, mapRef]);
 
-  const routeKeyRef = useRef<{ at: number; lat: number; lng: number; target: string } | null>(null);
-  const routeFetchRef = useRef(0);
-  const routeFittedRef = useRef(false);
-  useEffect(() => {
-    if (order.status !== 'OUT_FOR_DELIVERY' || !driverLocation || !destinationLatLng) return;
-    const targetKey = `${destinationLatLng.lat.toFixed(5)},${destinationLatLng.lng.toFixed(5)}`;
-    const previous = routeKeyRef.current;
-    const movedMetres = previous
-      ? distanceKm(
-          { lat: previous.lat, lng: previous.lng },
-          { lat: driverLocation.latitude, lng: driverLocation.longitude },
-        ) * 1000
-      : Number.POSITIVE_INFINITY;
-    const stale = previous ? Date.now() - previous.at > ROUTE_REFRESH_MS : true;
-    if (previous && previous.target === targetKey && movedMetres < ROUTE_REFRESH_METRES && !stale) return;
-    routeKeyRef.current = {
-      at: Date.now(),
-      lat: driverLocation.latitude,
-      lng: driverLocation.longitude,
-      target: targetKey,
-    };
+  const { route, error: routeError } = useDeliveryRoute(
+    driverLocation
+      ? { lat: driverLocation.latitude, lng: driverLocation.longitude }
+      : null,
+    destinationLatLng,
+    order.status === 'OUT_FOR_DELIVERY',
+  );
 
-    const requestId = (routeFetchRef.current += 1);
-    const controller = new AbortController();
-    fetchRoadRoute(
-      { lat: driverLocation.latitude, lng: driverLocation.longitude },
-      { lat: destinationLatLng.lat, lng: destinationLatLng.lng },
-      controller.signal,
-    ).then((route) => {
-      if (requestId !== routeFetchRef.current) return;
-      // Frame the leg once so both pins are on screen; afterwards the line is
-      // replaced in place and the card never re-frames itself mid-delivery.
-      mapRef.current.setRoute(route.coordinates, { fit: !routeFittedRef.current });
-      routeFittedRef.current = true;
-    }).catch(() => undefined);
-    return () => controller.abort();
-  }, [order.status, driverLocation, destinationLatLng, mapRef]);
+  useEffect(() => {
+    mapRef.current.setRoute(route?.coordinates ?? []);
+  }, [mapRef, route]);
 
   const remainingKm =
     driverLocation && destinationLatLng
@@ -133,6 +98,11 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
             <span>Your courier is on the way</span>
             <strong>{remainingKm !== null ? `${formatDistance(remainingKm)} away` : '—'}</strong>
           </p>
+          {routeError && (
+            <p className="px-4 py-2 text-xs font-medium text-red-700" role="status">
+              Road directions are temporarily unavailable. Live location is still updating.
+            </p>
+          )}
         </>
       )}
       <div className="space-y-3 p-4">

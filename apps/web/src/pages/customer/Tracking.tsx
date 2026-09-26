@@ -5,9 +5,7 @@ import type { OrderDTO, OrderStatus } from '@delivery/shared';
 import { ORDER_STATUS_DESCRIPTIONS, ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, ORDER_STATUS_TONE, formatDistance, orderStatusIndex } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useOrderTracking } from '../../lib/tracking';
-import { useDeviceLocation } from '../../lib/geolocation';
-import { distanceKm as roadDistanceKm } from '../../lib/live-map';
-import { fetchRoadRoute } from '../../lib/route';
+import { useDeliveryRoute } from '../../lib/route';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
 import { ArrowLeftIcon, LocateIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
@@ -39,14 +37,6 @@ const CANCELLED_STEPS = [
   { label: 'Order placed', short: 'Placed' },
   { label: 'Cancelled', short: 'Stopped' },
 ];
-
-/**
- * Route refresh policy, shared with the driver screen: a new Directions request
- * only when the courier has moved a meaningful distance or a minute has passed —
- * never one request per GPS fix.
- */
-const ROUTE_REFRESH_MS = 60_000;
-const ROUTE_REFRESH_METRES = 250;
 
 function LiveBadge() {
   return (
@@ -80,7 +70,6 @@ export default function CustomerTracking() {
     followMode: 'bounds',
     onUserInteract: () => setFollowCourier(false),
   });
-  const location = useDeviceLocation({ enabled: true });
   const activeLatest = useQuery({
     queryKey: ['active-orders'],
     queryFn: () => api.get<{ orders: OrderDTO[] }>('/orders/active'),
@@ -133,55 +122,17 @@ export default function CustomerTracking() {
     if (destination && mapRef.current) mapRef.current.setDestination(destination);
   }, [destination, mapRef]);
 
-  useEffect(() => {
-    if (!location.position || !mapRef.current) return;
-    mapRef.current.setUser(
-      { lat: location.position.lat, lng: location.position.lng },
-      { heading: location.position.heading },
-    );
-  }, [location.position, mapRef]);
+  const { route, error: routeError } = useDeliveryRoute(
+    driverLocation
+      ? { lat: driverLocation.latitude, lng: driverLocation.longitude }
+      : null,
+    destination,
+    orderData?.status === 'OUT_FOR_DELIVERY',
+  );
 
-  // The road the courier is actually driving: the same Mapbox Directions call the
-  // driver screen uses, drawn here as a GeoJSON line layer between the driver's
-  // live fix and the customer's real drop-off coordinate. Throttled by distance
-  // and time so live tracking never becomes a Directions request per fix, and
-  // aborted as soon as a newer fix supersedes it.
-  const routeKeyRef = useRef<{ at: number; lat: number; lng: number; target: string } | null>(null);
-  const routeFetchRef = useRef(0);
   useEffect(() => {
-    if (!driverLocation || !destination || !mapRef.current) return;
-    const targetKey = `${destination.lat.toFixed(5)},${destination.lng.toFixed(5)}`;
-    const previous = routeKeyRef.current;
-    const movedMetres = previous
-      ? roadDistanceKm(
-          { lat: previous.lat, lng: previous.lng },
-          { lat: driverLocation.latitude, lng: driverLocation.longitude },
-        ) * 1000
-      : Number.POSITIVE_INFINITY;
-    const stale = previous ? Date.now() - previous.at > ROUTE_REFRESH_MS : true;
-    if (previous && previous.target === targetKey && movedMetres < ROUTE_REFRESH_METRES && !stale) return;
-    routeKeyRef.current = {
-      at: Date.now(),
-      lat: driverLocation.latitude,
-      lng: driverLocation.longitude,
-      target: targetKey,
-    };
-
-    const requestId = (routeFetchRef.current += 1);
-    const controller = new AbortController();
-    fetchRoadRoute(
-      { lat: driverLocation.latitude, lng: driverLocation.longitude },
-      destination,
-      controller.signal,
-    )
-      .then((next) => {
-        // A newer fix already started its own fetch: let it own the canvas.
-        if (requestId !== routeFetchRef.current) return;
-        mapRef.current.setRoute(next.coordinates);
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [driverLocation, destination, mapRef]);
+    mapRef.current.setRoute(route?.coordinates ?? []);
+  }, [mapRef, route]);
 
   const cancelled = orderData?.status === 'CANCELLED';
   const steps = cancelled ? CANCELLED_STEPS : TRACK_STEPS;
@@ -217,11 +168,14 @@ export default function CustomerTracking() {
       )}
 
       {!orderData && (
-        <div className="absolute inset-0 flex h-[100dvh] items-center justify-center bg-white px-6">
+        <div className="pointer-events-none absolute inset-x-4 top-[max(env(safe-area-inset-top),0.75rem)] z-20 flex justify-center px-6" aria-live="polite">
           {order.isPending ? (
-            <Spinner className="h-8 w-8" />
+            <span className="flex items-center gap-3 rounded-full bg-white/95 px-4 py-3 text-sm font-semibold text-slate-700 shadow-card">
+              <Spinner className="h-5 w-5" />
+              Loading delivery details
+            </span>
           ) : (
-            <Card>
+            <Card className="max-w-sm bg-white/95 shadow-card">
               <p className="text-center text-sm text-slate-600">
                 {order.error instanceof Error ? order.error.message : 'That order could not be found.'}
               </p>
@@ -299,6 +253,11 @@ export default function CustomerTracking() {
                 <span className="text-sm font-bold text-white bg-green-600 px-2.5 py-1 rounded-full">{formatDistance(distanceKm)} to you</span>
               ) : null}
             </div>
+          )}
+          {isLive && routeError && (
+            <p className="mt-2 text-xs font-medium text-red-700" role="status">
+              Road directions are temporarily unavailable. Live location is still updating.
+            </p>
           )}
           {!isLive && (
             <p className="text-sm text-slate-600">{ORDER_STATUS_DESCRIPTIONS[orderData.status]}</p>

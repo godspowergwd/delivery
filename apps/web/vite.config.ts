@@ -97,19 +97,6 @@ export default defineConfig(({ mode }) => {
         offlineGoogleAnalytics: false,
         runtimeCaching: [
           {
-            // Road routing (OSRM): live when online, and the last good route
-            // still renders when the courier's signal drops.
-            urlPattern: ({ url, request }) =>
-              request.method === 'GET' && url.hostname === 'router.project-osrm.org',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'map-routes',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
             // Basemap styles (OpenFreeMap / Mapbox / MapTiler): fresh while
             // online, cached style so the map still paints offline.
             urlPattern: ({ url, request }) =>

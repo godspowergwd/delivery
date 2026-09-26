@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../lib/http';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
-import { searchGeo, haversineDistance, isWithinDeliveryZone, type AddressSuggestion } from '../services/geo.service';
+import { haversineDistance, isWithinDeliveryZone } from '../services/geo.service';
+import { getMapboxRoadRoute, reverseMapboxAddress, searchMapboxAddresses } from '../services/mapbox.service';
 import { getSettings } from '../services/settings.service';
-import { serializeGeoSuggestion } from '../services/serializers';
 
 export const geoRouter = Router();
 
@@ -14,14 +14,50 @@ const searchQuerySchema = z.object({
 
 /**
  * GET /api/geo/search?q=Accra+Mall
- * Public: returns address suggestions from Nominatim.
+ * Public: returns Mapbox address suggestions, including validated coordinates.
  */
 geoRouter.get(
   '/search',
   asyncHandler(async (req, res) => {
     const { q } = searchQuerySchema.parse(req.query);
-    const suggestions = await searchGeo(q);
-    res.json({ suggestions: suggestions.map(serializeGeoSuggestion) });
+    const suggestions = await searchMapboxAddresses(q);
+    res.json({ suggestions });
+  }),
+);
+
+geoRouter.get(
+  '/reverse',
+  asyncHandler(async (req, res) => {
+    const { latitude, longitude } = z.object({
+      latitude: z.coerce.number().finite().min(-90).max(90),
+      longitude: z.coerce.number().finite().min(-180).max(180),
+    }).parse(req.query);
+    const suggestion = await reverseMapboxAddress(latitude, longitude);
+    res.json({ suggestion });
+  }),
+);
+
+const routeQuerySchema = z.object({
+  fromLatitude: z.coerce.number().finite().min(-90).max(90),
+  fromLongitude: z.coerce.number().finite().min(-180).max(180),
+  toLatitude: z.coerce.number().finite().min(-90).max(90),
+  toLongitude: z.coerce.number().finite().min(-180).max(180),
+});
+
+/**
+ * GET /api/geo/directions?fromLatitude=...&fromLongitude=...&toLatitude=...&toLongitude=...
+ * Authenticated: the Mapbox access token remains on the server.
+ */
+geoRouter.get(
+  '/directions',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const { fromLatitude, fromLongitude, toLatitude, toLongitude } = routeQuerySchema.parse(req.query);
+    const route = await getMapboxRoadRoute(
+      { latitude: fromLatitude, longitude: fromLongitude },
+      { latitude: toLatitude, longitude: toLongitude },
+    );
+    res.json({ route });
   }),
 );
 

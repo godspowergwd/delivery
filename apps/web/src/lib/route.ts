@@ -1,118 +1,100 @@
+import { useEffect, useRef, useState } from 'react';
 import { distanceKm, type LatLng, type RoadRoute } from './live-map';
-import { mapboxAccessToken } from './map-config';
+import { api } from './api';
 
 export type { RoadRoute };
 
-const OSRM_ROUTE_URL = 'https://router.project-osrm.org/route/v1/driving';
-const ROUTE_FETCH_TIMEOUT_MS = 9_000;
-
-/** The public token the Directions API request uses (null = Mapbox routing off). */
-const directionsToken = mapboxAccessToken();
-
-function straightLineRoute(from: LatLng, to: LatLng, steps = 24): RoadRoute {
-  const coordinates: Array<[number, number]> = [];
-  for (let index = 0; index <= steps; index += 1) {
-    const t = index / steps;
-    coordinates.push([from.lng + (to.lng - from.lng) * t, from.lat + (to.lat - from.lat) * t]);
-  }
-  const distance = distanceKm(from, to);
-  return {
-    coordinates,
-    distanceKm: distance,
-    durationMin: Math.max(1, Math.round((distance / 22) * 60)),
-    road: false,
-    provider: 'straight',
-  };
+interface DirectionsResponse {
+  route: RoadRoute;
 }
 
-interface DirectionsRoutePayload {
-  geometry?: { coordinates?: Array<[number, number]> };
-  distance?: number;
-  duration?: number;
+function isValidPoint(point: LatLng): boolean {
+  return Number.isFinite(point.lat) && Number.isFinite(point.lng) &&
+    point.lat >= -90 && point.lat <= 90 && point.lng >= -180 && point.lng <= 180;
 }
 
-function roadRouteFromPayload(
-  route: DirectionsRoutePayload | undefined,
-  from: LatLng,
-  provider: RoadRoute['provider'],
-): RoadRoute {
-  const coordinates = route?.geometry?.coordinates;
-  if (!coordinates || coordinates.length < 2) throw new Error('empty route');
-  return {
-    coordinates,
-    distanceKm: (route?.distance ?? distanceKm(from, from) * 1000) / 1000,
-    durationMin: Math.max(1, Math.round((route?.duration ?? 0) / 60)),
-    road: true,
-    provider,
-  };
-}
-
-function fetchJsonWithTimeout(url: string, signal: AbortSignal | undefined): Promise<Response> {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), ROUTE_FETCH_TIMEOUT_MS);
-  const onAbort = (): void => controller.abort();
-  signal?.addEventListener('abort', onAbort, { once: true });
-  return fetch(url, { signal: controller.signal }).finally(() => {
-    window.clearTimeout(timer);
-    signal?.removeEventListener('abort', onAbort);
-  });
-}
-
-/**
- * Real road route for the delivery leg.
- *
- * Provider order (first success wins; failures fall through silently):
- *   1. Mapbox Directions API — only when `VITE_MAPBOX_TOKEN` is configured.
- *   2. OSRM demo server (keyless, shared quota — used as the live fallback).
- *   3. A straight line between the two real GPS points (never invented pins).
- */
+/** Fetches a road route through the authenticated backend; the Mapbox key stays server-side. */
 export async function fetchRoadRoute(from: LatLng, to: LatLng, signal?: AbortSignal): Promise<RoadRoute> {
-  // 1. Mapbox Directions API — the production router. `geometries=geojson`
-  //    keeps coordinates in [lng, lat] order, exactly what the GeoJSON source
-  //    below renders, and `overview=full` returns the whole leg (not just the
-  //    next manoeuvre). Skipped entirely without a token — never call the API
-  //    with an empty key, that only burns quota for a guaranteed 401.
-  if (directionsToken) {
-    try {
-      const url =
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${from.lng},${from.lat};${to.lng},${to.lat}` +
-        `?geometries=geojson&overview=full&access_token=${directionsToken}`;
-      const response = await fetchJsonWithTimeout(url, signal);
-      if (!response.ok) throw new Error(`Mapbox directions ${response.status}`);
-      const data = (await response.json()) as { routes?: DirectionsRoutePayload[] };
-      if (import.meta.env.DEV) {
-        window.console.debug('[route] mapbox directions response', {
-          routes: data.routes?.length ?? 0,
-          firstPointCount: data.routes?.[0]?.geometry?.coordinates?.length ?? 0,
-        });
-      }
-      return roadRouteFromPayload(data.routes?.[0], from, 'mapbox');
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') throw error;
-      window.console.warn('[route] mapbox directions failed, falling back to OSRM', error);
-    }
-  }
+  if (!isValidPoint(from) || !isValidPoint(to)) throw new Error('Route coordinates are invalid.');
 
-  // 2. OSRM demo server (keyless fallback — same [lng, lat] GeoJSON contract).
-  try {
-    const url =
-      `${OSRM_ROUTE_URL}/${from.lng},${from.lat};${to.lng},${to.lat}` +
-      '?overview=full&geometries=geojson&annotations=false';
-    const response = await fetchJsonWithTimeout(url, signal);
-    if (!response.ok) throw new Error(`OSRM ${response.status}`);
-    const data = (await response.json()) as { routes?: DirectionsRoutePayload[] };
-    if (import.meta.env.DEV) {
-      window.console.debug('[route] osrm response', {
-        routes: data.routes?.length ?? 0,
-        firstPointCount: data.routes?.[0]?.geometry?.coordinates?.length ?? 0,
+  const query = new URLSearchParams({
+    fromLatitude: String(from.lat),
+    fromLongitude: String(from.lng),
+    toLatitude: String(to.lat),
+    toLongitude: String(to.lng),
+  });
+  const { route } = await api.get<DirectionsResponse>(`/geo/directions?${query}`, signal);
+  if (
+    route.provider !== 'mapbox' ||
+    route.coordinates.length < 2 ||
+    route.coordinates.some(([lng, lat]) => !Number.isFinite(lng) || !Number.isFinite(lat))
+  ) {
+    throw new Error('Mapbox did not return a valid road route.');
+  }
+  return route;
+}
+
+interface RouteRequest {
+  at: number;
+  lat: number;
+  lng: number;
+  target: string;
+}
+
+/** Shares route throttling between navigation screens without aborting on every GPS fix. */
+export function useDeliveryRoute(
+  from: LatLng | null,
+  to: LatLng | null,
+  enabled = true,
+): { route: RoadRoute | null; error: string | null } {
+  const [route, setRoute] = useState<RoadRoute | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const lastRequestRef = useRef<RouteRequest | null>(null);
+  const activeRequestRef = useRef<{ id: number; controller: AbortController } | null>(null);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!enabled || !from || !to || !isValidPoint(from) || !isValidPoint(to)) {
+      activeRequestRef.current?.controller.abort();
+      activeRequestRef.current = null;
+      lastRequestRef.current = null;
+      setRoute(null);
+      setError(null);
+      return;
+    }
+
+    const target = `${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
+    const previous = lastRequestRef.current;
+    const movedMetres = previous
+      ? distanceKm({ lat: previous.lat, lng: previous.lng }, from) * 1000
+      : Number.POSITIVE_INFINITY;
+    const changedTarget = previous?.target !== target;
+    const due = !previous || changedTarget || movedMetres >= 250 || Date.now() - previous.at >= 60_000;
+    if (!due) return;
+
+    activeRequestRef.current?.controller.abort();
+    const controller = new AbortController();
+    const requestId = ++requestIdRef.current;
+    activeRequestRef.current = { id: requestId, controller };
+    lastRequestRef.current = { at: Date.now(), lat: from.lat, lng: from.lng, target };
+    if (changedTarget) setRoute(null);
+    setError(null);
+
+    void fetchRoadRoute(from, to, controller.signal)
+      .then((next) => {
+        if (activeRequestRef.current?.id !== requestId) return;
+        setRoute(next);
+      })
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted) return;
+        if (activeRequestRef.current?.id !== requestId) return;
+        const message = reason instanceof Error ? reason.message : 'Road directions are temporarily unavailable.';
+        setError(message);
+        console.error('[route] Mapbox Directions request failed:', reason);
       });
-    }
-    return roadRouteFromPayload(data.routes?.[0], from, 'osrm');
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error;
-    window.console.warn('[route] osrm failed, falling back to a straight leg', error);
-  }
+  }, [enabled, from?.lat, from?.lng, to?.lat, to?.lng]);
 
-  // 3. Straight leg between the two real fixes — drawn, never hidden.
-  return straightLineRoute(from, to);
+  useEffect(() => () => activeRequestRef.current?.controller.abort(), []);
+
+  return { route, error };
 }

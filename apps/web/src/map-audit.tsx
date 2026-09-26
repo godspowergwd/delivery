@@ -11,7 +11,7 @@
  * `window.__MAP_AUDIT__` and are consumed by `scripts/audit-map.mjs`.
  */
 import { StrictMode, useEffect, useRef, useState, type ReactElement } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { LiveMap, useLiveMap, type LiveMapHandle } from './components/LiveMap';
 import { PageTransition } from './components/motion';
 import { DragSheet, type SheetSnap } from './components/DragSheet';
@@ -79,6 +79,7 @@ interface AuditApi {
 declare global {
   interface Window {
     __MAP_AUDIT__?: AuditApi;
+    __MAP_AUDIT_ROOT__?: Root;
   }
 }
 
@@ -322,7 +323,9 @@ async function boot(): Promise<void> {
   api.webglSupported = mapboxgl.supported();
   api.events.push({ t: now(), kind: 'note', detail: `mapboxgl.supported()=${api.webglSupported}` });
 
+  window.__MAP_AUDIT_ROOT__?.unmount();
   const root = createRoot(document.getElementById('root') as HTMLElement);
+  window.__MAP_AUDIT_ROOT__ = root;
   /**
    * The whole map subtree is keyed, so bumping the key is a genuine unmount +
    * mount (the same thing "navigate away and come back" does in the app). The

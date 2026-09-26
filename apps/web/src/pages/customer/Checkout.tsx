@@ -76,7 +76,7 @@ export function Checkout() {
       address: label,
       lat: 0,
       lng: 0,
-      source: 'nominatim',
+      source: 'saved',
       kind: 'area',
     });
   }, [addressData, selected]);

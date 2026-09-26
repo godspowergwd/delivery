@@ -230,9 +230,7 @@ async function main() {
     await cdp.send('Network.enable');
     await cdp.send('Network.enable');
 
-    const loaded = cdp.once('Page.loadEventFired');
     await cdp.send('Page.navigate', { url: `${WEB}/map-audit.html` });
-    await loaded;
     await waitFor('audit harness ready', () => cdp.evaluate('window.__MAP_AUDIT__?.ready === true'), 30_000);
 
     // Observation window: 14 s, one verdict sample per 500 ms.

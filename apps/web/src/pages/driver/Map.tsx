@@ -9,7 +9,7 @@ import { useRealtimeSync, toast } from '../../lib/realtime';
 import { useDeviceLocation } from '../../lib/geolocation';
 import { useLocationPublisher } from '../../lib/tracking';
 import { MALAM_CENTER } from '../../lib/live-map';
-import { fetchRoadRoute, type RoadRoute } from '../../lib/route';
+import { useDeliveryRoute } from '../../lib/route';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { DragSheet, sheetSnapHeights, type SheetSnap } from '../../components/DragSheet';
 import {
@@ -39,9 +39,6 @@ import { Button, Modal, Spinner, StatusPill, Textarea } from '../../components/u
  */
 
 const ACTIVE_STATUSES = 'ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY';
-const ROUTE_REFRESH_MS = 60_000;
-const ROUTE_REFRESH_METRES = 250;
-
 export default function DriverMap() {
   useRealtimeSync();
   const queryClient = useQueryClient();
@@ -61,7 +58,6 @@ export default function DriverMap() {
   );
   const [permissionDismissed, setPermissionDismissed] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
-  const [route, setRoute] = useState<RoadRoute | null>(null);
   const [isFollowing, setIsFollowing] = useState(true);
 
   const location = useDeviceLocation({ enabled: true, watch: true });
@@ -126,6 +122,10 @@ export default function DriverMap() {
 
   const delivering = selected?.status === 'OUT_FOR_DELIVERY';
   const target = delivering ? destination : restaurant;
+  const { route, error: routeError } = useDeliveryRoute(
+    location.position ? { lat: location.position.lat, lng: location.position.lng } : null,
+    target,
+  );
 
   // Publish the driver's own GPS whenever the device reports a new fix.
   const { publish } = publisher;
@@ -140,53 +140,12 @@ export default function DriverMap() {
   }, [location.position, mapRef, publish]);
 
   useEffect(() => {
-    mapRef.current.setRestaurant(restaurant);
-  }, [restaurant, mapRef]);
+    mapRef.current.setDestination(target);
+  }, [mapRef, target]);
 
   useEffect(() => {
-    if (!destination) return;
-    mapRef.current.setDestination({ lat: destination.lat, lng: destination.lng });
-  }, [destination, mapRef]);
-
-  // Route from the driver's real position to the next stop, refreshed on
-  // movement instead of on a timer so we never burn data while parked.
-  const routeKeyRef = useRef<{ at: number; lat: number; lng: number; target: string } | null>(null);
-  const routeFetchRef = useRef(0);
-  useEffect(() => {
-    if (!target || !location.position) return;
-    const targetKey = `${target.lat.toFixed(5)},${target.lng.toFixed(5)}`;
-    const previous = routeKeyRef.current;
-    const movedMetres = previous
-      ? distanceKm(
-          { lat: previous.lat, lng: previous.lng },
-          { lat: location.position.lat, lng: location.position.lng },
-        ) * 1000
-      : Number.POSITIVE_INFINITY;
-    const stale = previous ? Date.now() - previous.at > ROUTE_REFRESH_MS : true;
-    if (previous && previous.target === targetKey && movedMetres < ROUTE_REFRESH_METRES && !stale) return;
-    routeKeyRef.current = {
-      at: Date.now(),
-      lat: location.position.lat,
-      lng: location.position.lng,
-      target: targetKey,
-    };
-
-    const requestId = (routeFetchRef.current += 1);
-    const controller = new AbortController();
-    fetchRoadRoute(
-      { lat: location.position.lat, lng: location.position.lng },
-      { lat: target.lat, lng: target.lng },
-      controller.signal,
-    )
-      .then((next) => {
-        // A newer fix already started its own fetch: let it own the canvas.
-        if (requestId !== routeFetchRef.current) return;
-        setRoute(next);
-        mapRef.current.setRoute(next.coordinates, { fit: false });
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [location.position, target, mapRef]);
+    mapRef.current.setRoute(route?.coordinates ?? [], { fit: false });
+  }, [mapRef, route]);
 
   const action = useMutation({
     mutationFn: ({ id, verb }: { id: string; verb: 'complete' }) =>
@@ -528,6 +487,7 @@ export default function DriverMap() {
             delivering={Boolean(delivering)}
             destinationExact={destination?.exact ?? false}
             routeReady={Boolean(route)}
+            routeError={routeError}
             busy={action.isPending}
             deliveryCount={orders.length}
             onComplete={() => action.mutate({ id: selected.id, verb: 'complete' })}
@@ -641,6 +601,7 @@ function DeliveryDetails({
   delivering,
   destinationExact,
   routeReady,
+  routeError,
   busy,
   deliveryCount,
   onComplete,
@@ -652,6 +613,7 @@ function DeliveryDetails({
   delivering: boolean;
   destinationExact: boolean;
   routeReady: boolean;
+  routeError: string | null;
   busy: boolean;
   deliveryCount: number;
   onComplete: () => void;
@@ -701,6 +663,11 @@ function DeliveryDetails({
           </p>
         </div>
       </div>
+      {routeError && (
+        <p className="mt-2 text-xs font-medium text-red-700" role="status">
+          Road directions are temporarily unavailable. Your map and live location remain active.
+        </p>
+      )}
 
       <div className="mt-3 flex items-start gap-2 rounded-2xl border border-slate-200 px-3 py-2.5">
         <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-xl bg-red-50 text-red-600">

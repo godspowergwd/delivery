@@ -11,7 +11,7 @@ import type { PlaceSuggestion } from '../lib/geocode';
 import { currentLocationPlace, suggestPlaces } from '../lib/geocode';
 import { toast } from '../lib/realtime';
 import { Field, Input } from './ui';
-import { CheckIcon, LeafIcon, LocateIcon, MapPinIcon, SearchIcon, StoreIcon } from './icons';
+import { CheckIcon, LocateIcon, MapPinIcon, SearchIcon, StoreIcon } from './icons';
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -70,27 +70,34 @@ export function LocationSearch({
       requestRef.current = null;
     }
     const query = value.trim();
-    if (query.length < 2) {
+    if (query.length < 3) {
       setSuggestions([]);
       setSearching(false);
       setActiveIndex(-1);
       return;
     }
     const controller = new AbortController();
+    const request = { controller, timer: 0 };
     const timer = window.setTimeout(() => {
       setSearching(true);
       suggestPlaces(query, controller.signal)
         .then((results) => {
+          if (controller.signal.aborted) return;
           setSuggestions(results);
           setActiveIndex(-1);
           setOpen(true);
         })
         .catch(() => undefined)
-        .finally(() => setSearching(false));
+        .finally(() => {
+          if (requestRef.current === request) setSearching(false);
+        });
     }, SEARCH_DEBOUNCE_MS);
-    requestRef.current = { controller, timer };
+    request.timer = timer;
+    requestRef.current = request;
     return () => {
       window.clearTimeout(timer);
+      controller.abort();
+      if (requestRef.current === request) requestRef.current = null;
     };
   }, [value]);
 
@@ -130,12 +137,17 @@ export function LocationSearch({
     }
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const place = currentLocationPlace({
+        void currentLocationPlace({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        });
-        pick(place);
-        toast('Current location captured', 'success');
+        })
+          .then((place) => {
+            pick(place);
+            toast('Current location captured', 'success');
+          })
+          .catch((error: unknown) => {
+            toast(error instanceof Error ? error.message : 'Could not find a readable address.', 'error');
+          });
       },
       (error) => {
         toast(
@@ -272,9 +284,7 @@ export function LocationSearch({
                       'flex h-9 w-9 flex-none items-center justify-center rounded-xl',
                       isSelected || place.kind === 'gps'
                         ? 'bg-green-600 text-white'
-                        : place.source === 'local'
-                          ? 'bg-red-50 text-red-600'
-                          : 'bg-green-50 text-green-700',
+                        : 'bg-green-50 text-green-700',
                     )}
                     aria-hidden="true"
                   >
@@ -286,12 +296,6 @@ export function LocationSearch({
                     </span>
                     <span className="block truncate text-xs text-slate-500">{place.address}</span>
                   </span>
-                  {place.source === 'local' && (
-                    <span className="food-chip flex-none" title="In the Mallam delivery area">
-                      <LeafIcon className="h-3 w-3" aria-hidden="true" />
-                      local
-                    </span>
-                  )}
                   {isSelected && (
                     <CheckIcon className="h-4 w-4 flex-none text-green-700" aria-hidden="true" />
                   )}
@@ -301,7 +305,7 @@ export function LocationSearch({
           })}
         </ul>
       )}
-      {open && !searching && value.trim().length >= 2 && suggestions.length === 0 && (
+      {open && !searching && value.trim().length >= 3 && suggestions.length === 0 && (
         <div className="absolute z-30 mt-1 w-full rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-lift">
           No real place matches “{value.trim()}”. Try a landmark like{' '}
           <span className="font-semibold text-green-700">Mallam Junction</span>.

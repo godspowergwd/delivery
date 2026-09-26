@@ -184,10 +184,12 @@ export function useDeviceLocation(options: UseDeviceLocationOptions = {}): UseDe
   const [message, setMessage] = useState<GeolocationMessage | null>(null);
 
   const watchIdRef = useRef<number | null>(null);
+  const requestGenerationRef = useRef(0);
   const lastCommitRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const mountedRef = useRef(true);
 
   const clearWatch = useCallback(() => {
+    requestGenerationRef.current += 1;
     if (watchIdRef.current !== null && geolocationSupported()) {
       navigator.geolocation.clearWatch(watchIdRef.current);
     }
@@ -231,17 +233,21 @@ export function useDeviceLocation(options: UseDeviceLocationOptions = {}): UseDe
 
     setStatus('requesting');
     clearWatch();
+    const requestGeneration = ++requestGenerationRef.current;
 
     navigator.geolocation.getCurrentPosition(
       (initial) => {
+        if (!mountedRef.current || requestGenerationRef.current !== requestGeneration) return;
         commit(toDevicePosition(initial), true);
         if (!watch) return;
         watchIdRef.current = navigator.geolocation.watchPosition(
-          (next) => commit(toDevicePosition(next)),
+          (next) => {
+            if (requestGenerationRef.current === requestGeneration) commit(toDevicePosition(next));
+          },
           (error) => {
             // A transient failure keeps the last known position on screen.
             const described = describeGeolocationError(error);
-            if (!mountedRef.current) return;
+            if (!mountedRef.current || requestGenerationRef.current !== requestGeneration) return;
             setStatus(described.status);
             setMessage(described.message);
           },
@@ -249,8 +255,8 @@ export function useDeviceLocation(options: UseDeviceLocationOptions = {}): UseDe
         );
       },
       (error) => {
+        if (!mountedRef.current || requestGenerationRef.current !== requestGeneration) return;
         const described = describeGeolocationError(error);
-        if (!mountedRef.current) return;
         setStatus(described.status);
         setMessage(described.message);
       },

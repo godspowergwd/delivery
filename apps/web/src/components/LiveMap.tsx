@@ -34,7 +34,7 @@ import {
  */
 const activeMaps = new WeakMap<HTMLDivElement, GLMap>();
 
-export type MapMarkerKind = 'driver' | 'destination' | 'restaurant' | 'user';
+export type MapMarkerKind = 'driver' | 'destination';
 
 export interface LiveMapHandle {
   getMap(): GLMap | null;
@@ -45,8 +45,6 @@ export interface LiveMapHandle {
    * live GPS fixes move the route without a flash or reset.
    */
   setRoute(coordinates: Array<[number, number]>, options?: { fit?: boolean }): void;
-  /** Paints the part of the route already covered, in green. */
-  setProgress(coordinates: Array<[number, number]>): void;
   /**
    * Driver's live GPS pin (native SDK marker — no accuracy overlay).
    *
@@ -60,9 +58,6 @@ export interface LiveMapHandle {
     options?: { animate?: boolean; heading?: number | null },
   ): void;
   setDestination(point: LatLng | null): void;
-  setRestaurant(point: LatLng | null): void;
-  /** The device's own position (native SDK "you are here" pin, heading-aware). */
-  setUser(point: LatLng | null, options?: { heading?: number | null }): void;
   focus(point: LatLng, options?: { zoom?: number; durationMs?: number; padding?: number }): void;
   fit(points: LatLng[], options?: { padding?: number; maxZoom?: number; durationMs?: number }): void;
   setFollow(follow: boolean): void;
@@ -71,20 +66,60 @@ export interface LiveMapHandle {
   resize(): void;
 }
 
+interface PendingMapCommands {
+  route?: { coordinates: Array<[number, number]>; options?: { fit?: boolean } };
+  driver?: { point: LatLng | null; options?: { animate?: boolean; heading?: number | null } };
+  destination?: LatLng | null;
+  focus?: { point: LatLng; options?: { zoom?: number; durationMs?: number; padding?: number } };
+  fit?: { points: LatLng[]; options?: { padding?: number; maxZoom?: number; durationMs?: number } };
+  follow?: boolean;
+}
+
+function createMapHandleDispatcher(
+  pending: { current: PendingMapCommands },
+  active: { current: LiveMapHandle | null },
+): LiveMapHandle {
+  return {
+    getMap: () => active.current?.getMap() ?? null,
+    setRoute: (coordinates, options) => {
+      pending.current.route = { coordinates: [...coordinates], options };
+      active.current?.setRoute(coordinates, options);
+    },
+    setDriver: (point, options) => {
+      pending.current.driver = { point: point ? { ...point } : null, options };
+      active.current?.setDriver(point, options);
+    },
+    setDestination: (point) => {
+      pending.current.destination = point ? { ...point } : null;
+      active.current?.setDestination(point);
+    },
+    focus: (point, options) => {
+      pending.current.focus = { point: { ...point }, options };
+      active.current?.focus(point, options);
+    },
+    fit: (points, options) => {
+      pending.current.fit = { points: points.map((point) => ({ ...point })), options };
+      active.current?.fit(points, options);
+    },
+    setFollow: (follow) => {
+      pending.current.follow = follow;
+      active.current?.setFollow(follow);
+    },
+    isFollowing: () => active.current?.isFollowing() ?? pending.current.follow ?? false,
+    resize: () => active.current?.resize(),
+  };
+}
+
 const ROUTE_SOURCE = 'onyx-route';
-const DONE_SOURCE = 'onyx-route-done';
 
 /**
  * Native SDK pin colors only — no custom marker DOM, no overlay layer.
- * Green marks live positions (driver + the device user); red marks the fixed
- * anchors (customer destination + restaurant/shop). The map SDK owns every
- * pin element and attaches it directly to the map instance.
+ * Green marks the driver; red marks the active destination. Mapbox owns each
+ * pin element and attaches it directly to this map instance.
  */
 const NATIVE_MARKER_COLORS: Record<MapMarkerKind, string> = {
   driver: '#0b9663',
   destination: '#D40000',
-  restaurant: '#D40000',
-  user: '#0b9663',
 };
 
 /** Branded placeholder — a failed map never leaves a blank pane behind. */
@@ -95,7 +130,12 @@ function showFallback(container: HTMLElement, message: string): void {
 
 /** Camera inputs are only ever finite, real coordinates. */
 function isUsablePoint(point: LatLng | null | undefined): point is LatLng {
-  return Boolean(point) && Number.isFinite(point?.lat) && Number.isFinite(point?.lng);
+  return Boolean(point) &&
+    Number.isFinite(point?.lat) &&
+    Number.isFinite(point?.lng) &&
+    point!.lat >= -90 && point!.lat <= 90 &&
+    point!.lng >= -180 && point!.lng <= 180 &&
+    (point!.lat !== 0 || point!.lng !== 0);
 }
 
 /** Recovery card with a real retry action (never a page reload). */
@@ -130,10 +170,9 @@ function distanceMeters(from: LatLng, to: LatLng): number {
 }
 
 /**
- * Kinds that carry a direction. Only moving devices rotate; the fixed anchors
- * (destination, restaurant) always stand upright.
+ * Only the live driver marker carries a direction; the destination stays upright.
  */
-const ROTATING_KINDS: ReadonlySet<MapMarkerKind> = new Set(['driver', 'user']);
+const ROTATING_KINDS: ReadonlySet<MapMarkerKind> = new Set(['driver']);
 
 /** A device heading only counts when it is a real, finite 0–360° reading. */
 function normaliseHeading(heading: number | null | undefined): number | null {
@@ -194,23 +233,41 @@ export function useLiveMap(
   containerRef: RefObject<HTMLDivElement | null>,
   options: UseLiveMapOptions = {},
 ): RefObject<LiveMapHandle> {
-  const handleRef = useRef<LiveMapHandle>(emptyHandle());
+  const pendingCommandsRef = useRef<PendingMapCommands>({});
+  const activeHandleRef = useRef<LiveMapHandle | null>(null);
+  const dispatcherRef = useRef<LiveMapHandle | null>(null);
+  if (!dispatcherRef.current) {
+    dispatcherRef.current = createMapHandleDispatcher(pendingCommandsRef, activeHandleRef);
+  }
+  const handleRef = useRef<LiveMapHandle>(dispatcherRef.current);
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
   // Lazily pull the GL engine; the map mounts the moment it lands.
   const [mapgl, setMapgl] = useState<MapboxGL | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   useEffect(() => {
     let cancelled = false;
     loadMapGL()
       .then((engine) => {
         if (!cancelled) setMapgl(engine);
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        console.error('[map] Mapbox GL failed to load:', error);
+        const container = containerRef.current;
+        if (container) {
+          showRecovery(container, 'The map renderer could not load. Check your connection and retry.', () => {
+            container.innerHTML = '';
+            container.dataset.mapState = 'loading';
+            setLoadAttempt((attempt) => attempt + 1);
+          });
+        }
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [containerRef, loadAttempt]);
 
   useEffect(() => {
     const mapboxgl = mapgl;
@@ -307,7 +364,8 @@ export function useLiveMap(
         if (showNavigation) {
           map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
         }
-      } catch {
+      } catch (error) {
+        console.error('[map] Mapbox GL failed to initialize:', error);
         showRecovery(
           container,
           'The live map could not start. Check your connection and try again.',
@@ -441,23 +499,9 @@ export function useLiveMap(
         try {
           const routeSource = mapInstance.getSource(ROUTE_SOURCE);
           const routeLine = mapInstance.getLayer('onyx-route-line');
-          const hasSources = Boolean(routeSource) && Boolean(mapInstance.getSource(DONE_SOURCE));
-          const hasLayers = Boolean(routeLine) && Boolean(mapInstance.getLayer('onyx-route-casing')) && Boolean(mapInstance.getLayer('onyx-route-done'));
-          if (hasSources && hasLayers) return true;
+          if (routeSource && routeLine) return true;
           if (!routeSource) {
             mapInstance.addSource(ROUTE_SOURCE, { type: 'geojson', data: emptyCollection() });
-          }
-          if (!mapInstance.getSource(DONE_SOURCE)) {
-            mapInstance.addSource(DONE_SOURCE, { type: 'geojson', data: emptyCollection() });
-          }
-          if (!mapInstance.getLayer('onyx-route-casing')) {
-            mapInstance.addLayer({
-              id: 'onyx-route-casing',
-              type: 'line',
-              source: ROUTE_SOURCE,
-              layout: { 'line-cap': 'round', 'line-join': 'round' },
-              paint: { 'line-color': '#ffffff', 'line-width': 11, 'line-opacity': 0.92 },
-            });
           }
           if (!routeLine) {
             mapInstance.addLayer({
@@ -466,15 +510,6 @@ export function useLiveMap(
               source: ROUTE_SOURCE,
               layout: { 'line-cap': 'round', 'line-join': 'round' },
               paint: { 'line-color': '#D40000', 'line-width': 6, 'line-opacity': 1 },
-            });
-          }
-          if (!mapInstance.getLayer('onyx-route-done')) {
-            mapInstance.addLayer({
-              id: 'onyx-route-done',
-              type: 'line',
-              source: DONE_SOURCE,
-              layout: { 'line-cap': 'round', 'line-join': 'round' },
-              paint: { 'line-color': '#0b9663', 'line-width': 6, 'line-opacity': 0.96 },
             });
           }
           return true;
@@ -670,9 +705,7 @@ export function useLiveMap(
        * geometry is re-applied on every style event instead of silently vanishing.
        */
       let pendingRoute: Array<[number, number]> | null = null;
-      let pendingProgress: Array<[number, number]> = [];
       let appliedRoute: Array<[number, number]> | null = null;
-      let appliedProgress: Array<[number, number]> = [];
       /**
        * Set once the first route leg frames the camera — later `setRoute`
        * calls replace the line in place without touching the camera, so live
@@ -680,19 +713,14 @@ export function useLiveMap(
        */
       let routeFitted = false;
       const applyRoute = (force = false): void => {
-        if (!pendingRoute || !mapInstance.isStyleLoaded()) return;
+        if (!mapInstance.isStyleLoaded()) return;
         // Layers/sources may still be mid-swap: only the actually-written
         // geometry counts as applied, so a failed write is retried (not lost)
         // on the next style event instead of the route silently vanishing.
         if (!ensureRouteLayers()) return;
         // Identity-guarded so repeated style events cannot feed themselves.
         if (force || appliedRoute !== pendingRoute) {
-          if (setSourceData(ROUTE_SOURCE, pendingRoute)) appliedRoute = pendingRoute;
-        }
-        if (force || appliedProgress !== pendingProgress) {
-          if (setSourceData(DONE_SOURCE, pendingProgress.length > 1 ? pendingProgress : [])) {
-            appliedProgress = pendingProgress;
-          }
+          if (setSourceData(ROUTE_SOURCE, pendingRoute ?? [])) appliedRoute = pendingRoute;
         }
       };
 
@@ -968,7 +996,7 @@ export function useLiveMap(
         syncCanvas();
       });
 
-      handleRef.current = {
+      const liveHandle: LiveMapHandle = {
         getMap: () => mapInstance,
         setRoute: (coordinates, routeOptions) => {
           pendingRoute = coordinates.length > 0 ? coordinates : null;
@@ -993,10 +1021,6 @@ export function useLiveMap(
               /* never let a camera hiccup break the screen */
             }
           }
-        },
-        setProgress: (coordinates) => {
-          pendingProgress = coordinates;
-          setSourceData(DONE_SOURCE, coordinates);
         },
         setDriver: (point, driverOptions) => {
           if (!point) {
@@ -1025,28 +1049,6 @@ export function useLiveMap(
           followIfNeeded();
         },
 
-        setRestaurant: (point) => {
-          if (!point) {
-            markers.restaurant?.remove();
-            delete markers.restaurant;
-            delete displayed.restaurant;
-            delete targets.restaurant;
-            return;
-          }
-          placeMarker('restaurant', point, false);
-        },
-        setUser: (point, userOptions) => {
-          if (!point) {
-            markers.user?.remove();
-            delete markers.user;
-            delete displayed.user;
-            delete targets.user;
-            delete headings.user;
-            delete rotations.user;
-            return;
-          }
-          placeMarker('user', point, true, userOptions?.heading);
-        },
         focus: (point, camera) => {
           if (!isUsablePoint(point) || !containerSized()) return;
           mapInstance.easeTo({
@@ -1104,6 +1106,14 @@ export function useLiveMap(
           syncCanvas();
         },
       };
+      activeHandleRef.current = liveHandle;
+      const pending = pendingCommandsRef.current;
+      if (pending.route) liveHandle.setRoute(pending.route.coordinates, pending.route.options);
+      if (pending.driver) liveHandle.setDriver(pending.driver.point, pending.driver.options);
+      if ('destination' in pending) liveHandle.setDestination(pending.destination ?? null);
+      if (pending.focus) liveHandle.focus(pending.focus.point, pending.focus.options);
+      if (pending.fit) liveHandle.fit(pending.fit.points, pending.fit.options);
+      if (pending.follow !== undefined) liveHandle.setFollow(pending.follow);
 
       return () => {
         cancelled = true;
@@ -1121,13 +1131,13 @@ export function useLiveMap(
         cancelAnimationFrame(animationFrame);
         for (const marker of Object.values(markers)) marker?.remove();
         if (activeMaps.get(container) === mapInstance) activeMaps.delete(container);
+        if (activeHandleRef.current === liveHandle) activeHandleRef.current = null;
         try {
           mapInstance.remove();
         } catch {
           /* already removed */
         }
         delete container.dataset.mapState;
-        handleRef.current = emptyHandle();
       };
     };
 
@@ -1161,23 +1171,6 @@ export function useLiveMap(
   }, [containerRef, mapgl]);
 
   return handleRef;
-}
-
-function emptyHandle(): LiveMapHandle {
-  return {
-    getMap: () => null,
-    setRoute: () => undefined,
-    setProgress: () => undefined,
-    setDriver: () => undefined,
-    setDestination: () => undefined,
-    setRestaurant: () => undefined,
-    setUser: () => undefined,
-    focus: () => undefined,
-    fit: () => undefined,
-    setFollow: () => undefined,
-    isFollowing: () => false,
-    resize: () => undefined,
-  };
 }
 
 /** Full-bleed map surface. Pass overlay controls as children. */
