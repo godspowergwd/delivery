@@ -617,14 +617,6 @@ img {
 .map-control-btn-icon-red { color: var(--brand); }
 .map-control-btn-icon-green { color: var(--success); }
 
-.map-overlay-card {
-  position: absolute;
-  z-index: 5;
-  border-radius: 1.25rem;
-  background: rgb(255 255 255 / 0.96);
-  box-shadow: var(--shadow-lift);
-  backdrop-filter: blur(8px);
-}
 .mapboxgl-ctrl-attrib { font-size: 10px !important; }
 .mapboxgl-ctrl-group {
   border-radius: 0.85rem !important;
@@ -640,31 +632,35 @@ img {
   font-family: var(--font-sans);
   box-shadow: var(--shadow-lift) !important;
 }
-.map-marker {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: var(--shadow-lift);
-  border: 2px solid var(--brand);
-  color: var(--brand);
-}
-/* Green = live/moving things (driver + your location). Red = destination and
-   the kitchen, the two anchors of every delivery. Both stay equally present. */
-.map-marker-driver { border-color: var(--success); color: var(--success); animation: ds-pop 0.4s var(--ease-premium) both; }
-.map-marker-user { border-color: var(--success); color: var(--success); }
-.map-marker-destination { border-color: var(--brand); color: var(--brand); }
-.map-marker-restaurant { border-color: var(--brand); color: var(--brand); }
-.map-marker-kitchen { border-color: var(--brand); color: var(--brand); }
 
-/** GPS accuracy halo under the live driver marker (sized from real accuracy). */
-.map-accuracy {
-  border-radius: 999px;
-  background: rgb(11 150 99 / 0.14);
-  border: 1px solid rgb(11 150 99 / 0.35);
+/**
+ * Native SDK pins only: Mapbox builds `.mapboxgl-marker` itself and positions
+ * them with its own transforms. The only rule here keeps those pins
+ * non-interactive so no marker layer can ever swallow pan/zoom/pinch gestures.
+ */
+.map-shell .mapboxgl-marker {
   pointer-events: none;
+}
+
+/** Compact status pill for the order card map (plain flow content, not a map overlay). */
+.map-status-pill {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--line);
+  background: rgb(255 255 255 / 0.96);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-muted, #6a7383);
+}
+.map-status-pill strong {
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--ink);
+  white-space: nowrap;
 }
 
 /** Branded placeholder/recovery card — never a blank pane. */

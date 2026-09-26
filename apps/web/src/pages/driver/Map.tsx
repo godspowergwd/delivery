@@ -133,7 +133,7 @@ export default function DriverMap() {
     if (!location.position) return;
     mapRef.current.setDriver(
       { lat: location.position.lat, lng: location.position.lng },
-      { animate: true, accuracyMetres: location.position.accuracy },
+      { animate: true },
     );
     publish(location.position);
   }, [location.position, mapRef, publish]);
@@ -306,6 +306,11 @@ export default function DriverMap() {
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
+      {/* One real interactive map: the SDK canvas plus provider-built pins and
+          controls only. Screens never render their own pin/marker layer above
+          it — children are limited to the top bar, the floating control rail
+          and the permission card, each small, corner-docked and touch-sized so
+          nothing ever covers the map surface and gestures always reach it. */}
       <LiveMap mapRef={mapHostRef} ariaLabel="Live driver navigation map">
         <div className="map-top-bar">
           <Link to="/driver/deliveries" className="map-control-btn" aria-label="Back to deliveries">

@@ -53,7 +53,6 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
     if (!orderTracking?.driver?.location) return;
     mapRef.current.setDriver(
       { lat: orderTracking.driver.location.latitude, lng: orderTracking.driver.location.longitude },
-      { accuracyMetres: orderTracking.driver.location.accuracy },
     );
   }, [orderTracking, mapRef]);
 
@@ -95,15 +94,15 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
   return (
     <section className="overflow-hidden rounded-card bg-white shadow-card ring-1 ring-inset ring-slate-200/60">
       {isLive && (
-        <div className="map-shell !rounded-b-none border-0 ring-0 h-64">
-          <div ref={mapHostRef} className="map-canvas" data-testid="order-live-map" />
-          <div className="map-overlay-card left-3 top-3 px-4 py-3">
-            <p className="text-[13px] font-semibold text-slate-500">Your courier is on the way</p>
-            <p className="text-lg font-extrabold leading-tight text-slate-900">
-              {remainingKm !== null ? `${formatDistance(remainingKm)} away` : '—'}
-            </p>
+        <>
+          <div className="map-shell !rounded-b-none border-0 ring-0 h-64">
+            <div ref={mapHostRef} className="map-canvas" data-testid="order-live-map" />
           </div>
-        </div>
+          <p className="map-status-pill">
+            <span>Your courier is on the way</span>
+            <strong>{remainingKm !== null ? `${formatDistance(remainingKm)} away` : '—'}</strong>
+          </p>
+        </>
       )}
       <div className="space-y-3 p-4">
         <div className="flex items-center justify-between">

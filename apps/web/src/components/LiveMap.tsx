@@ -37,15 +37,21 @@ export type MapMarkerKind = 'driver' | 'destination' | 'restaurant' | 'user';
 
 export interface LiveMapHandle {
   getMap(): GLMap | null;
-  /** Draws the delivery route (remaining leg). */
+  /**
+   * Writes a route leg directly onto the map's GeoJSON sources. Replacing the
+   * existing source data updates the same line in place — the handle never
+   * creates duplicate sources or layers and never rebuilds the map itself, so
+   * live GPS fixes move the route without a flash or reset.
+   */
   setRoute(coordinates: Array<[number, number]>, options?: { fit?: boolean }): void;
   /** Paints the part of the route already covered, in green. */
   setProgress(coordinates: Array<[number, number]>): void;
-  setDriver(point: LatLng | null, options?: { animate?: boolean; accuracyMetres?: number | null }): void;
+  /** Driver's live GPS pin (native SDK marker — no accuracy overlay). */
+  setDriver(point: LatLng | null, options?: { animate?: boolean }): void;
   setDestination(point: LatLng | null): void;
   setRestaurant(point: LatLng | null): void;
-  /** The device's own position ("you are here" marker). */
-  setUser(point: LatLng | null, accuracyMetres?: number | null): void;
+  /** The device's own position (native SDK "you are here" pin). */
+  setUser(point: LatLng | null): void;
   focus(point: LatLng, options?: { zoom?: number; durationMs?: number; padding?: number }): void;
   fit(points: LatLng[], options?: { padding?: number; maxZoom?: number; durationMs?: number }): void;
   setFollow(follow: boolean): void;
@@ -57,23 +63,18 @@ export interface LiveMapHandle {
 const ROUTE_SOURCE = 'onyx-route';
 const DONE_SOURCE = 'onyx-route-done';
 
-const MARKER_SVG: Record<MapMarkerKind, string> = {
-  driver:
-    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3"/><circle cx="18.5" cy="17.5" r="3"/><path d="M6.5 17.5h6l3-7h3"/><path d="M12.5 10.5 11 6h-2"/></svg>',
-  destination:
-    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11.2A7 7 0 1 0 5 9.8C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.6"/></svg>',
-  restaurant:
-    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.4 4h13.2L20 9.5"/><path d="M5.5 12v7a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-7"/><path d="M10 20v-4.5h4V20"/></svg>',
-  user:
-    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/></svg>',
+/**
+ * Native SDK pin colors only — no custom marker DOM, no overlay layer.
+ * Green marks live positions (driver + the device user); red marks the fixed
+ * anchors (customer destination + restaurant/shop). The map SDK owns every
+ * pin element and attaches it directly to the map instance.
+ */
+const NATIVE_MARKER_COLORS: Record<MapMarkerKind, string> = {
+  driver: '#0b9663',
+  destination: '#D40000',
+  restaurant: '#D40000',
+  user: '#0b9663',
 };
-
-function markerNode(kind: MapMarkerKind): HTMLElement {
-  const node = document.createElement('div');
-  node.className = `map-marker map-marker-${kind}`;
-  node.innerHTML = MARKER_SVG[kind];
-  return node;
-}
 
 /** Branded placeholder — a failed map never leaves a blank pane behind. */
 function showFallback(container: HTMLElement, message: string): void {
@@ -261,7 +262,6 @@ export function useLiveMap(
       let following = optionsRef.current.follow ?? false;
       const followMode = (): 'center' | 'bounds' => optionsRef.current.followMode ?? 'center';
       let animationFrame = 0;
-      let accuracyMarker: GLMarker | null = null;
       const markers: Partial<Record<MapMarkerKind, GLMarker>> = {};
       const targets: Partial<Record<MapMarkerKind, LatLng>> = {};
       const displayed: Partial<Record<MapMarkerKind, LatLng>> = {};
@@ -357,8 +357,12 @@ export function useLiveMap(
         const previous = displayed[kind];
         if (!previous || !animate || !markers[kind]) {
           markers[kind]?.remove();
+          // Native SDK pin attached directly to the map. Never draggable, so it
+          // can never intercept a gesture or float above the canvas as a custom
+          // overlay.
           markers[kind] = new mapboxgl.Marker({
-            element: markerNode(kind),
+            color: NATIVE_MARKER_COLORS[kind],
+            draggable: false,
             anchor: kind === 'destination' || kind === 'restaurant' ? 'bottom' : 'center',
           })
             .setLngLat([point.lng, point.lat])
@@ -382,29 +386,6 @@ export function useLiveMap(
           if (t < 1 && !cancelled) animationFrame = requestAnimationFrame(step);
         };
         animationFrame = requestAnimationFrame(step);
-      };
-
-      const updateAccuracyHalo = (point: LatLng, accuracyMetres: number | null): void => {
-        if (!isUsablePoint(point) || !accuracyMetres || accuracyMetres <= 0 || !mapInstance.isStyleLoaded()) {
-          accuracyMarker?.remove();
-          accuracyMarker = null;
-          return;
-        }
-        const size = Math.min(260, Math.max(28, Math.round(accuracyMetres * 2)));
-        if (!accuracyMarker) {
-          const node = document.createElement('div');
-          node.className = 'map-accuracy';
-          node.style.width = `${size}px`;
-          node.style.height = `${size}px`;
-          accuracyMarker = new mapboxgl.Marker({ element: node, anchor: 'center' })
-            .setLngLat([point.lng, point.lat])
-            .addTo(mapInstance);
-          return;
-        }
-        const element = accuracyMarker.getElement();
-        element.style.width = `${size}px`;
-        element.style.height = `${size}px`;
-        accuracyMarker.setLngLat([point.lng, point.lat]);
       };
 
       /**
@@ -772,12 +753,9 @@ export function useLiveMap(
             delete markers.driver;
             delete displayed.driver;
             delete targets.driver;
-            accuracyMarker?.remove();
-            accuracyMarker = null;
             return;
           }
           placeMarker('driver', point, driverOptions?.animate ?? true);
-          updateAccuracyHalo(point, driverOptions?.accuracyMetres ?? null);
           followIfNeeded();
         },
         setDestination: (point) => {
@@ -804,18 +782,15 @@ export function useLiveMap(
           }
           placeMarker('restaurant', point, false);
         },
-        setUser: (point, accuracyMetres) => {
+        setUser: (point) => {
           if (!point) {
             markers.user?.remove();
             delete markers.user;
             delete displayed.user;
             delete targets.user;
-            accuracyMarker?.remove();
-            accuracyMarker = null;
             return;
           }
           placeMarker('user', point, true);
-          updateAccuracyHalo(point, accuracyMetres ?? null);
         },
         focus: (point, camera) => {
           if (!isUsablePoint(point) || !containerSized()) return;
@@ -889,7 +864,6 @@ export function useLiveMap(
         mapInstance.off('styleimagemissing', onMissingImage);
         cancelAnimationFrame(animationFrame);
         for (const marker of Object.values(markers)) marker?.remove();
-        accuracyMarker?.remove();
         if (activeMaps.get(container) === mapInstance) activeMaps.delete(container);
         try {
           mapInstance.remove();

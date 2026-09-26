@@ -114,7 +114,7 @@ function readSample(handle: LiveMapHandle | null): AuditSample | null {
     shellOverflow: window.getComputedStyle(shell).overflow,
     fallbackCard: Boolean(fallback),
     fallbackText: fallback?.textContent?.trim().slice(0, 120) ?? '',
-    markers: document.querySelectorAll('.map-marker').length,
+    markers: document.querySelectorAll('.mapboxgl-marker').length,
     routeLayer: false,
     routeFeatures: 0,
     styleLoaded: false,
@@ -206,7 +206,7 @@ function Harness(): ReactElement {
       const progress = Math.min(1, step / 60);
       handleRef.current.setDriver(
         { lat: start.lat + (destination.lat - start.lat) * progress, lng: start.lng + (destination.lng - start.lng) * progress },
-        { animate: true, accuracyMetres: 12 },
+        { animate: true },
       );
       // Destination from the first tick: the harness mounts markers *before*
       // the style finishes, which is exactly the ordering that exposed the

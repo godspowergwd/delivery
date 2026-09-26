@@ -111,7 +111,7 @@ export default function CustomerTracking() {
 
   useEffect(() => {
     if (driverLocation && mapRef.current) {
-      mapRef.current.setDriver({ lat: driverLocation.latitude, lng: driverLocation.longitude }, { accuracyMetres: driverLocation.accuracy });
+      mapRef.current.setDriver({ lat: driverLocation.latitude, lng: driverLocation.longitude });
     }
   }, [driverLocation, mapRef]);
 
@@ -121,10 +121,7 @@ export default function CustomerTracking() {
 
   useEffect(() => {
     if (!location.position || !mapRef.current) return;
-    mapRef.current.setUser(
-      { lat: location.position.lat, lng: location.position.lng },
-      location.position.accuracy,
-    );
+    mapRef.current.setUser({ lat: location.position.lat, lng: location.position.lng });
   }, [location.position, mapRef]);
 
   const cancelled = orderData?.status === 'CANCELLED';
