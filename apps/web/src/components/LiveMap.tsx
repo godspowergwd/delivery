@@ -46,12 +46,22 @@ export interface LiveMapHandle {
   setRoute(coordinates: Array<[number, number]>, options?: { fit?: boolean }): void;
   /** Paints the part of the route already covered, in green. */
   setProgress(coordinates: Array<[number, number]>): void;
-  /** Driver's live GPS pin (native SDK marker — no accuracy overlay). */
-  setDriver(point: LatLng | null, options?: { animate?: boolean }): void;
+  /**
+   * Driver's live GPS pin (native SDK marker — no accuracy overlay).
+   *
+   * `heading` is the device-reported bearing in degrees clockwise from north
+   * (`GeolocationCoordinates.heading`, carried through `DriverLocationDTO`). The
+   * pin is created with `rotationAlignment: 'map'`, so the SDK keeps it pointing
+   * along the real travel direction even while the map itself is rotated.
+   */
+  setDriver(
+    point: LatLng | null,
+    options?: { animate?: boolean; heading?: number | null },
+  ): void;
   setDestination(point: LatLng | null): void;
   setRestaurant(point: LatLng | null): void;
-  /** The device's own position (native SDK "you are here" pin). */
-  setUser(point: LatLng | null): void;
+  /** The device's own position (native SDK "you are here" pin, heading-aware). */
+  setUser(point: LatLng | null, options?: { heading?: number | null }): void;
   focus(point: LatLng, options?: { zoom?: number; durationMs?: number; padding?: number }): void;
   fit(points: LatLng[], options?: { padding?: number; maxZoom?: number; durationMs?: number }): void;
   setFollow(follow: boolean): void;
@@ -114,6 +124,41 @@ function distanceMeters(from: LatLng, to: LatLng): number {
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   return 2 * earth * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Kinds that carry a direction. Only moving devices rotate; the fixed anchors
+ * (destination, restaurant) always stand upright.
+ */
+const ROTATING_KINDS: ReadonlySet<MapMarkerKind> = new Set(['driver', 'user']);
+
+/** A device heading only counts when it is a real, finite 0–360° reading. */
+function normaliseHeading(heading: number | null | undefined): number | null {
+  if (typeof heading !== 'number' || !Number.isFinite(heading)) return null;
+  return ((heading % 360) + 360) % 360;
+}
+
+/** The signed shortest turn from `from` to `to` — always within ±180°. */
+function headingDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+/**
+ * The glyph for a moving device. Mapbox's default pin is a teardrop anchored at
+ * its tip, so rotating it by a bearing tilts the whole pin sideways and reads as
+ * broken. This chip keeps a stable circular body and puts the chevron inside it:
+ * the SDK's rotation only ever turns the pointer, never the badge.
+ */
+function createHeadingElement(color: string): HTMLElement {
+  const element = document.createElement('div');
+  element.className = 'map-heading-marker';
+  element.setAttribute('aria-hidden', 'true');
+  element.innerHTML =
+    '<svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">' +
+    `<circle cx="17" cy="17" r="15" fill="#ffffff" stroke="${color}" stroke-width="2.5"/>` +
+    `<path d="M17 7.5 23.5 24 17 19.9 10.5 24Z" fill="${color}"/>` +
+    '</svg>';
+  return element;
 }
 
 export interface UseLiveMapOptions {
@@ -265,17 +310,108 @@ export function useLiveMap(
       const markers: Partial<Record<MapMarkerKind, GLMarker>> = {};
       const targets: Partial<Record<MapMarkerKind, LatLng>> = {};
       const displayed: Partial<Record<MapMarkerKind, LatLng>> = {};
+      /** Where each pin should point (device heading, degrees clockwise from north). */
+      const headings: Partial<Record<MapMarkerKind, number>> = {};
+      /** The rotation currently painted on screen, so turns can be eased. */
+      const rotations: Partial<Record<MapMarkerKind, number>> = {};
 
       const releaseFollow = () => {
         if (!following) return;
         following = false;
         optionsRef.current.onUserInteract?.();
       };
+
+      // ---------------------------------------------------------------------
+      // Camera arbitration: a person steering the map always wins.
+      //
+      // Two signals are combined, because neither is complete on its own:
+      //
+      //   * the interaction handlers' `isActive()` — the SDK's own answer to
+      //     "is a gesture in progress?". It is gesture-scoped, so a camera move
+      //     this component started never reads back as user input (the public
+      //     `isMoving()` cannot tell the two apart), and it covers drag pan,
+      //     touch pan, pinch zoom/rotate, two-finger pitch, box zoom, wheel
+      //     zoom, double-click zoom and keyboard panning;
+      //   * the map's gesture events, which extend the hold past the release so
+      //     an auto-move never yanks the view back mid-inertia.
+      // ---------------------------------------------------------------------
+      let gestureTail = 0;
+      let gestureTailTimer = 0;
+      /** How long auto camera moves stay parked after the fingers leave. */
+      const GESTURE_TAIL_MS = 700;
+      /** Stale-gesture budget: an end event swallowed by the browser must not wedge the camera. */
+      const GESTURE_MAX_MS = 8_000;
+      let gestureDepth = 0;
+      let gestureStartedAt = 0;
+
+      /** Re-arms the post-gesture hold; auto moves stay parked until it lapses. */
+      const armGestureTail = (ms: number): void => {
+        gestureTail = Math.max(gestureTail, Date.now() + ms);
+        window.clearTimeout(gestureTailTimer);
+        gestureTailTimer = window.setTimeout(() => {
+          gestureTail = 0;
+        }, ms);
+      };
+
+      const onGestureStart = (event: unknown): void => {
+        // Map-level `mousedown`/`mouseup` also fire for clicks on the zoom buttons
+        // and the attribution bubble — only canvas input counts as steering.
+        if ((event as { originalEvent?: unknown } | undefined)?.originalEvent === undefined) return;
+        gestureDepth += 1;
+        gestureStartedAt = Date.now();
+        window.clearTimeout(gestureTailTimer);
+      };
+
+      const onGestureEnd = (): void => {
+        gestureDepth = Math.max(0, gestureDepth - 1);
+        armGestureTail(GESTURE_TAIL_MS);
+      };
+
+      /** True while the user (not the app) owns the camera. */
+      const userIsSteering = (): boolean => {
+        if (gestureDepth > 0) {
+          if (Date.now() - gestureStartedAt < GESTURE_MAX_MS) return true;
+          gestureDepth = 0; // an end event never arrived — never wedge follow
+        }
+        const handlers: Array<{ isActive?: () => boolean } | undefined> = [
+          mapInstance.dragPan,
+          mapInstance.dragRotate,
+          mapInstance.scrollZoom,
+          mapInstance.boxZoom,
+          mapInstance.doubleClickZoom,
+          mapInstance.touchZoomRotate,
+          mapInstance.touchPitch,
+          mapInstance.keyboard,
+        ];
+        if (handlers.some((handler) => handler?.isActive?.() === true)) return true;
+        return Date.now() < gestureTail;
+      };
+
+      const userOriginated = (event: unknown): boolean =>
+        (event as { originalEvent?: unknown } | undefined)?.originalEvent !== undefined;
+
       mapInstance.on('dragstart', releaseFollow);
       mapInstance.on('zoomstart', (event: unknown) => {
-        const original = (event as { originalEvent?: unknown } | undefined)?.originalEvent;
-        if (original) releaseFollow();
+        if (userOriginated(event)) releaseFollow();
       });
+      // Two-finger pitch / rotate move the camera without ever firing drag or
+      // zoom events — without these the followed view would fight them.
+      mapInstance.on('pitchstart', (event: unknown) => {
+        if (userOriginated(event)) releaseFollow();
+      });
+      mapInstance.on('rotatestart', (event: unknown) => {
+        if (userOriginated(event)) releaseFollow();
+      });
+
+      const gestureStartEvents = ['mousedown', 'touchstart', 'dragstart', 'boxzoomstart'] as const;
+      const gestureEndEvents = ['mouseup', 'dragend', 'touchend', 'touchcancel', 'boxzoomend', 'boxzoomcancel'] as const;
+      for (const type of gestureStartEvents) mapInstance.on(type, onGestureStart);
+      for (const type of gestureEndEvents) mapInstance.on(type, onGestureEnd);
+      // Wheel zoom has no end event: every tick re-arms a short hold instead.
+      const onWheelGesture = (): void => armGestureTail(260);
+      mapInstance.on('wheel', onWheelGesture);
+
+
       // Errors are handled in the resilience block below (style fallback etc.).
       // Tile hiccups stay quiet there: markers keep updating regardless.
 
@@ -350,26 +486,48 @@ export function useLiveMap(
         }
       };
 
-      const placeMarker = (kind: MapMarkerKind, point: LatLng, animate: boolean): void => {
+      const placeMarker = (
+        kind: MapMarkerKind,
+        point: LatLng,
+        animate: boolean,
+        heading?: number | null,
+      ): void => {
         if (!isUsablePoint(point)) return; // never place a marker on a broken coordinate
         targets[kind] = point;
+        const headingDeg = ROTATING_KINDS.has(kind) ? normaliseHeading(heading) : null;
+        if (headingDeg !== null) headings[kind] = headingDeg;
         if (!mapInstance.isStyleLoaded()) return;
         const previous = displayed[kind];
         if (!previous || !animate || !markers[kind]) {
           markers[kind]?.remove();
-          // Native SDK pin attached directly to the map. Never draggable, so it
-          // can never intercept a gesture or float above the canvas as a custom
-          // overlay.
+          // Native SDK marker attached directly to the map. Never draggable, so
+          // it can never intercept a gesture or float above the canvas as a
+          // custom overlay. `rotationAlignment: 'map'` makes the SDK turn the
+          // glyph with the map plane, so a device heading points along the real
+          // travel direction no matter how the basemap is bearing — which is the
+          // only alignment that stays true while a user rotates the view.
+          const rotating = ROTATING_KINDS.has(kind);
           markers[kind] = new mapboxgl.Marker({
-            color: NATIVE_MARKER_COLORS[kind],
+            ...(rotating
+              ? { element: createHeadingElement(NATIVE_MARKER_COLORS[kind]) }
+              : { color: NATIVE_MARKER_COLORS[kind] }),
             draggable: false,
-            anchor: kind === 'destination' || kind === 'restaurant' ? 'bottom' : 'center',
+            anchor: rotating ? 'center' : 'bottom',
+            rotation: headings[kind] ?? 0,
+            rotationAlignment: rotating ? 'map' : 'viewport',
           })
             .setLngLat([point.lng, point.lat])
             .addTo(mapInstance);
           displayed[kind] = { ...point };
+          rotations[kind] = headings[kind] ?? 0;
           return;
         }
+        // The heading travels with the position: the pin turns along the shortest
+        // arc while it glides, so a corner reads as one continuous move instead of
+        // a snap followed by a slide.
+        const fromRotation = rotations[kind] ?? headings[kind] ?? 0;
+        const toRotation = headings[kind] ?? fromRotation;
+        const rotationDelta = headingDelta(fromRotation, toRotation);
         // Ease between two real fixes so the marker glides instead of jumping:
         // no invented positions, only interpolation between actual GPS samples.
         const from = { ...previous };
@@ -383,6 +541,11 @@ export function useLiveMap(
           const lng = from.lng + (point.lng - from.lng) * eased;
           markers[kind]?.setLngLat([lng, lat]);
           displayed[kind] = { lat, lng };
+          if (rotationDelta !== 0) {
+            const rotation = fromRotation + rotationDelta * eased;
+            markers[kind]?.setRotation(rotation);
+            rotations[kind] = rotation;
+          }
           if (t < 1 && !cancelled) animationFrame = requestAnimationFrame(step);
         };
         animationFrame = requestAnimationFrame(step);
@@ -413,6 +576,10 @@ export function useLiveMap(
       const followIfNeeded = (force = false): void => {
         const driver = targets.driver;
         if (!following || !isUsablePoint(driver) || !containerSized()) return;
+        // A person is steering: gestures always win over the follow camera. The
+        // next fix (or the follow button) re-engages once the map is idle again,
+        // so the view can never fight a pan/pinch mid-stroke.
+        if (!force && userIsSteering()) return;
         const destination = targets.destination;
         if (followMode() === 'bounds' && destination) {
           // Customer tracking: only move when a marker is about to leave the
@@ -714,7 +881,9 @@ export function useLiveMap(
         applyRoute();
         for (const kind of Object.keys(targets) as MapMarkerKind[]) {
           const point = targets[kind];
-          if (point) placeMarker(kind, point, false);
+          // Re-place with the last reported heading: a pin restored after a style
+          // swap must keep pointing the way the device was travelling.
+          if (point) placeMarker(kind, point, false, headings[kind]);
         }
         followIfNeeded();
         syncCanvas();
@@ -733,6 +902,9 @@ export function useLiveMap(
             // only update markers + source data — never the camera — so the
             // map stops flashing/resetting on every GPS tick.
             if (routeFitted) return;
+            // ...but never over an in-progress gesture: the fit is retried on the
+            // next route write instead of stealing the map mid-pan.
+            if (userIsSteering()) return;
             routeFitted = true;
             const bounds = new mapboxgl.LngLatBounds();
             for (const point of coordinates) bounds.extend(point);
@@ -753,9 +925,11 @@ export function useLiveMap(
             delete markers.driver;
             delete displayed.driver;
             delete targets.driver;
+            delete headings.driver;
+            delete rotations.driver;
             return;
           }
-          placeMarker('driver', point, driverOptions?.animate ?? true);
+          placeMarker('driver', point, driverOptions?.animate ?? true, driverOptions?.heading);
           followIfNeeded();
         },
         setDestination: (point) => {
@@ -782,15 +956,17 @@ export function useLiveMap(
           }
           placeMarker('restaurant', point, false);
         },
-        setUser: (point) => {
+        setUser: (point, userOptions) => {
           if (!point) {
             markers.user?.remove();
             delete markers.user;
             delete displayed.user;
             delete targets.user;
+            delete headings.user;
+            delete rotations.user;
             return;
           }
-          placeMarker('user', point, true);
+          placeMarker('user', point, true, userOptions?.heading);
         },
         focus: (point, camera) => {
           if (!isUsablePoint(point) || !containerSized()) return;
@@ -854,6 +1030,7 @@ export function useLiveMap(
         cancelled = true;
         window.clearTimeout(styleWatchdog);
         window.clearTimeout(rebuildTimer);
+        window.clearTimeout(gestureTailTimer);
         window.clearInterval(watchdog);
         observer?.disconnect();
         canvas.removeEventListener('webglcontextlost', onContextLost);

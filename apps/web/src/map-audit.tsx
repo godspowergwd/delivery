@@ -206,7 +206,7 @@ function Harness(): ReactElement {
       const progress = Math.min(1, step / 60);
       handleRef.current.setDriver(
         { lat: start.lat + (destination.lat - start.lat) * progress, lng: start.lng + (destination.lng - start.lng) * progress },
-        { animate: true },
+        { animate: true, heading: (progress * 400) % 360 },
       );
       // Destination from the first tick: the harness mounts markers *before*
       // the style finishes, which is exactly the ordering that exposed the

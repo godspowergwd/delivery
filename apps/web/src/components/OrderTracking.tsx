@@ -53,6 +53,8 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
     if (!orderTracking?.driver?.location) return;
     mapRef.current.setDriver(
       { lat: orderTracking.driver.location.latitude, lng: orderTracking.driver.location.longitude },
+      // The heading the driver's device reported, carried on the tracking DTO.
+      { heading: orderTracking.driver.location.heading },
     );
   }, [orderTracking, mapRef]);
 

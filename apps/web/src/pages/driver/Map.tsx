@@ -133,7 +133,8 @@ export default function DriverMap() {
     if (!location.position) return;
     mapRef.current.setDriver(
       { lat: location.position.lat, lng: location.position.lng },
-      { animate: true },
+      // The device's own course: the SDK rotates the pin to it (map-aligned).
+      { animate: true, heading: location.position.heading },
     );
     publish(location.position);
   }, [location.position, mapRef, publish]);

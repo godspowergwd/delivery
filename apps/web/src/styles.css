@@ -642,6 +642,17 @@ img {
   pointer-events: none;
 }
 
+/**
+ * Heading-aware pins (driver / this device). Mapbox owns this element's
+ * transform and writes the rotation into it, so these rules may only touch the
+ * glyph's own paint: `line-height: 0` removes the inline-SVG baseline gap that
+ * would otherwise inflate the box Mapbox measures when centring the marker.
+ */
+.map-shell .map-heading-marker {
+  line-height: 0;
+  filter: drop-shadow(0 2px 4px rgb(15 23 42 / 0.28));
+}
+
 /** Compact status pill for the order card map (plain flow content, not a map overlay). */
 .map-status-pill {
   display: flex;
