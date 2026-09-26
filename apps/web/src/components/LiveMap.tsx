@@ -279,41 +279,75 @@ export function useLiveMap(
       // Errors are handled in the resilience block below (style fallback etc.).
       // Tile hiccups stay quiet there: markers keep updating regardless.
 
-      const ensureRouteLayers = () => {
-        if (cancelled || mapInstance._removed) return;
-        if (mapInstance.getSource(ROUTE_SOURCE) && mapInstance.getLayer('onyx-route-line')) return;
-        mapInstance.addSource(ROUTE_SOURCE, { type: 'geojson', data: emptyCollection() });
-        mapInstance.addSource(DONE_SOURCE, { type: 'geojson', data: emptyCollection() });
-        mapInstance.addLayer({
-          id: 'onyx-route-casing',
-          type: 'line',
-          source: ROUTE_SOURCE,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#ffffff', 'line-width': 11, 'line-opacity': 0.92 },
-        });
-        mapInstance.addLayer({
-          id: 'onyx-route-line',
-          type: 'line',
-          source: ROUTE_SOURCE,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#e30613', 'line-width': 6.5, 'line-opacity': 0.96 },
-        });
-        mapInstance.addLayer({
-          id: 'onyx-route-done',
-          type: 'line',
-          source: DONE_SOURCE,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#0b9663', 'line-width': 6.5, 'line-opacity': 0.96 },
-        });
+      // Ensure the route sources + layers exist and return whether they do.
+      // Repair (never duplicate): a style swap or a torn-down transition can
+      // leave a source without its layer or a layer without its source — the
+      // missing half is re-added onto the existing half. `setData` on an
+      // existing source updates the line in place; layers are only ever
+      // created once per map, so the route can never vanish behind a
+      // "source already exists" / "layer already exists" throw.
+      const ensureRouteLayers = (): boolean => {
+        if (cancelled || mapInstance._removed) return false;
+        try {
+          const routeSource = mapInstance.getSource(ROUTE_SOURCE);
+          const routeLine = mapInstance.getLayer('onyx-route-line');
+          const hasSources = Boolean(routeSource) && Boolean(mapInstance.getSource(DONE_SOURCE));
+          const hasLayers = Boolean(routeLine) && Boolean(mapInstance.getLayer('onyx-route-casing')) && Boolean(mapInstance.getLayer('onyx-route-done'));
+          if (hasSources && hasLayers) return true;
+          if (!routeSource) {
+            mapInstance.addSource(ROUTE_SOURCE, { type: 'geojson', data: emptyCollection() });
+          }
+          if (!mapInstance.getSource(DONE_SOURCE)) {
+            mapInstance.addSource(DONE_SOURCE, { type: 'geojson', data: emptyCollection() });
+          }
+          if (!mapInstance.getLayer('onyx-route-casing')) {
+            mapInstance.addLayer({
+              id: 'onyx-route-casing',
+              type: 'line',
+              source: ROUTE_SOURCE,
+              layout: { 'line-cap': 'round', 'line-join': 'round' },
+              paint: { 'line-color': '#ffffff', 'line-width': 11, 'line-opacity': 0.92 },
+            });
+          }
+          if (!routeLine) {
+            mapInstance.addLayer({
+              id: 'onyx-route-line',
+              type: 'line',
+              source: ROUTE_SOURCE,
+              layout: { 'line-cap': 'round', 'line-join': 'round' },
+              paint: { 'line-color': '#D40000', 'line-width': 6, 'line-opacity': 1 },
+            });
+          }
+          if (!mapInstance.getLayer('onyx-route-done')) {
+            mapInstance.addLayer({
+              id: 'onyx-route-done',
+              type: 'line',
+              source: DONE_SOURCE,
+              layout: { 'line-cap': 'round', 'line-join': 'round' },
+              paint: { 'line-color': '#0b9663', 'line-width': 6, 'line-opacity': 0.96 },
+            });
+          }
+          return true;
+        } catch {
+          // Mid style-swap the document rejects adds — the next style event retries.
+          return false;
+        }
       };
 
       // Arrow consts (not hoisted function declarations) so the non-null
       // `mapboxgl` narrowing from the guard above is preserved inside them.
-      const setSourceData = (id: string, coordinates: Array<[number, number]>): void => {
-        if (!mapInstance.isStyleLoaded()) return;
-        const source = mapInstance.getSource(id) as import('mapbox-gl').GeoJSONSource | undefined;
-        if (!source) return;
-        source.setData(coordinates.length === 0 ? emptyCollection() : lineFeature(coordinates));
+      const setSourceData = (id: string, coordinates: Array<[number, number]>): boolean => {
+        if (cancelled || mapInstance._removed || !mapInstance.isStyleLoaded()) return false;
+        try {
+          const source = mapInstance.getSource(id) as import('mapbox-gl').GeoJSONSource | undefined;
+          if (!source || typeof source.setData !== 'function') return false;
+          source.setData(coordinates.length === 0 ? emptyCollection() : lineFeature(coordinates));
+          return true;
+        } catch {
+          // The source belongs to a style document being torn down — the next
+          // style event re-applies `applyRoute`, never a rebuild.
+          return false;
+        }
       };
 
       const placeMarker = (kind: MapMarkerKind, point: LatLng, animate: boolean): void => {
@@ -461,17 +495,26 @@ export function useLiveMap(
       let pendingProgress: Array<[number, number]> = [];
       let appliedRoute: Array<[number, number]> | null = null;
       let appliedProgress: Array<[number, number]> = [];
+      /**
+       * Set once the first route leg frames the camera — later `setRoute`
+       * calls replace the line in place without touching the camera, so live
+       * position updates move markers + the route, never the viewport.
+       */
+      let routeFitted = false;
       const applyRoute = (force = false): void => {
         if (!pendingRoute || !mapInstance.isStyleLoaded()) return;
-        ensureRouteLayers();
+        // Layers/sources may still be mid-swap: only the actually-written
+        // geometry counts as applied, so a failed write is retried (not lost)
+        // on the next style event instead of the route silently vanishing.
+        if (!ensureRouteLayers()) return;
         // Identity-guarded so repeated style events cannot feed themselves.
         if (force || appliedRoute !== pendingRoute) {
-          setSourceData(ROUTE_SOURCE, pendingRoute);
-          appliedRoute = pendingRoute;
+          if (setSourceData(ROUTE_SOURCE, pendingRoute)) appliedRoute = pendingRoute;
         }
         if (force || appliedProgress !== pendingProgress) {
-          setSourceData(DONE_SOURCE, pendingProgress.length > 1 ? pendingProgress : []);
-          appliedProgress = pendingProgress;
+          if (setSourceData(DONE_SOURCE, pendingProgress.length > 1 ? pendingProgress : [])) {
+            appliedProgress = pendingProgress;
+          }
         }
       };
 
@@ -562,19 +605,16 @@ export function useLiveMap(
       };
       mapInstance.on('error', onMapError);
 
-      // A style swap (fallback provider) drops sources and layers: re-add them.
-      // `getSource` answers from the new style document while the old layers
-      // are still being torn down, so the check must cover the layer as well —
-      // otherwise one swap registers the same layer id twice and the engine
-      // throws `Layer with id "…" already exists`.
+      // Ensure the route sources + layers exist even when `style.load` fires
+      // before these listeners attach — the failure mode behind "pins work,
+      // the route never renders". `styledata`/`load` handlers only run for
+      // style documents installed *after* the listener attaches; on a warm
+      // cache the style can be fully loaded before `initMap` finishes wiring,
+      // and then sources/layers this section owns would never get created.
       const onStyleData = (): void => {
         if (cancelled || mapInstance._removed) return;
         styleReady = true;
-        try {
-          ensureRouteLayers();
-        } catch {
-          /* a torn-down transition re-applies `applyRoute` on the next event */
-        }
+        ensureRouteLayers();
       };
       mapInstance.on('styledata', onStyleData);
 
@@ -601,6 +641,33 @@ export function useLiveMap(
         }
       };
       mapInstance.on('style.load', onStyleLoad);
+
+      // The style can be fully loaded before these listeners attach (fast
+      // cache, local style, instant fallback). Without this the map paints and
+      // the markers place — but the sources/layers this section is responsible
+      // for never get created, so the route silently never renders.
+      if (mapInstance.isStyleLoaded()) {
+        styleReady = true;
+        window.clearTimeout(styleWatchdog);
+        relaxStyleFilters(mapInstance);
+        ensureRouteLayers();
+        applyRoute(true);
+      } else {
+        // `load` may already have fired with the style still settling: poll
+        // briefly for the load flip and repair once, then stop — `styledata`
+        // keeps every later swap covered.
+        let settleChecks = 0;
+        const settleTimer = window.setInterval(() => {
+          settleChecks += 1;
+          if (cancelled || mapInstance._removed || settleChecks > 40) {
+            window.clearInterval(settleTimer);
+            return;
+          }
+          if (!mapInstance.isStyleLoaded()) return;
+          window.clearInterval(settleTimer);
+          onStyleLoad();
+        }, 250);
+      }
 
       // Missing sprite images become a transparent pixel instead of an error
       // (`Image "recycling" could not be loaded`, once per tile).
@@ -681,13 +748,18 @@ export function useLiveMap(
           if (!mapInstance.isStyleLoaded()) return;
           applyRoute();
           if (routeOptions?.fit !== false && coordinates.length > 1 && containerSized()) {
+            // Once, at route load: frame the whole leg. Later position fixes
+            // only update markers + source data — never the camera — so the
+            // map stops flashing/resetting on every GPS tick.
+            if (routeFitted) return;
+            routeFitted = true;
             const bounds = new mapboxgl.LngLatBounds();
             for (const point of coordinates) bounds.extend(point);
-            mapInstance.fitBounds(bounds, {
-              padding: clampPadding(130, 250, 56),
-              maxZoom: 15,
-              duration: 700,
-            });
+            try {
+              mapInstance.fitBounds(bounds, { padding: 80, duration: 800 });
+            } catch {
+              /* never let a camera hiccup break the screen */
+            }
           }
         },
         setProgress: (coordinates) => {

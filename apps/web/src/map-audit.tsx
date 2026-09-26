@@ -208,6 +208,10 @@ function Harness(): ReactElement {
         { lat: start.lat + (destination.lat - start.lat) * progress, lng: start.lng + (destination.lng - start.lng) * progress },
         { animate: true, accuracyMetres: 12 },
       );
+      // Destination from the first tick: the harness mounts markers *before*
+      // the style finishes, which is exactly the ordering that exposed the
+      // missing-layers bug — both pins must still end up on screen.
+      handleRef.current.setDestination(destination);
     }, 1000);
 
     // A synthetic route (OSRM is unreachable from this sandbox) for the layers.

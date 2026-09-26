@@ -70,4 +70,6 @@ export interface RoadRoute {
   distanceKm: number;
   durationMin: number;
   road: boolean;
+  /** Which directions backend produced this leg (`straight` = no road data). */
+  provider: 'mapbox' | 'osrm' | 'straight';
 }
