@@ -15,6 +15,15 @@ const ORDER_PROGRESS_TONES = [
 ] as const;
 
 /**
+ * Route refresh policy, shared with the driver and tracking screens: a new
+ * Directions request only after a meaningful move or a minute. The previous key
+ * here was the driver's position at five decimals (~1 m), which asked the
+ * Directions API for a new leg on essentially every GPS fix.
+ */
+const ROUTE_REFRESH_MS = 60_000;
+const ROUTE_REFRESH_METRES = 250;
+
+/**
  * Live tracking section for the customer order page: real Accra roads,
  * the driver's actual device GPS, live remaining distance + ETA.
  * Runs while the order is out for delivery; quiet otherwise.
@@ -62,20 +71,40 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
     mapRef.current.setDestination(destinationLatLng);
   }, [destinationLatLng, mapRef]);
 
-  const routeKeyRef = useRef<string | null>(null);
+  const routeKeyRef = useRef<{ at: number; lat: number; lng: number; target: string } | null>(null);
+  const routeFetchRef = useRef(0);
+  const routeFittedRef = useRef(false);
   useEffect(() => {
     if (order.status !== 'OUT_FOR_DELIVERY' || !driverLocation || !destinationLatLng) return;
-    const key = `${driverLocation.latitude.toFixed(5)},${driverLocation.longitude.toFixed(5)}`;
-    if (routeKeyRef.current === key) return;
-    routeKeyRef.current = key;
+    const targetKey = `${destinationLatLng.lat.toFixed(5)},${destinationLatLng.lng.toFixed(5)}`;
+    const previous = routeKeyRef.current;
+    const movedMetres = previous
+      ? distanceKm(
+          { lat: previous.lat, lng: previous.lng },
+          { lat: driverLocation.latitude, lng: driverLocation.longitude },
+        ) * 1000
+      : Number.POSITIVE_INFINITY;
+    const stale = previous ? Date.now() - previous.at > ROUTE_REFRESH_MS : true;
+    if (previous && previous.target === targetKey && movedMetres < ROUTE_REFRESH_METRES && !stale) return;
+    routeKeyRef.current = {
+      at: Date.now(),
+      lat: driverLocation.latitude,
+      lng: driverLocation.longitude,
+      target: targetKey,
+    };
 
+    const requestId = (routeFetchRef.current += 1);
     const controller = new AbortController();
     fetchRoadRoute(
       { lat: driverLocation.latitude, lng: driverLocation.longitude },
       { lat: destinationLatLng.lat, lng: destinationLatLng.lng },
       controller.signal,
     ).then((route) => {
-      mapRef.current.setRoute(route.coordinates, { fit: false });
+      if (requestId !== routeFetchRef.current) return;
+      // Frame the leg once so both pins are on screen; afterwards the line is
+      // replaced in place and the card never re-frames itself mid-delivery.
+      mapRef.current.setRoute(route.coordinates, { fit: !routeFittedRef.current });
+      routeFittedRef.current = true;
     }).catch(() => undefined);
     return () => controller.abort();
   }, [order.status, driverLocation, destinationLatLng, mapRef]);

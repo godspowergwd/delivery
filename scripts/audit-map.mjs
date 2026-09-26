@@ -126,6 +126,8 @@ async function fetchJson(url) {
   return res.json();
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function summarizeSample(sample) {
   if (!sample) return 'no-shell';
   const zoom = Number.isFinite(sample.zoom) ? sample.zoom.toFixed(1) : '?';
@@ -140,6 +142,7 @@ function summarizeSample(sample) {
     `box=${sample.containerW}x${sample.containerH} canvas=${canvas} ` +
     `css=${sample.canvasDisplay}/${sample.canvasVisibility}/op${sample.canvasOpacity} ` +
     `markers=${sample.markers} pins=${sample.headingMarkers ?? 0} rot=${rotation} ` +
+    `state=${sample.mapState ?? '?'} ` +
     `route=${sample.routeLayer ? `${sample.routeFeatures}f` : 'none'} ` +
     `style=${sample.styleLoaded ? 'loaded' : 'pending'} zoom=${zoom} ` +
     `fallback=${sample.fallbackCard ? `"${sample.fallbackText}"` : 'none'}`
@@ -182,19 +185,38 @@ async function main() {
 
     const consoleErrors = [];
     const consoleWarnings = [];
+    const httpFailures = [];
+    const requestUrls = new Map();
     const originalRoute = cdp.route.bind(cdp);
     cdp.route = (raw) => {
       try {
         const msg = JSON.parse(typeof raw === 'string' ? raw : raw.toString());
         if (msg.method === 'Log.entryAdded') {
           const entry = msg.params?.entry;
-          if (entry?.level === 'error') consoleErrors.push(entry.text);
+          if (entry?.level === 'error') {
+            consoleErrors.push(entry?.url ? `${entry.text} @ ${entry.url}` : entry.text);
+          }
           if (entry?.level === 'warning' && /map|webgl|style/i.test(entry.text ?? '')) {
             consoleWarnings.push(entry.text);
           }
         }
         if (msg.method === 'Runtime.exceptionThrown') {
           consoleErrors.push(msg.params?.exceptionDetails?.text ?? 'runtime exception');
+        }
+        if (msg.method === 'Network.requestWillBeSent') {
+          requestUrls.set(msg.params?.requestId, msg.params?.request?.url ?? '');
+        }
+        if (msg.method === 'Network.responseReceived') {
+          const response = msg.params?.response;
+          if (response && response.status >= 400) {
+            httpFailures.push(`${response.status} ${response.url}`);
+          }
+        }
+        if (msg.method === 'Network.loadingFailed') {
+          const info = msg.params ?? {};
+          if (info.errorText !== 'net::ERR_ABORTED') {
+            httpFailures.push(`FAILED ${info.errorText ?? '?'} ${requestUrls.get(info.requestId) ?? ''}`.trim());
+          }
         }
       } catch {
         // ignore malformed frames
@@ -205,6 +227,7 @@ async function main() {
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
     await cdp.send('Log.enable');
+    await cdp.send('Network.enable');
     await cdp.send('Network.enable');
 
     const loaded = cdp.once('Page.loadEventFired');
@@ -218,6 +241,41 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 500));
       timeline.push(await cdp.evaluate('window.__MAP_AUDIT__.sample()'));
     }
+
+    // --- TEST 10: the PWA on a phone, in both orientations -------------------
+    const mobileSamples = [];
+    for (const viewport of [
+      { label: 'portrait 390x844', width: 390, height: 844 },
+      { label: 'landscape 844x390', width: 844, height: 390 },
+    ]) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: viewport.width,
+        height: viewport.height,
+        deviceScaleFactor: 3,
+        mobile: true,
+      });
+      await sleep(2_500);
+      mobileSamples.push({
+        label: viewport.label,
+        sample: await cdp.evaluate('window.__MAP_AUDIT__.sample()'),
+      });
+    }
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+    await sleep(1_500);
+
+    // --- TEST 9: leave the screen and come back ------------------------------
+    const countInstances = `(() => {
+      const events = window.__MAP_AUDIT__.events;
+      return {
+        maps: events.filter((event) => event.kind === 'new Map').length,
+        removes: events.filter((event) => event.kind === 'map.remove').length,
+      };
+    })()`;
+    const beforeRemount = await cdp.evaluate(countInstances);
+    await cdp.evaluate('window.__MAP_AUDIT__.remount()');
+    await sleep(7_000);
+    const afterRemount = await cdp.evaluate(countInstances);
+    const remountSample = await cdp.evaluate('window.__MAP_AUDIT__.sample()');
 
     const final = await cdp.evaluate(`(() => ({
       samples: window.__MAP_AUDIT__.samples.length,
@@ -260,6 +318,30 @@ async function main() {
       console.log('map stayed visible for the whole 14 s window');
     }
 
+    console.log('\n--- TEST 10: mobile viewport & rotation ---');
+    for (const entry of mobileSamples) {
+      console.log(`${entry.label}: ${summarizeSample(entry.sample)}`);
+    }
+    const mobileOk = mobileSamples.every((entry) => entry.sample && entry.sample.visible);
+    console.log(
+      mobileOk
+        ? 'map visible and sized in both phone orientations'
+        : 'MAP NOT VISIBLE in a mobile orientation',
+    );
+
+    console.log('\n--- TEST 9: unmount + remount (navigate away and back) ---');
+    console.log(
+      `map instances: ${beforeRemount.maps} -> ${afterRemount.maps} · remove() calls: ${beforeRemount.removes} -> ${afterRemount.removes}`,
+    );
+    console.log(`after remount: ${summarizeSample(remountSample)}`);
+    const released = afterRemount.removes === beforeRemount.removes + 1;
+    const replaced = afterRemount.maps === beforeRemount.maps + 1;
+    console.log(
+      released && replaced
+        ? 'engine released then replaced — no stacked instances'
+        : 'UNEXPECTED instance count after the remount',
+    );
+
     console.log('\n--- heading rotation probe ---');
     const rotated = timeline.filter((sample) => sample && Number.isFinite(sample.driverRotation));
     const headingPins = timeline.reduce((max, sample) => Math.max(max, sample?.headingMarkers ?? 0), 0);
@@ -280,11 +362,22 @@ async function main() {
         : 'ROTATION STATIC — driver heading never reached the marker',
     );
 
+    console.log('\n--- basemap ---');
+    const lastSample = timeline.filter(Boolean).at(-1) ?? null;
+    console.log(`provider: ${lastSample?.provider ?? '?'} · style host: ${lastSample?.styleHost ?? '?'}`);
+    const readySamples = timeline.filter((sample) => sample && sample.mapState === 'ready').length;
+    const loadingSamples = timeline.filter((sample) => sample && sample.mapState === 'loading').length;
+    console.log(`renderer state: ${readySamples} ready / ${loadingSamples} loading sample(s)`);
+
     console.log('\n--- console errors (map/style/webgl network failures first) ---');
     const noteworthy = consoleErrors.filter((text) => /map|style|webgl|tiles|glyph|sprite|openfreemap/i.test(text));
     const rest = consoleErrors.filter((text) => !/map|style|webgl|tiles|glyph|sprite|openfreemap/i.test(text));
     if (noteworthy.length === 0 && rest.length === 0) console.log('(none)');
     for (const text of [...noteworthy.slice(0, 15), ...rest.slice(0, 5)]) console.log(`  ${text}`);
+    if (httpFailures.length > 0) {
+      console.log('--- HTTP failures (status >= 400 / network) ---');
+      for (const line of [...new Set(httpFailures)].slice(0, 20)) console.log(`  ${line}`);
+    }
     if (consoleWarnings.length > 0) {
       console.log('--- map-related warnings ---');
       for (const text of consoleWarnings.slice(0, 10)) console.log(`  ${text}`);

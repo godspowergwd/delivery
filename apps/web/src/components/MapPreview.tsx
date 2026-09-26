@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { mapStyleUrl } from '../lib/live-map';
-import { handleMissingStyleImage, loadMapGL, relaxStyleFilters, type GLMap } from '../lib/map-engine';
+import { dropUncoveredIncidentLayers, handleMissingStyleImage, loadMapGL, relaxStyleFilters, type GLMap } from '../lib/map-engine';
 
 /** Branded placeholder — a failed preview never leaves a blank pane behind. */
 const PREVIEW_FALLBACK = '<div class="map-fallback">Map preview needs WebGL</div>';
@@ -60,6 +60,9 @@ export function MapPreview({
           // filters before the first tile, transparent pixels for sprite gaps.
           const onStyleLoad = (): void => {
             relaxStyleFilters(map!);
+            // Same console-cleanliness fix as the live map: the navigation
+            // style's incidents tiles 404 over Ghana and only add noise.
+            dropUncoveredIncidentLayers(map!);
           };
           const onMissingImage = (event: unknown): void => {
             handleMissingStyleImage(map!, event);

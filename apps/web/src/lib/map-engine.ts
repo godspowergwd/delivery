@@ -11,7 +11,7 @@
  * `mapbox://` URLs inside that style (tiles, glyphs, sprites), nothing else.
  */
 
-import { mapboxAccessToken } from './map-config';
+import { mapboxAccessToken, mapStyleUrl } from './map-config';
 
 export type MapModule = typeof import('mapbox-gl');
 /** The bundle's default export carries every runtime member (Map, Marker, …). */
@@ -22,9 +22,26 @@ export type GLMarker = InstanceType<MapboxGL['Marker']>;
 
 let enginePromise: Promise<MapboxGL> | null = null;
 
+/**
+ * Pull the style document into the HTTP cache while the GL engine chunk is still
+ * downloading, so the two network requests overlap instead of queueing. The map
+ * then finds its style already cached on the first frame it renders.
+ *
+ * Best effort by design: any failure (offline, blocked host, no fetch) is
+ * ignored — the map still requests the style itself.
+ */
+function prefetchStyle(): void {
+  try {
+    void fetch(mapStyleUrl(), { credentials: 'omit' }).catch(() => undefined);
+  } catch {
+    /* no fetch on this browser — the map loads the style on its own */
+  }
+}
+
 /** Loads Mapbox GL JS plus its stylesheet; the promise is cached per session. */
 export function loadMapGL(): Promise<MapboxGL> {
   if (!enginePromise) {
+    prefetchStyle();
     enginePromise = (async () => {
       await import('mapbox-gl/dist/mapbox-gl.css');
       const module = await import('mapbox-gl');
@@ -150,6 +167,40 @@ export function handleMissingStyleImage(map: GLMap, event: unknown): void {
   const id = typeof event === 'string' ? event : (event as { id?: unknown } | null)?.id;
   if (typeof id !== 'string' || id.length === 0 || map.hasImage(id)) return;
   map.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) });
+}
+
+/**
+ * Drops the `mapbox-incidents` source and every layer that reads it.
+ *
+ * Mapbox's navigation styles ship this vector source (tiles
+ * `mapbox.mapbox-incidents-v1`) with coverage over only a few regions: every
+ * tile over Ghana answers **404**, so the console fills with alarming
+ * "Failed to load resource" errors on a screen that renders perfectly. The
+ * layers it feeds are motorway closures and their endpoints — no value in this
+ * delivery map — and removing them stops the tile requests entirely.
+ *
+ * Idempotent (no-op once removed, or when a style has no such source), safe to
+ * call from every style event, and fully swallowed if a style rejects the edit
+ * mid-swap — the next `style.load` retries.
+ */
+export function dropUncoveredIncidentLayers(map: GLMap): void {
+  let spec: { layers?: unknown[] };
+  try {
+    if (!map.getSource('mapbox-incidents')) return;
+    spec = map.getStyle() as unknown as { layers?: unknown[] };
+  } catch {
+    return; // style not queryable yet — the next style event retries
+  }
+  try {
+    for (const entry of spec.layers ?? []) {
+      const layer = entry as { id?: unknown; source?: unknown };
+      if (layer.source !== 'mapbox-incidents' || typeof layer.id !== 'string') continue;
+      if (map.getLayer(layer.id)) map.removeLayer(layer.id);
+    }
+    map.removeSource('mapbox-incidents');
+  } catch {
+    // A layer removal must never break the surrounding style document.
+  }
 }
 
 /* -------------------------------------------------------------------------------------------

@@ -15,7 +15,7 @@ import { createRoot } from 'react-dom/client';
 import { LiveMap, useLiveMap, type LiveMapHandle } from './components/LiveMap';
 import { PageTransition } from './components/motion';
 import { DragSheet, type SheetSnap } from './components/DragSheet';
-import { KITCHEN_ANCHOR } from './lib/live-map';
+import { KITCHEN_ANCHOR, MAP_PROVIDER, mapStyleUrl } from './lib/live-map';
 import {
   instrumentGL,
   instrumentationEvents,
@@ -49,6 +49,11 @@ interface AuditSample {
   headingMarkers: number;
   driverRotation: number | null;
   mapBearing: number;
+  /** Which basemap provider is configured, and the host its style is served from. */
+  provider: string;
+  styleHost: string;
+  /** `container.dataset.mapState` — 'loading' until the first style data lands. */
+  mapState: string;
   routeLayer: boolean;
   routeFeatures: number;
   styleLoaded: boolean;
@@ -67,6 +72,8 @@ interface AuditApi {
   ready: boolean;
   sample(): AuditSample | null;
   handle(): LiveMapHandle | null;
+  /** Unmount + remount the whole map subtree, like navigating away and back. */
+  remount(): void;
 }
 
 declare global {
@@ -122,6 +129,15 @@ function readAppliedRotation(element: Element | null): number | null {
   return null;
 }
 
+/** Host serving the configured basemap style — proves which provider is in use. */
+function configuredStyleHost(): string {
+  try {
+    return new URL(mapStyleUrl()).host || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** One full picture of the renderer: DOM box, canvas state, overlays, map state. */
 function readSample(handle: LiveMapHandle | null): AuditSample | null {
   const shell = document.querySelector('.map-shell') as HTMLElement | null;
@@ -151,6 +167,9 @@ function readSample(handle: LiveMapHandle | null): AuditSample | null {
     headingMarkers: document.querySelectorAll('.map-heading-marker').length,
     driverRotation: readAppliedRotation(document.querySelector('.map-heading-marker')),
     mapBearing: Number.NaN,
+    provider: MAP_PROVIDER,
+    styleHost: configuredStyleHost(),
+    mapState: container.dataset.mapState ?? 'none',
     routeLayer: false,
     routeFeatures: 0,
     styleLoaded: false,
@@ -294,6 +313,7 @@ async function boot(): Promise<void> {
     ready: false,
     sample: () => null,
     handle: () => null,
+    remount: () => undefined,
   };
   window.__MAP_AUDIT__ = api;
 
@@ -302,13 +322,29 @@ async function boot(): Promise<void> {
   api.webglSupported = mapboxgl.supported();
   api.events.push({ t: now(), kind: 'note', detail: `mapboxgl.supported()=${api.webglSupported}` });
 
-  createRoot(document.getElementById('root') as HTMLElement).render(
-    <StrictMode>
-      <PageTransition routeKey="/driver/map">
-        <Harness />
-      </PageTransition>
-    </StrictMode>,
-  );
+  const root = createRoot(document.getElementById('root') as HTMLElement);
+  /**
+   * The whole map subtree is keyed, so bumping the key is a genuine unmount +
+   * mount (the same thing "navigate away and come back" does in the app). The
+   * `LiveMap` handle must be released and the engine removed in between —
+   * otherwise a second canvas would stack on the same container.
+   */
+  const renderApp = (generation: number): void => {
+    root.render(
+      <StrictMode>
+        <PageTransition routeKey={`/driver/map#${generation}`}>
+          <Harness key={generation} />
+        </PageTransition>
+      </StrictMode>,
+    );
+  };
+  let generation = 0;
+  api.remount = (): void => {
+    generation += 1;
+    api.events.push({ t: now(), kind: 'note', detail: `remount #${generation}` });
+    renderApp(generation);
+  };
+  renderApp(generation);
 }
 
 void boot();

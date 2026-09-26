@@ -546,6 +546,35 @@ img {
   visibility: visible;
 }
 
+/**
+ * Renderer state chip. While the style is still arriving — or a WebGL context is
+ * being restored — the canvas pane is empty by design, and an empty pane is
+ * indistinguishable from a map that "disappeared". This says which one it is.
+ * Decorative only: `pointer-events: none` keeps every gesture on the canvas, and
+ * the attribute flips to `ready` the moment the first style data lands (see
+ * `container.dataset.mapState` in LiveMap.tsx).
+ */
+.map-shell .map-canvas[data-map-state='loading']::after {
+  content: 'Loading the map…';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgb(255 255 255 / 0.95);
+  box-shadow: var(--shadow-soft);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink-muted, #6a7383);
+  white-space: nowrap;
+}
+
 
 /**
  * Driver navigation screen only. `.map-shell` is `position: relative` with no

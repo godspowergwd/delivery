@@ -6,6 +6,8 @@ import { ORDER_STATUS_DESCRIPTIONS, ORDER_STATUS_FLOW, ORDER_STATUS_LABELS, ORDE
 import { api } from '../../lib/api';
 import { useOrderTracking } from '../../lib/tracking';
 import { useDeviceLocation } from '../../lib/geolocation';
+import { distanceKm as roadDistanceKm } from '../../lib/live-map';
+import { fetchRoadRoute } from '../../lib/route';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
 import { ArrowLeftIcon, LocateIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
@@ -37,6 +39,14 @@ const CANCELLED_STEPS = [
   { label: 'Order placed', short: 'Placed' },
   { label: 'Cancelled', short: 'Stopped' },
 ];
+
+/**
+ * Route refresh policy, shared with the driver screen: a new Directions request
+ * only when the courier has moved a meaningful distance or a minute has passed —
+ * never one request per GPS fix.
+ */
+const ROUTE_REFRESH_MS = 60_000;
+const ROUTE_REFRESH_METRES = 250;
 
 function LiveBadge() {
   return (
@@ -130,6 +140,48 @@ export default function CustomerTracking() {
       { heading: location.position.heading },
     );
   }, [location.position, mapRef]);
+
+  // The road the courier is actually driving: the same Mapbox Directions call the
+  // driver screen uses, drawn here as a GeoJSON line layer between the driver's
+  // live fix and the customer's real drop-off coordinate. Throttled by distance
+  // and time so live tracking never becomes a Directions request per fix, and
+  // aborted as soon as a newer fix supersedes it.
+  const routeKeyRef = useRef<{ at: number; lat: number; lng: number; target: string } | null>(null);
+  const routeFetchRef = useRef(0);
+  useEffect(() => {
+    if (!driverLocation || !destination || !mapRef.current) return;
+    const targetKey = `${destination.lat.toFixed(5)},${destination.lng.toFixed(5)}`;
+    const previous = routeKeyRef.current;
+    const movedMetres = previous
+      ? roadDistanceKm(
+          { lat: previous.lat, lng: previous.lng },
+          { lat: driverLocation.latitude, lng: driverLocation.longitude },
+        ) * 1000
+      : Number.POSITIVE_INFINITY;
+    const stale = previous ? Date.now() - previous.at > ROUTE_REFRESH_MS : true;
+    if (previous && previous.target === targetKey && movedMetres < ROUTE_REFRESH_METRES && !stale) return;
+    routeKeyRef.current = {
+      at: Date.now(),
+      lat: driverLocation.latitude,
+      lng: driverLocation.longitude,
+      target: targetKey,
+    };
+
+    const requestId = (routeFetchRef.current += 1);
+    const controller = new AbortController();
+    fetchRoadRoute(
+      { lat: driverLocation.latitude, lng: driverLocation.longitude },
+      destination,
+      controller.signal,
+    )
+      .then((next) => {
+        // A newer fix already started its own fetch: let it own the canvas.
+        if (requestId !== routeFetchRef.current) return;
+        mapRef.current.setRoute(next.coordinates);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [driverLocation, destination, mapRef]);
 
   const cancelled = orderData?.status === 'CANCELLED';
   const steps = cancelled ? CANCELLED_STEPS : TRACK_STEPS;

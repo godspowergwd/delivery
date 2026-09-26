@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { DEFAULT_MAP_ZOOM, KITCHEN_ANCHOR, mapFallbackStyleUrl, mapStyleUrl, type LatLng } from '../lib/live-map';
 import {
+  dropUncoveredIncidentLayers,
   handleMissingStyleImage,
   loadMapGL,
   relaxStyleFilters,
@@ -88,6 +89,7 @@ const NATIVE_MARKER_COLORS: Record<MapMarkerKind, string> = {
 
 /** Branded placeholder — a failed map never leaves a blank pane behind. */
 function showFallback(container: HTMLElement, message: string): void {
+  container.dataset.mapState = 'failed';
   container.innerHTML = `<div class="map-fallback">${message}</div>`;
 }
 
@@ -98,6 +100,7 @@ function isUsablePoint(point: LatLng | null | undefined): point is LatLng {
 
 /** Recovery card with a real retry action (never a page reload). */
 function showRecovery(container: HTMLElement, message: string, onRetry: () => void): void {
+  container.dataset.mapState = 'failed';
   container.innerHTML =
     `<div class="map-fallback"><p>${message}</p><button type="button" data-map-retry>Retry map</button></div>`;
   container.querySelector('button[data-map-retry]')?.addEventListener('click', onRetry);
@@ -230,15 +233,20 @@ export function useLiveMap(
      * fresh attempt on the same container (no page reload, no duplicate maps).
      * Returns `false` once the budget is spent.
      */
-    const rebuild = (): boolean => {
+    const rebuild = (reason: string): boolean => {
       if (cancelled || rebuilds >= 3) return false;
       rebuilds += 1;
+      // A rebuild is a real repair, never routine: state the cause so the
+      // console answers "the map vanished" instead of hiding why.
+      window.console.warn(`[map] rebuilding the renderer — ${reason}`);
       dispose?.();
       dispose = null;
       // The old renderer's dispose flips the shared flag; the effect itself is
       // still mounted, so re-arm it before the fresh attempt.
       cancelled = false;
       const container = containerRef.current;
+      // `dispose()` has already removed the map and its canvas; this only clears
+      // a leftover fallback/retry card so it cannot sit under the new renderer.
       if (container) container.innerHTML = '';
       start();
       return true;
@@ -247,7 +255,7 @@ export function useLiveMap(
     /** User-driven retry: always allowed, and it resets the self-healing budget. */
     const retry = (): void => {
       rebuilds = 0;
-      rebuild();
+      rebuild('the user asked for a retry');
     };
 
     const initMap = (container: HTMLDivElement): (() => void) => {
@@ -265,6 +273,12 @@ export function useLiveMap(
       // Content from an earlier attempt (fallback/retry card) must not survive
       // underneath the new renderer.
       container.innerHTML = '';
+      // Honest renderer state, read by the `.map-canvas[data-map-state=…]` CSS:
+      // until the style's first data lands the pane shows a "loading" chip
+      // instead of an empty surface that looks like a map that vanished. It is
+      // purely decorative (`pointer-events: none`) and never covers the canvas
+      // once the style is ready.
+      container.dataset.mapState = 'loading';
       if (!mapboxgl.supported()) {
         showFallback(container, 'Live map needs WebGL on this device — the delivery details are listed below.');
         return () => undefined;
@@ -498,7 +512,7 @@ export function useLiveMap(
         if (headingDeg !== null) headings[kind] = headingDeg;
         if (!mapInstance.isStyleLoaded()) return;
         const previous = displayed[kind];
-        if (!previous || !animate || !markers[kind]) {
+        if (!previous || !markers[kind]) {
           markers[kind]?.remove();
           // Native SDK marker attached directly to the map. Never draggable, so
           // it can never intercept a gesture or float above the canvas as a
@@ -520,6 +534,22 @@ export function useLiveMap(
             .addTo(mapInstance);
           displayed[kind] = { ...point };
           rotations[kind] = headings[kind] ?? 0;
+          return;
+        }
+        if (!animate) {
+          // An existing pin is *moved in place*, never rebuilt. `setDestination`
+          // and `setRestaurant` are non-animated and are re-sent on every
+          // polling tick: destroying and re-creating a `Marker` each time makes
+          // the pin blink and churns DOM nodes under the canvas — churn that
+          // reads as pins "disappearing" while an order is live. `setLngLat`
+          // with unchanged coordinates is a projection-level no-op.
+          markers[kind]?.setLngLat([point.lng, point.lat]);
+          displayed[kind] = { ...point };
+          const snapRotation = headings[kind] ?? rotations[kind] ?? 0;
+          if (snapRotation !== rotations[kind]) {
+            markers[kind]?.setRotation(snapRotation);
+            rotations[kind] = snapRotation;
+          }
           return;
         }
         // The heading travels with the position: the pin turns along the shortest
@@ -695,12 +725,14 @@ export function useLiveMap(
           // A jump that keeps failing means the renderer itself is gone.
           if (cameraHeals <= 2) {
             mapInstance.jumpTo({ center: [anchor.lng, anchor.lat], zoom: safeZoom(), bearing: 0, pitch: 0 });
-          } else if (!rebuild()) {
+          } else if (!rebuild('camera transform never became finite')) {
             showRecovery(container, 'The live map stopped rendering on this device.', retry);
             return;
           }
         } catch {
-          if (!rebuild()) showRecovery(container, 'The live map stopped rendering on this device.', retry);
+          if (!rebuild('camera jump threw')) {
+            showRecovery(container, 'The live map stopped rendering on this device.', retry);
+          }
           return;
         }
         syncCanvas();
@@ -714,17 +746,22 @@ export function useLiveMap(
       // included) finish, so a transient tile hiccup must never swap the style.
       let styleReady = false;
       let triedFallbackStyle = false;
+      // 8 s is generous for a first style over slow mobile data (the Mapbox-hosted
+      // style normally lands well under a second) and short enough that a blocked
+      // domain or a revoked token degrades to the keyless style before the driver
+      // gives up on a blank pane.
       const styleWatchdog = window.setTimeout(() => {
         if (cancelled || styleReady) return;
         if (!triedFallbackStyle) {
           triedFallbackStyle = true;
+          window.console.warn('[map] no style data after 8s — switching to the keyless fallback style');
           try {
             mapInstance.setStyle(mapFallbackStyleUrl());
           } catch {
             showRecovery(container, 'The map style could not be loaded. Check your connection and retry.', retry);
           }
         }
-      }, 12_000);
+      }, 8_000);
 
       const onMapError = (event: unknown): void => {
         // Tile hiccups are normal on a flaky network and stay quiet: they are
@@ -762,6 +799,12 @@ export function useLiveMap(
       const onStyleData = (): void => {
         if (cancelled || mapInstance._removed) return;
         styleReady = true;
+        // First real style data = the basemap is painting: drop the loading chip.
+        container.dataset.mapState = 'ready';
+        // Earliest possible moment: stop Mapbox's region-limited incidents tiles
+        // (404 over Ghana) before they are requested. Idempotent, so every later
+        // style event re-running this is a cheap no-op.
+        dropUncoveredIncidentLayers(mapInstance);
         ensureRouteLayers();
       };
       mapInstance.on('styledata', onStyleData);
@@ -777,6 +820,9 @@ export function useLiveMap(
         // numeric filters (Mapbox v3 vs MapLibre-tolerant styles) so the worker
         // never logs `… evaluated to null but was expected to be of type number`.
         relaxStyleFilters(mapInstance);
+        // …and drop the incidents layers+source whose tiles 404 outside their
+        // sparse coverage, so the console stays clean on a healthy screen.
+        dropUncoveredIncidentLayers(mapInstance);
         try {
           ensureRouteLayers();
         } catch {
@@ -798,6 +844,7 @@ export function useLiveMap(
         styleReady = true;
         window.clearTimeout(styleWatchdog);
         relaxStyleFilters(mapInstance);
+        dropUncoveredIncidentLayers(mapInstance);
         ensureRouteLayers();
         applyRoute(true);
       } else {
@@ -823,22 +870,41 @@ export function useLiveMap(
       mapInstance.on('styleimagemissing', onMissingImage);
 
       // WebGL context loss: ask for a restore, and rebuild if it never comes.
+      //
+      // Mobile reality: backgrounding the PWA, a memory squeeze or a GPU reset
+      // all drop the context. The browser fires `webglcontextrestored` when it
+      // can — usually within a second — so a short grace period plus the
+      // restore handler recovers in place, without ever tearing down a map that
+      // is about to come back. `canvasMisses` also feeds the watchdog below.
       let rebuildTimer = 0;
+      let canvasMisses = 0;
       const onContextLost = (event: Event): void => {
         event.preventDefault();
+        // The pane is genuinely blank until the context returns — say so instead
+        // of showing empty grey.
+        container.dataset.mapState = 'loading';
         window.clearTimeout(rebuildTimer);
         rebuildTimer = window.setTimeout(() => {
           if (cancelled) return;
-          if (!rebuild()) showRecovery(container, 'The live map stopped rendering on this device.', retry);
-        }, 4_000);
+          // A hidden tab is not painting by definition: never rebuild from a
+          // background timer, the next visible frame restores it.
+          if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+          if (!rebuild('webgl context was not restored')) {
+            showRecovery(container, 'The live map stopped rendering on this device.', retry);
+          }
+        }, 1_500);
       };
       const onContextRestored = (): void => {
         window.clearTimeout(rebuildTimer);
+        canvasMisses = 0;
         try {
+          container.dataset.mapState = styleReady ? 'ready' : 'loading';
           mapInstance.resize();
           mapInstance.triggerRepaint();
         } catch {
-          if (!rebuild()) showRecovery(container, 'The live map stopped rendering on this device.', retry);
+          if (!rebuild('webgl context restored into a broken renderer')) {
+            showRecovery(container, 'The live map stopped rendering on this device.', retry);
+          }
         }
       };
       canvas.addEventListener('webglcontextlost', onContextLost, false);
@@ -856,22 +922,35 @@ export function useLiveMap(
       }
 
       // Watchdog: catches layouts that never resize (so the observer stays
-      // silent) and the one failure the engine cannot report — a canvas that
-      // got detached or zeroed. Self-heals in place; when the shared budget is
-      // spent it hands over to the retry card instead of looping.
+      // silent) and the one failure the engine cannot report — a canvas that got
+      // detached or zeroed.
+      //
+      // False positives are the real danger here: a sheet snap, an orientation
+      // change or a background tab can leave the canvas momentarily 0×0, and
+      // rebuilding on that single sample is exactly how a working map gets torn
+      // down and looks like it "disappeared". So a rebuild needs two consecutive
+      // bad samples on a *visible* page, and every repair is logged with a
+      // reason. When the shared budget is spent it hands over to the retry card.
       const watchdog = window.setInterval(() => {
         if (cancelled || !containerSized()) return;
         const live = mapInstance.getCanvas();
-        if (!live || !live.isConnected || live.width === 0 || live.height === 0) {
-          window.console.warn('[map] renderer canvas went missing — rebuilding the map');
-          if (!rebuild()) {
-            window.clearInterval(watchdog);
-            showRecovery(container, 'The live map stopped rendering on this device.', retry);
-          }
+        const healthy = Boolean(live) && live!.isConnected && live!.width > 0 && live!.height > 0;
+        if (healthy) {
+          canvasMisses = 0;
+          healCamera();
+          syncCanvas();
           return;
         }
-        healCamera();
-        syncCanvas();
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          canvasMisses = 0; // nothing is obliged to paint while hidden
+          return;
+        }
+        canvasMisses += 1;
+        if (canvasMisses < 2) return; // one bad sample is a transient resize
+        if (!rebuild('renderer canvas stayed missing or zero-sized')) {
+          window.clearInterval(watchdog);
+          showRecovery(container, 'The live map stopped rendering on this device.', retry);
+        }
       }, 1_500);
 
       mapInstance.on('load', () => {
@@ -1047,6 +1126,7 @@ export function useLiveMap(
         } catch {
           /* already removed */
         }
+        delete container.dataset.mapState;
         handleRef.current = emptyHandle();
       };
     };
