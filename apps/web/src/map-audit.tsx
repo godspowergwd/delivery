@@ -45,6 +45,10 @@ interface AuditSample {
   fallbackCard: boolean;
   fallbackText: string;
   markers: number;
+  /** Heading-aware pins on screen (driver + device), and the SDK's applied rotation. */
+  headingMarkers: number;
+  driverRotation: number | null;
+  mapBearing: number;
   routeLayer: boolean;
   routeFeatures: number;
   styleLoaded: boolean;
@@ -89,6 +93,35 @@ function computeVisible(sample: Omit<AuditSample, 'visible' | 't'>): boolean {
   );
 }
 
+/**
+ * The rotation Mapbox has actually painted onto a heading pin.
+ *
+ * The SDK writes the whole marker transform in one inline string: a translate
+ * for the projected position, the anchor translate, an optional pitch
+ * `rotateX(...)`, then the Z rotation. For `rotationAlignment: 'map'` the Z step
+ * is emitted as `rotateZ(<heading - mapBearing>deg)` (a bare `rotate(...)` is
+ * used for viewport alignment), so every spelling is decoded here — this is the
+ * only way to prove a heading reached the screen rather than just the API.
+ */
+function readAppliedRotation(element: Element | null): number | null {
+  if (!element) return null;
+  const transform = (element as HTMLElement).style.transform || '';
+  const toDegrees = (degrees: number): number => ((degrees % 360) + 360) % 360;
+  for (const pattern of [/rotateZ\((-?[\d.]+)(?:deg)?\)/, /rotate\((-?[\d.]+)(?:deg)?\)/, /rotateX\((-?[\d.]+)(?:deg)?\)/]) {
+    const match = pattern.exec(transform);
+    if (match) return toDegrees(Number(match[1]));
+  }
+  for (const pattern of [/matrix3d\(([^)]+)\)/, /matrix\(([^)]+)\)/]) {
+    const match = pattern.exec(transform);
+    if (!match) continue;
+    const values = match[1].split(',').map((part) => Number.parseFloat(part));
+    if (Number.isFinite(values[0]) && Number.isFinite(values[1])) {
+      return toDegrees((Math.atan2(values[1], values[0]) * 180) / Math.PI);
+    }
+  }
+  return null;
+}
+
 /** One full picture of the renderer: DOM box, canvas state, overlays, map state. */
 function readSample(handle: LiveMapHandle | null): AuditSample | null {
   const shell = document.querySelector('.map-shell') as HTMLElement | null;
@@ -115,6 +148,9 @@ function readSample(handle: LiveMapHandle | null): AuditSample | null {
     fallbackCard: Boolean(fallback),
     fallbackText: fallback?.textContent?.trim().slice(0, 120) ?? '',
     markers: document.querySelectorAll('.mapboxgl-marker').length,
+    headingMarkers: document.querySelectorAll('.map-heading-marker').length,
+    driverRotation: readAppliedRotation(document.querySelector('.map-heading-marker')),
+    mapBearing: Number.NaN,
     routeLayer: false,
     routeFeatures: 0,
     styleLoaded: false,
@@ -128,6 +164,7 @@ function readSample(handle: LiveMapHandle | null): AuditSample | null {
     try {
       base.styleLoaded = map.isStyleLoaded();
       base.zoom = map.getZoom();
+      base.mapBearing = map.getBearing();
       const center = map.getCenter();
       base.center = [Number(center.lat.toFixed(6)), Number(center.lng.toFixed(6))];
       base.routeLayer = Boolean(map.getLayer('onyx-route-line'));

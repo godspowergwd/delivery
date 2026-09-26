@@ -132,11 +132,15 @@ function summarizeSample(sample) {
   const canvas = sample.canvasAttached
     ? `${sample.canvasBufferW}x${sample.canvasBufferH}/${sample.canvasClientW}x${sample.canvasClientH}`
     : 'detached';
+  const rotation = Number.isFinite(sample.driverRotation)
+    ? `${sample.driverRotation.toFixed(0)}deg`
+    : 'n/a';
   return (
     `t=${(sample.t / 1000).toFixed(1)}s vis=${sample.visible ? 'YES' : 'no '} ` +
     `box=${sample.containerW}x${sample.containerH} canvas=${canvas} ` +
     `css=${sample.canvasDisplay}/${sample.canvasVisibility}/op${sample.canvasOpacity} ` +
-    `markers=${sample.markers} route=${sample.routeLayer ? `${sample.routeFeatures}f` : 'none'} ` +
+    `markers=${sample.markers} pins=${sample.headingMarkers ?? 0} rot=${rotation} ` +
+    `route=${sample.routeLayer ? `${sample.routeFeatures}f` : 'none'} ` +
     `style=${sample.styleLoaded ? 'loaded' : 'pending'} zoom=${zoom} ` +
     `fallback=${sample.fallbackCard ? `"${sample.fallbackText}"` : 'none'}`
   );
@@ -255,6 +259,26 @@ async function main() {
     } else {
       console.log('map stayed visible for the whole 14 s window');
     }
+
+    console.log('\n--- heading rotation probe ---');
+    const rotated = timeline.filter((sample) => sample && Number.isFinite(sample.driverRotation));
+    const headingPins = timeline.reduce((max, sample) => Math.max(max, sample?.headingMarkers ?? 0), 0);
+    // Map-aligned rotation is painted as `heading - bearing`, so the device
+    // heading the pin actually shows is the sum back again.
+    const headings = rotated.map((sample) =>
+      (((sample.driverRotation + (Number.isFinite(sample.mapBearing) ? sample.mapBearing : 0)) % 360) + 360) % 360,
+    );
+    const distinct = [...new Set(headings.map((value) => value.toFixed(0)))];
+    console.log(`heading pins on screen: ${headingPins}`);
+    console.log(`rotated samples: ${rotated.length}/${timeline.length}, first applied rotation: ${
+      rotated.length > 0 ? `${rotated[0].driverRotation.toFixed(0)}deg` : '(none)'
+    }`);
+    console.log(`headings painted: ${distinct.length > 0 ? distinct.join('deg, ') : '(none)'}`);
+    console.log(
+      distinct.length > 1
+        ? 'driver pin turned as fixes arrived — heading reaches the screen'
+        : 'ROTATION STATIC — driver heading never reached the marker',
+    );
 
     console.log('\n--- console errors (map/style/webgl network failures first) ---');
     const noteworthy = consoleErrors.filter((text) => /map|style|webgl|tiles|glyph|sprite|openfreemap/i.test(text));
