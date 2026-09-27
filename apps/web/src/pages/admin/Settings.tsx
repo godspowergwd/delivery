@@ -87,8 +87,8 @@ export function AdminSettings() {
           <Field label="Phone">
             <Input value={form.businessPhone ?? ''} onChange={(event) => update({ businessPhone: event.target.value })} />
           </Field>
-          <Field label="Email">
-            <Input value={form.businessEmail ?? ''} onChange={(event) => update({ businessEmail: event.target.value })} />
+          <Field label="Email" htmlFor="business-email">
+            <Input id="business-email" name="businessEmail" type="email" autoComplete="off" value={form.businessEmail ?? ''} onChange={(event) => update({ businessEmail: event.target.value })} />
           </Field>
         </div>
       </Card>
@@ -151,8 +151,8 @@ export function AdminSettings() {
           <Field label="Support phone">
             <Input value={form.supportPhone ?? ''} onChange={(event) => update({ supportPhone: event.target.value })} />
           </Field>
-          <Field label="Support email">
-            <Input value={form.supportEmail ?? ''} onChange={(event) => update({ supportEmail: event.target.value })} />
+          <Field label="Support email" htmlFor="support-email">
+            <Input id="support-email" name="supportEmail" type="email" autoComplete="off" value={form.supportEmail ?? ''} onChange={(event) => update({ supportEmail: event.target.value })} />
           </Field>
         </div>
       </Card>
