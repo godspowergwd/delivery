@@ -35,6 +35,11 @@ export interface CreateOrderInput {
   /** Real geocoded delivery pin from a validated suggestion (required). */
   deliveryLatitude: number;
   deliveryLongitude: number;
+  deliveryOriginalLatitude?: number | null;
+  deliveryOriginalLongitude?: number | null;
+  deliveryLocationSource?: 'gps' | 'search';
+  deliveryLocationConfirmedAt?: Date;
+  idempotencyKey?: string;
 }
 
 interface LineDraft {
@@ -65,6 +70,13 @@ async function nextOrderNumber(): Promise<string> {
   const now = new Date();
   const todaysCount = await prisma.order.count({ where: { createdAt: { gte: startOfDay(now) } } });
   return orderNumberFor(now, todaysCount + 1);
+}
+
+function isRequestIdConflict(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') return false;
+  const target = error.meta?.target;
+  const fields = Array.isArray(target) ? target.map(String) : [String(target ?? '')];
+  return fields.some((field) => field.includes('clientRequestId'));
 }
 
 export function statusLabel(status: OrderStatusType): string {
@@ -182,6 +194,11 @@ async function persistOrder(params: {
             // Coordinates are validated by the route schema (required, non 0/0).
             deliveryLatitude: input.deliveryLatitude,
             deliveryLongitude: input.deliveryLongitude,
+            deliveryOriginalLatitude: input.deliveryOriginalLatitude ?? null,
+            deliveryOriginalLongitude: input.deliveryOriginalLongitude ?? null,
+            deliveryLocationSource: input.deliveryLocationSource ?? null,
+            deliveryLocationConfirmedAt: input.deliveryLocationConfirmedAt ?? new Date(),
+            clientRequestId: input.idempotencyKey ?? null,
             subtotal: new Prisma.Decimal(draft.totals.subtotal),
             deliveryFee: new Prisma.Decimal(draft.totals.deliveryFee),
             tax: new Prisma.Decimal(draft.totals.tax),
@@ -209,6 +226,7 @@ async function persistOrder(params: {
       }, { maxWait: 10_000, timeout: 30_000 });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        if (isRequestIdConflict(error)) throw error;
         orderId = null;
         continue;
       }
@@ -254,9 +272,33 @@ export async function createOrder(params: {
   request?: Request;
 }): Promise<OrderWithRelations> {
   const { user, input, request } = params;
+  if (input.idempotencyKey) {
+    const existing = await prisma.order.findUnique({
+      where: { clientRequestId: input.idempotencyKey },
+      include: ORDER_INCLUDE,
+    });
+    if (existing) {
+      if (existing.customerId !== user.id) throw conflict('This order request belongs to another customer.');
+      return existing;
+    }
+  }
+
   await assertDeliverableTo(input.deliveryLatitude, input.deliveryLongitude);
   const draft = await buildOrderDraft(input);
-  const orderId = await persistOrder({ user, input, draft });
+  let orderId: string;
+  try {
+    orderId = await persistOrder({ user, input, draft });
+  } catch (error) {
+    if (!input.idempotencyKey || !isRequestIdConflict(error)) throw error;
+    const existing = await prisma.order.findUnique({
+      where: { clientRequestId: input.idempotencyKey },
+      include: ORDER_INCLUDE,
+    });
+    if (!existing || existing.customerId !== user.id) {
+      throw conflict('This order request could not be safely retried.');
+    }
+    return existing;
+  }
   const fullOrder = await getOrderById(orderId);
   const dto = serializeOrder(fullOrder);
   const money = (amount: number) => `${draft.currencySymbol}${amount.toFixed(2)}`;

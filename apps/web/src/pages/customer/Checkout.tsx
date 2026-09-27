@@ -1,17 +1,47 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AddressDTO, OrderDTO, SettingsDTO } from '@delivery/shared';
 import { PAYMENT_METHOD_LABELS, computeTotals, formatMoney } from '@delivery/shared';
-import { api } from '../../lib/api';
+import { ApiError, api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useCart } from '../../lib/cart';
 import type { PlaceSuggestion } from '../../lib/geocode';
+import {
+  clearConfirmedDeliveryLocation,
+  readConfirmedDeliveryLocation,
+  saveConfirmedDeliveryLocation,
+  type ConfirmedDeliveryLocation,
+} from '../../lib/delivery-location';
+import {
+  clearPendingOrder,
+  readPendingOrder,
+  savePendingOrder,
+  type OrderSubmissionPayload,
+} from '../../lib/offline-order';
 import { toast } from '../../lib/realtime';
 import { Button, Card, Field, Input, Textarea } from '../../components/ui';
 import { MapPreview } from '../../components/MapPreview';
 import { LocationSearch } from '../../components/LocationSearch';
 import { CheckIcon, LeafIcon } from '../../components/icons';
+
+function toPlaceSuggestion(location: ConfirmedDeliveryLocation): PlaceSuggestion {
+  return {
+    id: `confirmed:${location.confirmedAt}`,
+    label: location.label,
+    address: location.address,
+    lat: location.latitude,
+    lng: location.longitude,
+    source: location.source === 'gps' ? 'gps' : 'mapbox',
+    kind: location.source === 'gps' ? 'gps' : 'area',
+  };
+}
+
+function isTransientOrderFailure(error: unknown): boolean {
+  return typeof navigator !== 'undefined' && !navigator.onLine ||
+    error instanceof TypeError ||
+    (error instanceof ApiError && [0, 502, 503, 504].includes(error.status));
+}
 
 /**
  * Checkout — account-only (gated by <RequireAccount>), so everyone here is
@@ -25,11 +55,16 @@ export function Checkout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [addressText, setAddressText] = useState('');
-  const [selected, setSelected] = useState<PlaceSuggestion | null>(null);
+  const [confirmedLocation, setConfirmedLocation] = useState(() => readConfirmedDeliveryLocation(user?.id));
+  const [addressText, setAddressText] = useState(() => confirmedLocation?.label ?? '');
+  const [selected, setSelected] = useState<PlaceSuggestion | null>(() =>
+    confirmedLocation ? toPlaceSuggestion(confirmedLocation) : null,
+  );
   const [deliveryPhone, setDeliveryPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'MOBILE_MONEY'>('CASH');
+  const [pendingOrder, setPendingOrder] = useState<OrderSubmissionPayload | null>(() => readPendingOrder(user?.id));
+  const pendingOrderRef = useRef(pendingOrder);
 
   const { data: settingsData } = useQuery({
     queryKey: ['settings'],
@@ -49,6 +84,40 @@ export function Checkout() {
       ),
   });
   const outOfZone = zoneCheck.data ? !zoneCheck.data.within : false;
+  const confirmedSource = selected?.source === 'gps' ? 'gps' : selected?.source === 'mapbox' ? 'search' : null;
+  const confirmedMatchesSelection = Boolean(
+    confirmedLocation && selected && confirmedSource === confirmedLocation.source &&
+    selected.lat === confirmedLocation.latitude && selected.lng === confirmedLocation.longitude &&
+    selected.address === confirmedLocation.address,
+  );
+
+  const selectLocation = (place: PlaceSuggestion | null): void => {
+    setSelected(place);
+    setConfirmedLocation(null);
+    clearConfirmedDeliveryLocation(user?.id);
+  };
+
+  const confirmLocation = (): void => {
+    if (!selected || !confirmedSource || !Number.isFinite(selected.lat) || !Number.isFinite(selected.lng)) {
+      toast('Choose a valid map location before confirming it.', 'error');
+      return;
+    }
+    const snapshot: ConfirmedDeliveryLocation = {
+      latitude: selected.lat,
+      longitude: selected.lng,
+      originalLatitude: confirmedSource === 'gps' ? selected.lat : null,
+      originalLongitude: confirmedSource === 'gps' ? selected.lng : null,
+      address: selected.address,
+      label: selected.label,
+      source: confirmedSource,
+      confirmedAt: new Date().toISOString(),
+    };
+    if (!saveConfirmedDeliveryLocation(user?.id, snapshot)) {
+      toast('This device could not save the confirmed location. Check storage and try again.', 'error');
+      return;
+    }
+    setConfirmedLocation(snapshot);
+  };
 
   const { data: addressData } = useQuery({
     queryKey: ['addresses'],
@@ -63,7 +132,7 @@ export function Checkout() {
 
   // Preselect the saved default address once, before the guest touches the field.
   useEffect(() => {
-    if (selected || !addressData) return;
+    if (selected || confirmedLocation || !addressData) return;
     const saved = addressData.addresses.find((a) => a.isDefault) ?? addressData.addresses[0];
     if (!saved) return;
     const label = [saved.line1, saved.area, saved.city].filter(Boolean).join(', ');
@@ -79,7 +148,7 @@ export function Checkout() {
       source: 'saved',
       kind: 'area',
     });
-  }, [addressData, selected]);
+  }, [addressData, confirmedLocation, selected]);
 
   const totals = computeTotals({
     items: lines.map((line) => ({ unitPrice: line.unitPrice, quantity: line.quantity })),
@@ -88,31 +157,56 @@ export function Checkout() {
   });
 
   const placeOrder = useMutation({
-    mutationFn: () =>
-      api.post<{ order: OrderDTO }>('/orders', {
-        items: lines.map((line) => ({
-          productId: line.productId,
-          quantity: line.quantity,
-          notes: line.notes || undefined,
-        })),
-        // Real validated coordinates are required: the selected suggestion's
-        // geocoded pin is the delivery destination (server re-validates).
-        deliveryAddress: selected?.address ?? addressText,
-        deliveryPhone,
-        notes: notes || undefined,
-        paymentMethod,
-        deliveryLatitude: selected?.lat ?? null,
-        deliveryLongitude: selected?.lng ?? null,
-      }),
+    mutationFn: (payload: OrderSubmissionPayload) => api.post<{ order: OrderDTO }>('/orders', payload),
     onSuccess: (data) => {
+      clearPendingOrder(user?.id);
+      clearConfirmedDeliveryLocation(user?.id);
+      pendingOrderRef.current = null;
+      setPendingOrder(null);
+      setConfirmedLocation(null);
       clear();
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['active-orders'] });
       toast(`Order ${data.order.orderNumber} sent to the kitchen!`, 'success');
       navigate(`/app/orders/${data.order.id}`, { replace: true });
     },
-    onError: (error) => toast(error instanceof Error ? error.message : 'Could not place the order', 'error'),
+    onError: (error, payload) => {
+      if (isTransientOrderFailure(error)) {
+        if (savePendingOrder(user?.id, payload)) {
+          pendingOrderRef.current = payload;
+          setPendingOrder(payload);
+          toast('Order saved on this device. It will sync when you are back online.', 'info');
+          return;
+        }
+        toast('You are offline and this order could not be saved locally. Keep this page open and retry when connected.', 'error');
+        return;
+      }
+      toast(error instanceof Error ? error.message : 'Could not place the order', 'error');
+    },
   });
+
+  const sendOrderRef = useRef(placeOrder.mutate);
+  sendOrderRef.current = placeOrder.mutate;
+  useEffect(() => {
+    const onSynced = (event: Event): void => {
+      const order = (event as CustomEvent<{ order?: OrderDTO }>).detail?.order;
+      if (!order) return;
+      pendingOrderRef.current = null;
+      setPendingOrder(null);
+      setConfirmedLocation(null);
+      navigate(`/app/orders/${order.id}`, { replace: true });
+    };
+    const onRejected = (): void => {
+      pendingOrderRef.current = null;
+      setPendingOrder(null);
+    };
+    window.addEventListener('ds:offline-order-synced', onSynced);
+    window.addEventListener('ds:offline-order-rejected', onRejected);
+    return () => {
+      window.removeEventListener('ds:offline-order-synced', onSynced);
+      window.removeEventListener('ds:offline-order-rejected', onRejected);
+    };
+  }, [navigate]);
 
   if (lines.length === 0) {
     return (
@@ -137,21 +231,47 @@ export function Checkout() {
       toast('Please add a contact phone number.', 'error');
       return;
     }
-    if (!selected && !addressText.trim()) {
-      toast('Please choose a delivery address.', 'error');
-      return;
-    }
-    // A real geocoded pin is mandatory: free-typed text with no selected
-    // suggestion is not a valid delivery destination.
-    if (!selected || selected.lat === 0 || selected.lng === 0) {
-      toast('Pick your delivery location from the suggestions so the courier gets an exact pin.', 'error');
+    if (!confirmedLocation || !confirmedMatchesSelection) {
+      toast('Choose a location and confirm it as your delivery destination.', 'error');
       return;
     }
     if (outOfZone) {
       toast(zoneCheck.data?.message ?? 'We do not deliver to that location yet.', 'error');
       return;
     }
-    placeOrder.mutate();
+    if (pendingOrderRef.current) {
+      sendOrderRef.current(pendingOrderRef.current);
+      return;
+    }
+    const payload: OrderSubmissionPayload = {
+      idempotencyKey: crypto.randomUUID(),
+      items: lines.map((line) => ({
+        productId: line.productId,
+        quantity: line.quantity,
+        notes: line.notes || undefined,
+      })),
+      deliveryAddress: confirmedLocation.address,
+      deliveryPhone,
+      notes: notes || undefined,
+      paymentMethod,
+      deliveryLatitude: confirmedLocation.latitude,
+      deliveryLongitude: confirmedLocation.longitude,
+      deliveryOriginalLatitude: confirmedLocation.originalLatitude,
+      deliveryOriginalLongitude: confirmedLocation.originalLongitude,
+      deliveryLocationSource: confirmedLocation.source,
+      deliveryLocationConfirmedAt: confirmedLocation.confirmedAt,
+    };
+    if (!navigator.onLine) {
+      if (!savePendingOrder(user?.id, payload)) {
+        toast('You are offline and this order could not be saved locally. Keep this page open and retry when connected.', 'error');
+        return;
+      }
+      pendingOrderRef.current = payload;
+      setPendingOrder(payload);
+      toast('Order saved on this device. It will sync when you are back online.', 'info');
+      return;
+    }
+    placeOrder.mutate(payload);
   };
 
   const accepting = settings?.acceptingOrders ?? true;
@@ -169,9 +289,12 @@ export function Checkout() {
         <LocationSearch
           value={addressText}
           onChange={setAddressText}
-          onSelect={setSelected}
+          onSelect={selectLocation}
           selected={selected}
+          label="Choose another location"
+          placeholder="Search for a different delivery location"
           required
+          disabled={Boolean(pendingOrder)}
         />
         {zoneCheck.data && (
           <p
@@ -203,14 +326,32 @@ export function Checkout() {
               lng={selected.lng}
               address={selected.address}
               className="h-40"
-              label={`Delivery pin for ${selected.label}`}
+              label={`${confirmedMatchesSelection ? 'Delivery destination' : 'Proposed delivery location'}: ${selected.label}`}
             />
+            {confirmedMatchesSelection ? (
+              <p role="status" className="mt-2 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
+                Delivery location confirmed and saved on this device. It will stay fixed if you move.
+              </p>
+            ) : (
+              <Button type="button" className="mt-2 w-full" onClick={confirmLocation} disabled={outOfZone || Boolean(pendingOrder)}>
+                Confirm delivery location
+              </Button>
+            )}
           </div>
         )}
         {selected && selected.lat === 0 && selected.lng === 0 && (
           <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
             That saved address has no GPS pin yet — pick a suggestion above so the courier gets an exact pin.
           </p>
+        )}
+        {pendingOrder && (
+          <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+            <p className="font-semibold">Order saved on this device for {pendingOrder.deliveryAddress}.</p>
+            <p className="text-xs">It will sync when your connection returns. This destination is locked.</p>
+            <Button type="button" size="sm" variant="outline" loading={busy} onClick={() => sendOrderRef.current(pendingOrder)}>
+              Retry sync now
+            </Button>
+          </div>
         )}
       </Card>
 
@@ -221,6 +362,7 @@ export function Checkout() {
             required
             inputMode="tel"
             autoComplete="tel"
+            disabled={Boolean(pendingOrder)}
             value={deliveryPhone}
             onChange={(event) => setDeliveryPhone(event.target.value)}
             placeholder="+233 20 123 4567"
@@ -228,6 +370,7 @@ export function Checkout() {
         </Field>
         <Field label="Order notes" hint="Extra sauce, no shito, gate code…">
           <Textarea
+            disabled={Boolean(pendingOrder)}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
             rows={3}
@@ -246,6 +389,7 @@ export function Checkout() {
                   type="button"
                   role="radio"
                   aria-checked={active}
+                  disabled={Boolean(pendingOrder)}
                   onClick={() => setPaymentMethod(method)}
                   className={
                     active
@@ -280,7 +424,7 @@ export function Checkout() {
             The kitchen is currently not accepting orders.
           </p>
         )}
-        <Button type="submit" size="lg" block loading={busy} disabled={!accepting}>
+        <Button type="submit" size="lg" block loading={busy} disabled={!accepting || !confirmedMatchesSelection || Boolean(pendingOrder)}>
           {busy ? 'Sending…' : `Place order · ${formatMoney(totals.total)}`}
         </Button>
       </Card>

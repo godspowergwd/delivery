@@ -74,4 +74,16 @@ describe('Mapbox location autocomplete', () => {
       source: 'gps',
     });
   });
+
+  it('keeps the exact GPS point usable offline when reverse geocoding is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Network unavailable')));
+
+    await expect(currentLocationPlace({ lat: 5.57741, lng: -0.31041 })).resolves.toMatchObject({
+      label: 'My Location',
+      address: 'GPS 5.577410, -0.310410',
+      lat: 5.57741,
+      lng: -0.31041,
+      source: 'gps',
+    });
+  });
 });

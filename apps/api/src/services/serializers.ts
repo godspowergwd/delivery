@@ -141,6 +141,10 @@ export function serializeOrder(order: OrderWithRelations): OrderDTO {
     driverName: order.driver?.name ?? null,
     deliveryLatitude: order.deliveryLatitude,
     deliveryLongitude: order.deliveryLongitude,
+    deliveryOriginalLatitude: order.deliveryOriginalLatitude,
+    deliveryOriginalLongitude: order.deliveryOriginalLongitude,
+    deliveryLocationSource: order.deliveryLocationSource,
+    deliveryLocationConfirmedAt: order.deliveryLocationConfirmedAt?.toISOString() ?? null,
     hasReceipt: Boolean(order.receipt),
   };
 }

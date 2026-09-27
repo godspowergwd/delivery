@@ -60,9 +60,24 @@ export async function currentLocationPlace(position: { lat: number; lng: number 
   if (!isGhanaCoordinate(position.lat, position.lng)) {
     throw new Error('The current location is outside the delivery region.');
   }
-  const { suggestion } = await api.get<{ suggestion: MapboxSuggestion }>(
-    `/geo/reverse?latitude=${position.lat}&longitude=${position.lng}`,
-  );
+  let suggestion: MapboxSuggestion;
+  try {
+    ({ suggestion } = await api.get<{ suggestion: MapboxSuggestion }>(
+      `/geo/reverse?latitude=${position.lat}&longitude=${position.lng}`,
+    ));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    console.warn('[geocode] Reverse lookup unavailable; retaining the captured GPS coordinates.', error);
+    return {
+      id: 'gps:current',
+      label: 'My Location',
+      address: `GPS ${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}`,
+      lat: position.lat,
+      lng: position.lng,
+      source: 'gps',
+      kind: 'gps',
+    };
+  }
   if (!suggestion.address.trim()) throw new Error('No readable address was found for this location.');
   return {
     id: 'gps:current',

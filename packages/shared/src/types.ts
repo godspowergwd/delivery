@@ -141,6 +141,10 @@ export interface OrderDTO {
    */
   deliveryLatitude: number | null;
   deliveryLongitude: number | null;
+  deliveryOriginalLatitude: number | null;
+  deliveryOriginalLongitude: number | null;
+  deliveryLocationSource: 'gps' | 'search' | null;
+  deliveryLocationConfirmedAt: string | null;
   hasReceipt?: boolean;
 }
 

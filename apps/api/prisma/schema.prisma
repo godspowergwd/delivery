@@ -35,6 +35,11 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum DeliveryLocationSource {
+  gps
+  search
+}
+
 enum NotificationType {
   ORDER_UPDATE
   PROMOTION
@@ -197,6 +202,11 @@ model Order {
   /// address estimate, so no existing row is rewritten or invalidated.
   deliveryLatitude  Float?
   deliveryLongitude Float?
+  deliveryOriginalLatitude  Float?
+  deliveryOriginalLongitude Float?
+  deliveryLocationSource DeliveryLocationSource?
+  deliveryLocationConfirmedAt DateTime? @db.Timestamp(3)
+  clientRequestId String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

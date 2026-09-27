@@ -12,6 +12,7 @@ import { installBootSplashSafetyNet, removeBootSplash } from './lib/boot-splash'
 import { Toaster } from './components/ui';
 import { AuthSheet } from './components/AuthSheet';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { OfflineOrderSync } from './components/OfflineOrderSync';
 import './styles.css';
 
 setupPwa();
@@ -69,6 +70,7 @@ function Chrome() {
   return (
     <>
       <RealtimeBridge />
+      <OfflineOrderSync />
       <App />
       <AuthSheet />
       <Toaster />

@@ -38,6 +38,7 @@ export function LocationSearch({
   label = 'Delivery address',
   placeholder = 'Start typing an address — e.g. Mallam…',
   required,
+  disabled = false,
   id,
   className,
 }: {
@@ -48,6 +49,7 @@ export function LocationSearch({
   label?: string;
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
   id?: string;
   className?: string;
 }) {
@@ -206,6 +208,7 @@ export function LocationSearch({
             autoComplete="off"
             spellCheck={false}
             required={required}
+            disabled={disabled}
             value={value}
             placeholder={placeholder}
             onChange={(event) => {
@@ -216,7 +219,7 @@ export function LocationSearch({
             }}
             onFocus={() => suggestions.length > 0 && setOpen(true)}
             onKeyDown={onKeyDown}
-            className="pr-24 pl-10"
+            className="pr-20 pl-10"
           />
           <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
             {searching && (
@@ -235,18 +238,20 @@ export function LocationSearch({
                 <span aria-hidden="true">✕</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={useCurrentLocation}
-              aria-label="Use my current location"
-              title="Use my current location"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-green-50 text-green-700 transition hover:bg-green-100 active:scale-95"
-            >
-              <LocateIcon className="h-4 w-4" />
-            </button>
           </div>
         </div>
       </Field>
+
+      <button
+        type="button"
+        onClick={useCurrentLocation}
+        aria-label="My Location"
+        disabled={disabled}
+        className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 text-sm font-semibold text-green-800 transition hover:bg-green-100 active:scale-[0.98]"
+      >
+        <LocateIcon className="h-4 w-4" aria-hidden="true" />
+        My Location
+      </button>
 
       {showList && (
         <ul

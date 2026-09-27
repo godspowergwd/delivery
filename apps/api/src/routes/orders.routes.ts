@@ -51,6 +51,29 @@ const createOrderSchema = z.object({
     .min(-180)
     .max(180)
     .refine((value) => value !== 0, 'Pick your delivery location from the suggestions.'),
+  deliveryOriginalLatitude: z.number().finite().min(-90).max(90).nullable().optional(),
+  deliveryOriginalLongitude: z.number().finite().min(-180).max(180).nullable().optional(),
+  deliveryLocationSource: z.enum(['gps', 'search']).optional(),
+  deliveryLocationConfirmedAt: z.string().datetime({ offset: true }).optional().transform((value) =>
+    value ? new Date(value) : undefined,
+  ),
+  idempotencyKey: z.string().uuid().optional(),
+}).superRefine((input, context) => {
+  if (input.deliveryLocationSource === 'gps' &&
+      (input.deliveryOriginalLatitude == null || input.deliveryOriginalLongitude == null)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['deliveryOriginalLatitude'],
+      message: 'GPS delivery locations must retain the original device coordinates.',
+    });
+  }
+  if ((input.deliveryOriginalLatitude == null) !== (input.deliveryOriginalLongitude == null)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['deliveryOriginalLongitude'],
+      message: 'Original GPS coordinates must be supplied as a pair.',
+    });
+  }
 });
 
 const listOrderQuerySchema = paginationSchema.extend({
