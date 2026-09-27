@@ -499,9 +499,18 @@ export function useLiveMap(
         try {
           const routeSource = mapInstance.getSource(ROUTE_SOURCE);
           const routeLine = mapInstance.getLayer('onyx-route-line');
-          if (routeSource && routeLine) return true;
+          const routeCasing = mapInstance.getLayer('onyx-route-casing');
           if (!routeSource) {
             mapInstance.addSource(ROUTE_SOURCE, { type: 'geojson', data: emptyCollection() });
+          }
+          if (!routeCasing) {
+            mapInstance.addLayer({
+              id: 'onyx-route-casing',
+              type: 'line',
+              source: ROUTE_SOURCE,
+              layout: { 'line-cap': 'round', 'line-join': 'round' },
+              paint: { 'line-color': '#ffffff', 'line-width': 11, 'line-opacity': 0.95 },
+            }, routeLine ? 'onyx-route-line' : undefined);
           }
           if (!routeLine) {
             mapInstance.addLayer({
@@ -999,7 +1008,9 @@ export function useLiveMap(
       const liveHandle: LiveMapHandle = {
         getMap: () => mapInstance,
         setRoute: (coordinates, routeOptions) => {
-          pendingRoute = coordinates.length > 0 ? coordinates : null;
+          const nextRoute = coordinates.length > 0 ? coordinates : null;
+          if (nextRoute !== pendingRoute) routeFitted = false;
+          pendingRoute = nextRoute;
           // Not ready yet (style still loading, or swapped to another provider):
           // `applyRoute` re-applies this exact geometry on the next style event.
           if (!mapInstance.isStyleLoaded()) return;

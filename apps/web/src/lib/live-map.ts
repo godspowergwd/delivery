@@ -69,6 +69,13 @@ export interface RoadRoute {
   coordinates: Array<[number, number]>;
   distanceKm: number;
   durationMin: number;
+  steps: Array<{
+    instruction: string;
+    distanceKm: number;
+    durationMin: number;
+    location: [number, number];
+    distanceFromStartKm: number;
+  }>;
   road: boolean;
   /** Directions provider for the road geometry. */
   provider: 'mapbox';

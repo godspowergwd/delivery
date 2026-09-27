@@ -40,7 +40,16 @@ describe('Mapbox service', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        routes: [{ geometry: { coordinates: [[-0.31, 5.57], [-0.30, 5.58]] }, distance: 2500, duration: 600 }],
+        routes: [{
+          geometry: { coordinates: [[-0.31, 5.57], [-0.30, 5.58]] },
+          distance: 2500,
+          duration: 600,
+          legs: [{ steps: [{
+            distance: 1200,
+            duration: 300,
+            maneuver: { instruction: 'Turn right onto Mallam Road', location: [-0.305, 5.575] },
+          }] }],
+        }],
       }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -52,10 +61,18 @@ describe('Mapbox service', () => {
       coordinates: [[-0.31, 5.57], [-0.30, 5.58]],
       distanceKm: 2.5,
       durationMin: 10,
+      steps: [{
+        instruction: 'Turn right onto Mallam Road',
+        distanceKm: 1.2,
+        durationMin: 5,
+        location: [-0.305, 5.575],
+        distanceFromStartKm: 0,
+      }],
       road: true,
       provider: 'mapbox',
     });
     expect(String(fetchMock.mock.calls[0][0])).toContain('/directions/v5/mapbox/driving/');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('steps=true');
   });
 
   it('reverse-geocodes GPS coordinates to a readable address without changing the point', async () => {
@@ -92,6 +109,21 @@ describe('Mapbox service', () => {
       { latitude: 5.58, longitude: -0.30 },
     )).rejects.toMatchObject({ statusCode: 502, code: 'MAPBOX_UNAVAILABLE' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects route geometry outside valid longitude/latitude bounds', async () => {
+    vi.stubEnv('MAPBOX_ACCESS_TOKEN', 'server-only-token');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        routes: [{ geometry: { coordinates: [[-0.31, 5.57], [181, 5.58]] }, distance: 1000, duration: 120 }],
+      }),
+    }));
+
+    await expect(getMapboxRoadRoute(
+      { latitude: 5.57, longitude: -0.31 },
+      { latitude: 5.58, longitude: -0.30 },
+    )).rejects.toMatchObject({ statusCode: 404, code: 'NO_ROUTE' });
   });
 
   it('fails explicitly when the server token is missing instead of drawing a fallback line', async () => {

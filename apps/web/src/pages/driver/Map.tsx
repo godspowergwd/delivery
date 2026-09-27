@@ -2,14 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { OrderDTO, SettingsDTO } from '@delivery/shared';
-import { ORDER_STATUS_LABELS, distanceKm, etaText, formatDistance, formatMoney } from '@delivery/shared';
+import { ORDER_STATUS_LABELS, formatDistance, formatMoney } from '@delivery/shared';
 import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { fetchDriverDeliveries, postDriverAction } from '../../lib/driver-api';
 import { useRealtimeSync, toast } from '../../lib/realtime';
 import { useDeviceLocation } from '../../lib/geolocation';
 import { useLocationPublisher } from '../../lib/tracking';
 import { MALAM_CENTER } from '../../lib/live-map';
-import { useDeliveryRoute } from '../../lib/route';
+import { calculateRouteProgress, useDeliveryRoute } from '../../lib/route';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { DragSheet, sheetSnapHeights, type SheetSnap } from '../../components/DragSheet';
 import {
@@ -39,9 +40,20 @@ import { Button, Modal, Spinner, StatusPill, Textarea } from '../../components/u
  */
 
 const ACTIVE_STATUSES = 'ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY';
+
+function durationText(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return 'Arriving';
+  const minutes = Math.max(1, Math.round(value));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours === 0) return `${minutes} min`;
+  return remainder === 0 ? `${hours} hr` : `${hours} hr ${remainder} min`;
+}
+
 export default function DriverMap() {
   useRealtimeSync();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const mapHostRef = useRef<HTMLDivElement | null>(null);
   /** Deep link from the deliveries list (`?order=<id>`) selects that delivery immediately. */
   const [searchParams] = useSearchParams();
@@ -59,8 +71,10 @@ export default function DriverMap() {
   const [permissionDismissed, setPermissionDismissed] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
   const [isFollowing, setIsFollowing] = useState(true);
+  const [navigationActive, setNavigationActive] = useState(false);
+  const [navigationError, setNavigationError] = useState<string | null>(null);
 
-  const location = useDeviceLocation({ enabled: true, watch: true });
+  const location = useDeviceLocation({ enabled: false, watch: true });
   const publisher = useLocationPublisher();
   const mapRef = useLiveMap(mapHostRef, {
     center: MALAM_CENTER,
@@ -122,29 +136,51 @@ export default function DriverMap() {
 
   const delivering = selected?.status === 'OUT_FOR_DELIVERY';
   const target = delivering ? destination : restaurant;
-  const { route, error: routeError } = useDeliveryRoute(
+  const { route, error: routeError, loading: routeLoading } = useDeliveryRoute(
     location.position ? { lat: location.position.lat, lng: location.position.lng } : null,
-    target,
+    delivering ? destination : null,
+    navigationActive && delivering,
+  );
+  const routeProgress = useMemo(
+    () => route && location.position
+      ? calculateRouteProgress(route, { lat: location.position.lat, lng: location.position.lng })
+      : null,
+    [route, location.position],
+  );
+  const nextStep = routeProgress?.nextStep ?? null;
+  const nextStepDistanceKm = nextStep && routeProgress
+    ? Math.max(0, nextStep.distanceFromStartKm - routeProgress.distanceFromStartKm)
+    : null;
+  const directionMessage = navigationError ?? (
+    !navigationActive ? null
+      : routeLoading ? 'Finding route…'
+        : routeError ? 'Unable to calculate route. Check your location and try again.'
+          : route ? 'Route ready'
+            : location.status === 'requesting' ? 'Finding your location…'
+              : location.message?.detail ?? 'Finding route…'
   );
 
   // Publish the driver's own GPS whenever the device reports a new fix.
-  const { publish } = publisher;
+  const { publish, stop: stopPublishing } = publisher;
   useEffect(() => {
-    if (!location.position) return;
+    if (!location.position) {
+      mapRef.current.setDriver(null);
+      return;
+    }
     mapRef.current.setDriver(
       { lat: location.position.lat, lng: location.position.lng },
       // The device's own course: the SDK rotates the pin to it (map-aligned).
       { animate: true, heading: location.position.heading },
     );
-    publish(location.position);
-  }, [location.position, mapRef, publish]);
+    if (navigationActive) publish(location.position);
+  }, [location.position, mapRef, navigationActive, publish]);
 
   useEffect(() => {
     mapRef.current.setDestination(target);
   }, [mapRef, target]);
 
   useEffect(() => {
-    mapRef.current.setRoute(route?.coordinates ?? [], { fit: false });
+    mapRef.current.setRoute(route?.coordinates ?? [], { fit: true });
   }, [mapRef, route]);
 
   const action = useMutation({
@@ -159,14 +195,45 @@ export default function DriverMap() {
   });
 
   const remainingKm = useMemo(() => {
-    if (!location.position || !target) return null;
-    const direct = distanceKm(
-      { lat: location.position.lat, lng: location.position.lng },
-      { lat: target.lat, lng: target.lng },
-    );
-    // Follow the road distance while it is plausible, else the straight line.
-    return route ? Math.min(route.distanceKm, direct * 1.5) : direct;
-  }, [location.position, target, route]);
+    if (!navigationActive || !location.position || !routeProgress) return null;
+    return routeProgress.remainingDistanceKm;
+  }, [location.position, navigationActive, routeProgress]);
+
+  const remainingDurationMin = routeProgress?.remainingDurationMin ?? null;
+
+  const startNavigation = useCallback(() => {
+    setNavigationError(null);
+    if (user?.role !== 'DRIVER') {
+      setNavigationError('Sign in with a driver account to start navigation.');
+      return;
+    }
+    if (!selected || !delivering) {
+      setNavigationError('Start an active delivery before requesting directions.');
+      return;
+    }
+    if (!destination) {
+      setNavigationError('The customer delivery location is unavailable. Contact the customer for a valid GPS pin.');
+      return;
+    }
+    setNavigationActive(true);
+    setIsFollowing(true);
+    mapRef.current.setFollow(true);
+    if (!location.position) location.request();
+  }, [user?.role, selected, delivering, destination, mapRef, location]);
+
+  const stopNavigation = useCallback(() => {
+    setNavigationActive(false);
+    setNavigationError(null);
+    location.stop();
+    stopPublishing();
+    mapRef.current.setDriver(null);
+    mapRef.current.setFollow(false);
+    setIsFollowing(false);
+  }, [location, mapRef, stopPublishing]);
+
+  useEffect(() => {
+    if (!delivering && navigationActive) stopNavigation();
+  }, [delivering, navigationActive, stopNavigation]);
 
   const recenter = useCallback(() => {
     if (!location.position) {
@@ -180,18 +247,20 @@ export default function DriverMap() {
   const focusDestination = useCallback(() => {
     if (!target) return;
     setIsFollowing(false);
+    mapRef.current.setFollow(false);
     mapRef.current.focus({ lat: target.lat, lng: target.lng }, { zoom: 16 });
   }, [target, mapRef]);
 
   const fitRoute = useCallback(() => {
-    const points = [
+    const points = route?.coordinates.map(([lng, lat]) => ({ lat, lng })) ?? [
       location.position ? { lat: location.position.lat, lng: location.position.lng } : null,
       target ? { lat: target.lat, lng: target.lng } : null,
     ].filter((point): point is { lat: number; lng: number } => Boolean(point));
     if (points.length === 0) return;
     setIsFollowing(false);
+    mapRef.current.setFollow(false);
     mapRef.current.fit(points, { maxZoom: 15 });
-  }, [location.position, target, mapRef]);
+  }, [location.position, target, route, mapRef]);
 
   // Keep the canvas correctly sized whenever the sheet snaps to a new height,
   // and remember the viewport so the floating controls can track the sheet.
@@ -344,8 +413,8 @@ export default function DriverMap() {
             type="button"
             className={`map-control-btn ${isFollowing ? 'map-control-btn-green' : ''}`}
             onClick={recenter}
-            aria-label="Centre on my location"
-            title="Centre on my location"
+            aria-label="Re-center and follow my location"
+            title="Re-center and follow driver"
             aria-pressed={isFollowing}
           >
             <LocateIcon className={`h-5 w-5 ${isFollowing ? '' : 'map-control-btn-icon-green'}`} />
@@ -450,7 +519,7 @@ export default function DriverMap() {
                         ETA
                       </span>
                       <span className="text-sm font-extrabold text-green-700">
-                        {route ? etaText(route.durationMin) : '—'}
+                        {remainingDurationMin !== null ? durationText(remainingDurationMin) : '—'}
                       </span>
                     </span>
                     <span className="flex flex-col">
@@ -486,11 +555,17 @@ export default function DriverMap() {
             remainingKm={remainingKm}
             delivering={Boolean(delivering)}
             destinationExact={destination?.exact ?? false}
-            routeReady={Boolean(route)}
-            routeError={routeError}
+            routeLoading={routeLoading || location.requesting}
+            navigationActive={navigationActive}
+            navigationMessage={directionMessage}
+            remainingDurationMin={remainingDurationMin}
+            nextManeuver={nextStep?.instruction ?? null}
+            nextManeuverDistanceKm={nextStepDistanceKm}
             busy={action.isPending}
             deliveryCount={orders.length}
             onComplete={() => action.mutate({ id: selected.id, verb: 'complete' })}
+            onGetDirection={startNavigation}
+            onStopNavigation={stopNavigation}
             onIssue={() => setIssueOpen(true)}
             onSelectOther={() => {
               const index = orders.findIndex((order) => order.id === selected.id);
@@ -600,11 +675,17 @@ function DeliveryDetails({
   remainingKm,
   delivering,
   destinationExact,
-  routeReady,
-  routeError,
+  routeLoading,
+  navigationActive,
+  navigationMessage,
+  remainingDurationMin,
+  nextManeuver,
+  nextManeuverDistanceKm,
   busy,
   deliveryCount,
   onComplete,
+  onGetDirection,
+  onStopNavigation,
   onIssue,
   onSelectOther,
 }: {
@@ -612,25 +693,22 @@ function DeliveryDetails({
   remainingKm: number | null;
   delivering: boolean;
   destinationExact: boolean;
-  routeReady: boolean;
-  routeError: string | null;
+  routeLoading: boolean;
+  navigationActive: boolean;
+  navigationMessage: string | null;
+  remainingDurationMin: number | null;
+  nextManeuver: string | null;
+  nextManeuverDistanceKm: number | null;
   busy: boolean;
   deliveryCount: number;
   onComplete: () => void;
+  onGetDirection: () => void;
+  onStopNavigation: () => void;
   onIssue: () => void;
   onSelectOther: () => void;
 }) {
-   // An ETA is only ever shown when it comes from a real road route.
-  const eta = routeReady && remainingKm !== null ? etaText(remainingKm) : null;
+  const eta = remainingDurationMin !== null ? durationText(remainingDurationMin) : null;
   const targetLabel = delivering ? 'Customer' : 'Restaurant';
-  const navPoint =
-    typeof order.deliveryLatitude === 'number' &&
-    typeof order.deliveryLongitude === 'number' &&
-    Number.isFinite(order.deliveryLatitude) &&
-    Number.isFinite(order.deliveryLongitude) &&
-    (order.deliveryLatitude !== 0 || order.deliveryLongitude !== 0)
-      ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude }
-      : null;
 
   return (
     <div className="pb-4 pt-2">
@@ -663,9 +741,17 @@ function DeliveryDetails({
           </p>
         </div>
       </div>
-      {routeError && (
-        <p className="mt-2 text-xs font-medium text-red-700" role="status">
-          Road directions are temporarily unavailable. Your map and live location remain active.
+      {navigationActive && nextManeuver && nextManeuverDistanceKm !== null && (
+        <div className="mt-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-wide text-green-800">
+            Next · {formatDistance(nextManeuverDistanceKm)}
+          </p>
+          <p className="text-sm font-bold text-slate-900">{nextManeuver}</p>
+        </div>
+      )}
+      {navigationMessage && (
+        <p className={`mt-2 text-xs font-semibold ${navigationMessage.startsWith('Unable') || navigationMessage.startsWith('The customer') ? 'text-red-700' : 'text-green-800'}`} role="status" aria-live="polite">
+          {navigationMessage}
         </p>
       )}
 
@@ -684,9 +770,7 @@ function DeliveryDetails({
           </p>
           {!destinationExact && (
             <p className="mt-1 text-[12px] font-semibold text-amber-700">
-              {navPoint
-                ? 'Exact customer GPS pin.'
-                : 'No customer GPS on this order yet — call the customer for directions.'}
+              No customer GPS on this order yet — call the customer for directions.
             </p>
           )}
           {destinationExact && (
@@ -729,17 +813,13 @@ function DeliveryDetails({
           <PhoneIcon className="h-4 w-4" />
           Call
         </a>
-        {delivering && navPoint && (
-          <a
-            href={`https://www.openstreetmap.org/directions?to=${navPoint.lat},${navPoint.lng}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-[15px] font-semibold text-red-700 transition hover:bg-red-50"
-          >
+        {delivering && (
+          <Button loading={routeLoading} disabled={navigationActive} onClick={onGetDirection}>
             <NavigationIcon className="h-4 w-4" />
-            Navigate
-          </a>
+            Get Direction
+          </Button>
         )}
+        {navigationActive && <Button variant="ghost" onClick={onStopNavigation}>Stop navigation</Button>}
         <Button variant="ghost" size="md" onClick={onIssue}>
           Report issue
         </Button>

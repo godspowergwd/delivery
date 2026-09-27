@@ -16,6 +16,13 @@ export interface MapboxRoadRoute {
   coordinates: Array<[number, number]>;
   distanceKm: number;
   durationMin: number;
+  steps: Array<{
+    instruction: string;
+    distanceKm: number;
+    durationMin: number;
+    location: [number, number];
+    distanceFromStartKm: number;
+  }>;
   road: true;
   provider: 'mapbox';
 }
@@ -32,6 +39,13 @@ interface MapboxRoute {
   geometry?: { coordinates?: Array<[number, number]> };
   distance?: number;
   duration?: number;
+  legs?: Array<{
+    steps?: Array<{
+      distance?: number;
+      duration?: number;
+      maneuver?: { instruction?: string; location?: [number, number] };
+    }>;
+  }>;
 }
 
 function accessToken(): string {
@@ -134,18 +148,55 @@ export async function getMapboxRoadRoute(
   url.searchParams.set('access_token', accessToken());
   url.searchParams.set('geometries', 'geojson');
   url.searchParams.set('overview', 'full');
+  url.searchParams.set('steps', 'true');
 
   const response = await fetchMapbox(url);
   const payload = (await response.json()) as { routes?: MapboxRoute[] };
   const route = payload.routes?.[0];
   const coordinates = route?.geometry?.coordinates;
-  if (!coordinates || coordinates.length < 2) {
+  if (
+    !route || !Array.isArray(coordinates) ||
+    coordinates.length < 2 ||
+    coordinates.some((coordinate) =>
+      !Array.isArray(coordinate) || coordinate.length < 2 ||
+      !Number.isFinite(coordinate[0]) || !Number.isFinite(coordinate[1]) ||
+      coordinate[0] < -180 || coordinate[0] > 180 || coordinate[1] < -90 || coordinate[1] > 90)
+  ) {
     throw new AppError(404, 'NO_ROUTE', 'No drivable route was found for these locations.');
   }
+  if (
+    typeof route.distance !== 'number' || !Number.isFinite(route.distance) || route.distance <= 0 ||
+    typeof route.duration !== 'number' || !Number.isFinite(route.duration) || route.duration < 0
+  ) {
+    throw new AppError(502, 'INVALID_ROUTE', 'Mapbox returned incomplete route details.');
+  }
+  let distanceFromStartKm = 0;
+  const steps = (route.legs?.[0]?.steps ?? []).flatMap((step) => {
+    const instruction = step.maneuver?.instruction?.trim();
+    const location = step.maneuver?.location;
+    const distance = step.distance;
+    const duration = step.duration;
+    if (
+      !instruction || !location || location.length !== 2 ||
+      !Number.isFinite(location[0]) || !Number.isFinite(location[1]) ||
+      typeof distance !== 'number' || !Number.isFinite(distance) ||
+      typeof duration !== 'number' || !Number.isFinite(duration)
+    ) return [];
+    const normalized = {
+      instruction,
+      distanceKm: Math.max(0, distance) / 1_000,
+      durationMin: Math.max(0, duration) / 60,
+      location,
+      distanceFromStartKm,
+    };
+    distanceFromStartKm += normalized.distanceKm;
+    return [normalized];
+  });
   return {
     coordinates,
-    distanceKm: (route.distance ?? 0) / 1_000,
-    durationMin: Math.max(1, Math.round((route.duration ?? 0) / 60)),
+    distanceKm: route.distance / 1_000,
+    durationMin: Math.max(1, Math.round(route.duration / 60)),
+    steps,
     road: true,
     provider: 'mapbox',
   };
