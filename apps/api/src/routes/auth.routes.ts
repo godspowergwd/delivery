@@ -14,6 +14,7 @@ import { authLimiter } from '../middleware/rateLimit';
 import {
   CSRF_COOKIE,
   REFRESH_COOKIE,
+  createCsrfToken,
   csrfCookieOptions,
   csrfGuard,
   refreshCookieOptions,
@@ -95,6 +96,18 @@ authRouter.post(
     const { user, tokens } = await login(input, req);
     sendTokens(res, tokens);
     res.json(tokenResponse(user, tokens));
+  }),
+);
+
+authRouter.get(
+  '/csrf',
+  asyncHandler(async (req, res) => {
+    const cookies = req.cookies as Record<string, string> | undefined;
+    if (!cookies?.[REFRESH_COOKIE]) throw unauthorized('Your session has expired. Please sign in again.');
+    const csrfToken = cookies[CSRF_COOKIE] || createCsrfToken();
+    if (!cookies[CSRF_COOKIE]) res.cookie(CSRF_COOKIE, csrfToken, csrfCookieOptions(refreshTtlMs(true)));
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ csrfToken });
   }),
 );
 

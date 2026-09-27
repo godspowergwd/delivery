@@ -194,7 +194,8 @@ Only these belong on the Render service (Environment tab). All of them are
 | `NODE_ENV` | `production` | **Yes** | Production logging, secure cookies, staff-only seeding |
 | `PORT` | `10000` | Recommended | Port the API listens on (Render injects it; 4000 is the fallback) |
 | `API_PUBLIC_URL` | `https://delivery-2xbo.onrender.com` | Recommended | Absolute URLs for uploaded images, receipts and QR links |
-| `APP_PUBLIC_URL` | `https://godspowergwd.github.io` | Recommended | CORS allowlist + links inside QR codes and receipts |
+| `APP_PUBLIC_URL` | `https://delivery.<account>.workers.dev` | Recommended | Primary public app URL + CORS allowlist |
+| `APP_ALLOWED_ORIGINS` | `https://delivery-preview.example.workers.dev` | Optional | Comma-separated exact additional frontend origins for credentialed CORS |
 | `JWT_ACCESS_TTL` | `12h` | Optional | Access token lifetime; silently renewed with the refresh session |
 | `BCRYPT_ROUNDS` | `10` | Optional | bcrypt work factor for new hashes (default 10) |
 

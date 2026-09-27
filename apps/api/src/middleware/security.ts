@@ -1,8 +1,9 @@
 import type { CookieOptions, NextFunction, Request, RequestHandler, Response } from 'express';
 import helmet from 'helmet';
 import crypto from 'node:crypto';
-import { corsOrigins, isProduction } from '../config/env';
-import { forbidden } from '../lib/errors';
+import { isAllowedOrigin, isProduction } from '../config/env';
+import { AppError, forbidden } from '../lib/errors';
+import { logger } from '../lib/logger';
 
 export const REFRESH_COOKIE = 'ds_refresh';
 export const CSRF_COOKIE = 'ds_csrf';
@@ -26,16 +27,11 @@ export const corsOptions = {
       callback(null, true);
       return;
     }
-    const allowed =
-      corsOrigins.includes(origin) ||
-      /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin) ||
-      /^https:\/\/(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(origin) ||
-      /^https?:\/\/[a-z0-9-]+(:\d+)?$/i.test(origin);
-    if (allowed) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
       return;
     }
-    callback(new Error(`Origin ${origin} is not allowed to call this API.`));
+    callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
@@ -61,16 +57,12 @@ export const originGuard: RequestHandler = (req: Request, _res: Response, next: 
     return;
   }
   try {
-    const parsed = new URL(origin);
-    const host = req.headers.host ?? '';
-    const sameHost = parsed.host === host;
-    const allowed =
-      sameHost ||
-      corsOrigins.includes(origin) ||
-      /^(localhost|127\.0\.0\.1|\[::1\])$/.test(parsed.hostname) ||
-      /^(\d{1,3}\.){3}\d{1,3}$/.test(parsed.hostname) ||
-      /^[a-z0-9-]+$/i.test(parsed.hostname);
-    if (!allowed) {
+    if (!isAllowedOrigin(origin)) {
+      logger.warn('[security] rejected untrusted request origin', {
+        method: req.method,
+        path: req.path,
+        origin,
+      });
       next(forbidden('This request was blocked because it came from an untrusted origin.'));
       return;
     }
@@ -115,14 +107,33 @@ export const csrfGuard: RequestHandler = (req: Request, _res: Response, next: Ne
     next();
     return;
   }
+  const cookies = req.cookies as Record<string, string> | undefined;
+  if (req.path.endsWith('/refresh') && !cookies?.[REFRESH_COOKIE]) {
+    next();
+    return;
+  }
   const headerToken = req.headers['x-csrf-token'];
-  const cookieToken = (req.cookies as Record<string, string> | undefined)?.[CSRF_COOKIE];
+  const cookieToken = cookies?.[CSRF_COOKIE];
+  const rejectMismatch = () => {
+    logger.warn('[security] rejected mismatched CSRF state', {
+      path: req.path,
+      origin: req.headers.origin ?? null,
+      refreshCookiePresent: Boolean(cookies?.[REFRESH_COOKIE]),
+      csrfCookiePresent: Boolean(cookieToken),
+      csrfHeaderPresent: typeof headerToken === 'string',
+    });
+    next(new AppError(403, 'CSRF_MISMATCH', 'Refresh protection needs to be resynchronized.'));
+  };
   if (!cookieToken) {
+    if (req.path.endsWith('/refresh')) {
+      rejectMismatch();
+      return;
+    }
     next();
     return;
   }
   if (typeof headerToken !== 'string' || headerToken !== cookieToken) {
-    next(forbidden('Your session token could not be verified. Please sign in again.'));
+    rejectMismatch();
     return;
   }
   next();

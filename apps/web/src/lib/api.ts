@@ -171,18 +171,46 @@ export async function refreshSession(): Promise<boolean> {
       if (currentToken && currentToken !== tokenAtStart) return true;
 
       const csrf = getCsrfToken();
-      let res: Response;
-      try {
-        res = await fetch(`${API_URL}/auth/refresh`, {
+      const sendRefresh = async (csrfToken: string | null): Promise<Response> => {
+        try {
+          return await fetch(`${API_URL}/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-            ...(csrf ? { 'x-csrf-token': csrf } : {}),
+              ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
           },
         });
-      } catch {
-        throw new ApiError(0, 'NETWORK_ERROR', 'Could not reach the server to refresh your session. Check your connection and try again.');
+        } catch {
+          throw new ApiError(0, 'NETWORK_ERROR', 'Could not reach the server to refresh your session. Check your connection and try again.');
+        }
+      };
+
+      let res = await sendRefresh(csrf);
+      if (res.status === 403) {
+        let csrfResponse: Response;
+        try {
+          csrfResponse = await fetch(`${API_URL}/auth/csrf`, { credentials: 'include' });
+        } catch {
+          throw new ApiError(0, 'NETWORK_ERROR', 'Could not synchronize session protection. Check your connection and try again.');
+        }
+        if (csrfResponse.status === 401) {
+          clearAuthStorage();
+          return false;
+        }
+        if (!csrfResponse.ok) {
+          throw new ApiError(csrfResponse.status, 'CSRF_SYNC_FAILED', 'Could not synchronize session protection. Please try again.');
+        }
+        let csrfData: { csrfToken?: string };
+        try {
+          csrfData = (await csrfResponse.json()) as { csrfToken?: string };
+        } catch {
+          throw new ApiError(502, 'INVALID_CSRF_RESPONSE', 'The server returned an invalid session protection response.');
+        }
+        if (!csrfData.csrfToken || !setTokens(getToken(), csrfData.csrfToken)) {
+          throw new ApiError(502, 'INVALID_CSRF_RESPONSE', 'The server returned an invalid session protection response.');
+        }
+        res = await sendRefresh(csrfData.csrfToken);
       }
 
       if (!res.ok) {

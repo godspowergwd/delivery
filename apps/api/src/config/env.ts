@@ -24,6 +24,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   API_PUBLIC_URL: z.string().default('http://localhost:4000'),
   APP_PUBLIC_URL: z.string().default('http://localhost:5173'),
+  APP_ALLOWED_ORIGINS: z.string().default(''),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   /**
    * Access tokens are renewed silently using a rotating, database-backed refresh
@@ -51,11 +52,31 @@ export const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 /** Generated report files (PDF/Excel) are stored here. */
 export const REPORT_DIR = path.resolve(__dirname, '../../storage');
 
-export const corsOrigins = [
+const configuredOrigins = [
   env.APP_PUBLIC_URL,
+  ...env.APP_ALLOWED_ORIGINS.split(','),
   'https://godspowergwd.github.io',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:4173',
   'http://127.0.0.1:4173',
 ];
+
+export const corsOrigins = [...new Set(configuredOrigins.flatMap((value) => {
+  try {
+    const url = new URL(value.trim());
+    return url.pathname === '/' && !url.search && !url.hash ? [url.origin] : [];
+  } catch {
+    return [];
+  }
+}))];
+
+export function isAllowedOrigin(origin: string): boolean {
+  if (corsOrigins.includes(origin)) return true;
+  if (isProduction) return false;
+  return (
+    /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin) ||
+    /^https?:\/\/(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(origin) ||
+    /^https?:\/\/[a-z0-9-]+(:\d+)?$/i.test(origin)
+  );
+}

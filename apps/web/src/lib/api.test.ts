@@ -94,12 +94,41 @@ describe('authenticated API client', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('preserves the session when refresh is forbidden by a CSRF check', async () => {
+  it('resynchronizes a stale CSRF cookie and retries refresh once', async () => {
     installAuthGlobals();
-    setTokens('current-access', 'csrf-value');
+    setTokens('current-access', 'stale-csrf');
+    const refreshHeaders: Array<Record<string, string>> = [];
+    const credentials: Array<RequestCredentials | undefined> = [];
+    let refreshCalls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/auth/csrf')) {
+        credentials.push(init?.credentials);
+        return new Response(JSON.stringify({ csrfToken: 'cookie-csrf' }), { status: 200 });
+      }
+      if (url.endsWith('/auth/refresh')) {
+        refreshCalls += 1;
+        credentials.push(init?.credentials);
+        refreshHeaders.push(init?.headers as Record<string, string>);
+        if (refreshCalls === 1) return new Response('{}', { status: 403 });
+        return new Response(JSON.stringify({ accessToken: 'renewed-access', csrfToken: 'next-csrf' }), { status: 200 });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+
+    await expect(refreshSession()).resolves.toBe(true);
+    expect(refreshCalls).toBe(2);
+    expect(refreshHeaders.map((headers) => headers['x-csrf-token'])).toEqual(['stale-csrf', 'cookie-csrf']);
+    expect(credentials).toEqual(['include', 'include', 'include']);
+    expect(getToken()).toBe('renewed-access');
+  });
+
+  it('preserves the session when CSRF resynchronization itself is blocked', async () => {
+    installAuthGlobals();
+    setTokens('current-access', 'stale-csrf');
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 403 })));
 
-    await expect(refreshSession()).rejects.toMatchObject({ code: 'REFRESH_FORBIDDEN' });
+    await expect(refreshSession()).rejects.toMatchObject({ code: 'CSRF_SYNC_FAILED' });
     expect(getToken()).toBe('current-access');
   });
 
