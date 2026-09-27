@@ -12,7 +12,8 @@
     "build:shared": "npm run build -w @delivery/shared",
     "build:api": "npm run build:shared && npm run build -w @delivery/api",
     "build:web": "npm run build:shared && npm run build -w @delivery/web",
-    "build": "npm run build:shared && npm run build -w @delivery/api && npm run build -w @delivery/web",
+    "build": "npm run build:web",
+    "build:all": "npm run build:shared && npm run build -w @delivery/api && npm run build -w @delivery/web",
     "dev": "npm run build:shared && concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm run dev -w @delivery/api",
     "dev:web": "npm run dev -w @delivery/web",
@@ -32,7 +33,7 @@
     "perf:login": "node scripts/perf-login.mjs",
     "db:inspect": "node scripts/db-tables.mjs",
     "setup": "npm install && npm run db:up && npm run db:migrate && npm run db:seed",
-    "verify": "npm run build && npm run db:up && npm run db:migrate && npm run test"
+    "verify": "npm run build:all && npm run db:up && npm run db:migrate && npm run test"
   },
   "engines": {
     "node": ">=20"
