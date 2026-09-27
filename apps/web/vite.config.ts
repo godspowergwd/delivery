@@ -27,7 +27,7 @@ import path from 'node:path';
 export default defineConfig(({ mode }) => {
   const frontendEnv = loadEnv(mode, process.cwd(), '');
   if (mode === 'production') {
-    const required = ['VITE_API_URL', 'VITE_SOCKET_URL', 'VITE_MAPBOX_TOKEN'] as const;
+    const required = ['VITE_API_URL', 'VITE_SOCKET_URL'] as const;
     const missing = required.filter((key) => !frontendEnv[key]?.trim());
     if (missing.length > 0) {
       throw new Error(`Missing production frontend environment variables: ${missing.join(', ')}`);
@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
     ) {
       throw new Error('Production VITE_API_URL must be an HTTPS /api URL and VITE_SOCKET_URL an HTTPS origin.');
     }
-    if (!frontendEnv.VITE_MAPBOX_TOKEN.startsWith('pk.')) {
+    if (frontendEnv.VITE_MAPBOX_TOKEN && !frontendEnv.VITE_MAPBOX_TOKEN.startsWith('pk.')) {
       throw new Error('Production VITE_MAPBOX_TOKEN must be a public Mapbox token (pk.), never a secret token.');
     }
   }
