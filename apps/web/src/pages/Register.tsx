@@ -51,16 +51,16 @@ export function Register() {
       <Card className="duo-top">
         <form onSubmit={submit} className="space-y-4" autoComplete="on">
           <Field label="Full name">
-            <Input required value={form.name} onChange={(e) => update('name')(e.target.value)} placeholder="Ama Mensah" autoComplete="name" />
+            <Input id="register-name" name="name" required type="text" value={form.name} onChange={(e) => update('name')(e.target.value)} placeholder="Ama Mensah" autoComplete="name" />
           </Field>
           <Field label="Email" htmlFor="register-email">
             <Input id="register-email" name="email" required type="email" inputMode="email" autoComplete="email" value={form.email} onChange={(e) => update('email')(e.target.value)} placeholder="you@example.com" />
           </Field>
-          <Field label="Phone" hint="Used by the courier to reach you on delivery.">
-            <Input required inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => update('phone')(e.target.value)} placeholder="+233 20 123 4567" />
+          <Field label="Phone" htmlFor="register-phone" hint="Used by the courier to reach you on delivery.">
+            <Input id="register-phone" name="phone" required type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => update('phone')(e.target.value)} placeholder="+233 20 123 4567" />
           </Field>
           <Field label="Password" htmlFor="register-password" hint="At least 8 characters.">
-            <Input id="register-password" name="newPassword" required type="password" autoComplete="new-password" value={form.password} onChange={(e) => update('password')(e.target.value)} placeholder="••••••••" />
+            <Input id="register-password" name="password" required type="password" autoComplete="new-password" value={form.password} onChange={(e) => update('password')(e.target.value)} placeholder="••••••••" />
           </Field>
           <ErrorText message={error} />
           <Button type="submit" variant="success" size="lg" loading={busy} className="w-full">

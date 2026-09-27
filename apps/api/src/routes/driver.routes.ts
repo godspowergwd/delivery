@@ -37,6 +37,13 @@ async function requireAssignedOrder(id: string, driver: SessionUser): Promise<Or
   return order;
 }
 
+/** Loads an unclaimed order from the shared pickup pool (driverId must be null). */
+async function requirePoolOrder(id: string): Promise<OrderWithRelations> {
+  const order = await prisma.order.findUnique({ where: { id }, include: ORDER_INCLUDE });
+  if (!order) throw notFound('That delivery could not be found.');
+  return order;
+}
+
 /** GET /api/driver/summary - stats for the driver profile and dashboard header. */
 driverRouter.get(
   '/summary',
