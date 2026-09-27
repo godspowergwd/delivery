@@ -1,4 +1,4 @@
-import { defineConfig, type PluginOption } from 'vite';
+import { defineConfig, loadEnv, type PluginOption } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA, type ManifestOptions } from 'vite-plugin-pwa';
@@ -25,6 +25,29 @@ import path from 'node:path';
  *    require a secure context outside of localhost).
  */
 export default defineConfig(({ mode }) => {
+  const frontendEnv = loadEnv(mode, process.cwd(), '');
+  if (mode === 'production') {
+    const required = ['VITE_API_URL', 'VITE_SOCKET_URL', 'VITE_MAPBOX_TOKEN'] as const;
+    const missing = required.filter((key) => !frontendEnv[key]?.trim());
+    if (missing.length > 0) {
+      throw new Error(`Missing production frontend environment variables: ${missing.join(', ')}`);
+    }
+
+    const apiUrl = new URL(frontendEnv.VITE_API_URL);
+    const socketUrl = new URL(frontendEnv.VITE_SOCKET_URL);
+    if (
+      apiUrl.protocol !== 'https:' ||
+      !apiUrl.pathname.replace(/\/+$/, '').endsWith('/api') ||
+      socketUrl.protocol !== 'https:' ||
+      !['', '/'].includes(socketUrl.pathname)
+    ) {
+      throw new Error('Production VITE_API_URL must be an HTTPS /api URL and VITE_SOCKET_URL an HTTPS origin.');
+    }
+    if (!frontendEnv.VITE_MAPBOX_TOKEN.startsWith('pk.')) {
+      throw new Error('Production VITE_MAPBOX_TOKEN must be a public Mapbox token (pk.), never a secret token.');
+    }
+  }
+
   const useHttps = mode === 'https' || process.env.VITE_HTTPS === 'true';
   const base = process.env.GITHUB_ACTIONS === 'true' ? '/delivery/' : '/';
 

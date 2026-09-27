@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_API_URL: string;
   readonly VITE_SOCKET_URL: string;
   readonly VITE_APP_NAME?: string;
+  readonly VITE_MAPBOX_TOKEN?: string;
+  readonly VITE_MAPTILER_KEY?: string;
 }
 
 interface ImportMeta {
