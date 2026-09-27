@@ -1,0 +1,94 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { api, getToken, setTokens } from './api';
+
+function installAuthGlobals() {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  };
+  const events = new EventTarget();
+  vi.stubGlobal('localStorage', storage);
+  vi.stubGlobal('document', { cookie: '' });
+  vi.stubGlobal('window', events);
+  return { values, events, storage };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe('authenticated API client', () => {
+  it('persists one access token and detects unavailable storage', () => {
+    const { storage } = installAuthGlobals();
+    expect(setTokens('driver-access', 'csrf-value')).toBe(true);
+    expect(getToken()).toBe('driver-access');
+
+    vi.stubGlobal('localStorage', {
+      ...storage,
+      setItem: () => { throw new Error('storage unavailable'); },
+    });
+    expect(setTokens('next-token', 'csrf-value')).toBe(false);
+  });
+
+  it('attaches the stored bearer token to authenticated requests', async () => {
+    installAuthGlobals();
+    setTokens('driver-access', 'csrf-value');
+    const requests: RequestInit[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: RequestInit) => {
+      requests.push(init ?? {});
+      return new Response('{}', { status: 200 });
+    }));
+
+    await api.get('/driver/summary');
+
+    expect(requests[0]?.headers).toEqual({ Authorization: 'Bearer driver-access' });
+  });
+
+  it('refreshes once and retries with the refreshed bearer token', async () => {
+    const { events } = installAuthGlobals();
+    setTokens('old-access', 'csrf-value');
+    const requests: Array<{ url: string; headers: HeadersInit | undefined }> = [];
+    let protectedRequests = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      requests.push({ url, headers: init?.headers });
+      if (url.endsWith('/auth/refresh')) {
+        return new Response(JSON.stringify({ accessToken: 'new-access', csrfToken: 'new-csrf' }), { status: 200 });
+      }
+      protectedRequests += 1;
+      return new Response('{}', { status: protectedRequests === 1 ? 401 : 200 });
+    }));
+    let tokenRefreshed = false;
+    events.addEventListener('ds:token-refreshed', () => { tokenRefreshed = true; });
+
+    await api.get('/driver/summary');
+
+    expect(requests.map((request) => (request.headers as Record<string, string> | undefined)?.Authorization)).toEqual([
+      'Bearer old-access',
+      undefined,
+      'Bearer new-access',
+    ]);
+    expect(getToken()).toBe('new-access');
+    expect(tokenRefreshed).toBe(true);
+  });
+
+  it('redirects protected requests with no token instead of exposing the missing-token error', async () => {
+    const { events } = installAuthGlobals();
+    vi.stubGlobal('fetch', vi.fn(async (input: unknown) =>
+      String(input).endsWith('/auth/refresh')
+        ? new Response('{}', { status: 401 })
+        : new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'Missing authentication token.' } }), { status: 401 }),
+    ));
+    let sessionExpired = false;
+    events.addEventListener('ds:session-expired', () => { sessionExpired = true; });
+
+    await expect(api.get('/driver/summary')).rejects.toMatchObject({
+      code: 'SESSION_EXPIRED',
+      message: 'Your session expired. Please sign in again.',
+    });
+    expect(sessionExpired).toBe(true);
+  });
+});

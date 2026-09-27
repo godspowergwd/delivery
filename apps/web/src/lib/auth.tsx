@@ -122,7 +122,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback(
     (payload: { user: AuthUser; accessToken: string; csrfToken?: string }) => {
-      setTokens(payload.accessToken, payload.csrfToken ?? null);
+      if (!payload.accessToken || !setTokens(payload.accessToken, payload.csrfToken ?? null)) {
+        clearAuthStorage();
+        throw new Error('Could not save your sign-in on this device. Check browser storage settings and try again.');
+      }
       setUser(payload.user);
     },
     [setUser],
@@ -131,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let retryTimer = 0;
-    const cached = loadCachedUser();
 
     const finish = () => {
       if (!cancelled) setLoading(false);
@@ -150,9 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
      * offline API: only an explicit "refresh refused" signs them out.
      */
     const restore = async (attempt = 0): Promise<void> => {
+      const cached = loadCachedUser();
       const token = getToken();
       const hint = hasRefreshHint();
-      if (!token && !hint) {
+      if (!token && !hint && !cached) {
         finish();
         return;
       }
@@ -210,7 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onWake = () => {
       if (document.visibilityState !== 'visible') return;
       if (getToken()) return;
-      if (!hasRefreshHint()) return;
+      if (!hasRefreshHint() && !loadCachedUser()) return;
       void restore(MAX_RESTORE_ATTEMPTS);
     };
     document.addEventListener('visibilitychange', onWake);

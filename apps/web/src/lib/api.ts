@@ -24,16 +24,19 @@ export function getCsrfToken(): string | null {
   }
 }
 
-export function setTokens(accessToken: string | null, csrfToken?: string | null): void {
+export function setTokens(accessToken: string | null, csrfToken?: string | null): boolean {
   try {
     if (accessToken) localStorage.setItem(TOKEN_KEY, accessToken);
     else localStorage.removeItem(TOKEN_KEY);
+    if (localStorage.getItem(TOKEN_KEY) !== accessToken) return false;
     if (csrfToken !== undefined) {
       if (csrfToken) localStorage.setItem(CSRF_KEY, csrfToken);
       else localStorage.removeItem(CSRF_KEY);
+      if (localStorage.getItem(CSRF_KEY) !== csrfToken) return false;
     }
+    return true;
   } catch {
-    // Storage (private mode / quota) must never break auth or blank the app.
+    return false;
   }
 }
 
@@ -110,14 +113,18 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (res.status === 401 && retry) {
     const refreshed = await refreshSession();
     if (refreshed) {
-      window.dispatchEvent(new Event('ds:token-refreshed'));
       return request<T>(path, { ...options, retry: false });
     }
     // Abort-signal cancellations must not be mistaken for an expired session.
     if (signal?.aborted) throw new ApiError(0, 'ABORTED', 'Request cancelled.');
-    // A missing token with no refresh cookie at all means "never signed in"
-    // (not an expiry): surface the real 401 without a global sign-out event.
+    // Preserve public login errors, but send protected routes to sign-in rather
+    // than exposing the backend's missing-token response.
     if (!getToken() && !hasRefreshCookie() && !getCsrfToken()) {
+      if (path !== '/auth/login' && path !== '/auth/register') {
+        clearAuthStorage();
+        window.dispatchEvent(new Event('ds:session-expired'));
+        throw new ApiError(res.status, 'SESSION_EXPIRED', 'Your session expired. Please sign in again.');
+      }
       const text = await res.text().catch(() => '');
       let data: unknown = null;
       try {
@@ -158,9 +165,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 export async function refreshSession(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
+    const csrf = getCsrfToken();
+    let res: Response;
     try {
-      const csrf = getCsrfToken();
-      const res = await fetch(`${API_URL}/auth/refresh`, {
+      res = await fetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -168,25 +176,37 @@ export async function refreshSession(): Promise<boolean> {
           ...(csrf ? { 'x-csrf-token': csrf } : {}),
         },
       });
-      if (!res.ok) {
-        // Distinguish "server refused" (401/403 -> session genuinely gone)
-        // from transient failures (network/offline/5xx -> keep the user).
-        if (res.status === 401 || res.status === 403) {
-          clearAuthStorage();
-          return false;
-        }
+    } catch {
+      throw new ApiError(0, 'NETWORK_ERROR', 'Could not reach the server to refresh your session. Check your connection and try again.');
+    }
+
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        clearAuthStorage();
         return false;
       }
-      const data = (await res.json()) as { accessToken?: string; csrfToken?: string };
-      if (!data.accessToken) return false;
-      setTokens(data.accessToken, data.csrfToken ?? null);
-      return true;
-    } catch {
-      return false;
-    } finally {
-      refreshPromise = null;
+      throw new ApiError(res.status, 'REFRESH_FAILED', 'Could not refresh your session. Please try again.');
     }
+
+    let data: { accessToken?: string; csrfToken?: string };
+    try {
+      data = (await res.json()) as { accessToken?: string; csrfToken?: string };
+    } catch {
+      throw new ApiError(502, 'INVALID_REFRESH_RESPONSE', 'The server returned an invalid session response.');
+    }
+    if (!data.accessToken) {
+      throw new ApiError(502, 'INVALID_REFRESH_RESPONSE', 'The server returned an invalid session response.');
+    }
+    if (!setTokens(data.accessToken, data.csrfToken ?? null)) {
+      clearAuthStorage();
+      return false;
+    }
+    window.dispatchEvent(new Event('ds:token-refreshed'));
+    return true;
   })();
+  refreshPromise = refreshPromise.finally(() => {
+    refreshPromise = null;
+  });
   return refreshPromise;
 }
 
