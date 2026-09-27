@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api, getToken, setTokens } from './api';
+import { api, getToken, refreshSession, setTokens } from './api';
 
 function installAuthGlobals() {
   const values = new Map<string, string>();
@@ -73,6 +73,34 @@ describe('authenticated API client', () => {
     ]);
     expect(getToken()).toBe('new-access');
     expect(tokenRefreshed).toBe(true);
+  });
+
+  it('reuses a token refreshed by another tab while waiting for the shared lock', async () => {
+    installAuthGlobals();
+    setTokens('expired-access', 'csrf-value');
+    vi.stubGlobal('navigator', {
+      locks: {
+        request: async (_name: string, callback: () => Promise<boolean>) => {
+          setTokens('rotated-in-another-tab', 'rotated-csrf');
+          return callback();
+        },
+      },
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(refreshSession()).resolves.toBe(true);
+    expect(getToken()).toBe('rotated-in-another-tab');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves the session when refresh is forbidden by a CSRF check', async () => {
+    installAuthGlobals();
+    setTokens('current-access', 'csrf-value');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 403 })));
+
+    await expect(refreshSession()).rejects.toMatchObject({ code: 'REFRESH_FORBIDDEN' });
+    expect(getToken()).toBe('current-access');
   });
 
   it('redirects protected requests with no token instead of exposing the missing-token error', async () => {

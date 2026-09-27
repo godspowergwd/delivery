@@ -195,10 +195,16 @@ Only these belong on the Render service (Environment tab). All of them are
 | `PORT` | `10000` | Recommended | Port the API listens on (Render injects it; 4000 is the fallback) |
 | `API_PUBLIC_URL` | `https://delivery-2xbo.onrender.com` | Recommended | Absolute URLs for uploaded images, receipts and QR links |
 | `APP_PUBLIC_URL` | `https://godspowergwd.github.io` | Recommended | CORS allowlist + links inside QR codes and receipts |
-| `JWT_ACCESS_TTL` | `30m` | Optional | Access token lifetime (default `30m`) |
-| `JWT_REFRESH_TTL` | `30d` | Optional | Refresh lifetime when "remember me" is off |
-| `JWT_REMEMBER_TTL` | `90d` | Optional | Refresh lifetime when "remember me" is on |
+| `JWT_ACCESS_TTL` | `12h` | Optional | Access token lifetime; silently renewed with the refresh session |
 | `BCRYPT_ROUNDS` | `10` | Optional | bcrypt work factor for new hashes (default 10) |
+
+Refresh sessions use a rolling 400-day cookie lifetime for every role; shorter
+`JWT_REFRESH_TTL` / `JWT_REMEMBER_TTL` overrides are no longer used. In production,
+the refresh and CSRF cookies use `SameSite=None; Secure; Partitioned` so browsers
+that support partitioned third-party cookies can restore sessions when the PWA and
+API are hosted on different sites. For browsers that block those cookies, use an
+API hostname under the same site as the PWA; a cross-site cookie cannot be made
+available by frontend code alone.
 
 Removed - delete them from Render if they are still configured:
 `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_KITCHEN_EMAIL`,

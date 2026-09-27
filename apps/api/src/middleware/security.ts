@@ -92,6 +92,7 @@ export function refreshCookieOptions(maxAgeMs: number): CookieOptions {
     // sends the refresh cookie and every reload looks like an expiry.
     sameSite: isProduction ? 'none' : 'lax',
     secure: isProduction ? true : false,
+    partitioned: isProduction,
     path: '/',
     maxAge: maxAgeMs,
   };
@@ -102,6 +103,7 @@ export function csrfCookieOptions(maxAgeMs: number): CookieOptions {
     httpOnly: false, // must be readable by the client to echo it back in the header
     sameSite: isProduction ? 'none' : 'lax',
     secure: isProduction ? true : false,
+    partitioned: isProduction,
     path: '/',
     maxAge: maxAgeMs,
   };

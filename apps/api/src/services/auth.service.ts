@@ -264,7 +264,7 @@ export async function login(
     throw forbidden('This account has been disabled. Please contact an administrator.');
   }
 
-  const prepared = prepareSession(user, { rememberMe: input.rememberMe, request });
+  const prepared = prepareSession(user, { rememberMe: true, request });
   // Session row + "last signed in" stamp in a single database round-trip.
   const [session, updated] = await prisma.$transaction([
     prisma.session.create({ data: prepared.data, select: { id: true } }),
@@ -320,19 +320,26 @@ export async function refreshSession(
     throw unauthorized('Your session has expired. Please sign in again.');
   }
   if (!session.user.isActive) {
-    throw forbidden('This account has been disabled. Please contact an administrator.');
+    throw unauthorized('This account has been disabled. Please contact an administrator.');
   }
 
-  const prepared = prepareSession(session.user, { rememberMe: session.rememberMe, request });
-  // Rotate in one round-trip: revoke the used token and store its replacement.
-  const [, fresh] = await prisma.$transaction([
-    prisma.session.update({
-      where: { id: session.id },
-      data: { revokedAt: new Date(), lastUsedAt: new Date() },
-      select: { id: true },
-    }),
-    prisma.session.create({ data: prepared.data, select: { id: true } }),
-  ]);
+  const prepared = prepareSession(session.user, { rememberMe: true, request });
+  const fresh = await prisma.$transaction(async (tx) => {
+    const now = new Date();
+    const claimed = await tx.session.updateMany({
+      where: {
+        id: session.id,
+        refreshTokenHash: hashToken(refreshToken),
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: { revokedAt: now, lastUsedAt: now },
+    });
+    if (claimed.count !== 1) {
+      throw unauthorized('Your session has expired. Please sign in again.');
+    }
+    return tx.session.create({ data: prepared.data, select: { id: true } });
+  });
 
   return {
     user: toAuthUser(session.user),

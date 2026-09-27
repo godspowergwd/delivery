@@ -161,48 +161,64 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return data as T;
 }
 
-/** Exchanges the refresh cookie for a fresh access token (single-flight). */
+/** Exchanges the refresh cookie once per tab and coordinates across tabs. */
 export async function refreshSession(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
+  const tokenAtStart = getToken();
   refreshPromise = (async () => {
-    const csrf = getCsrfToken();
-    let res: Response;
-    try {
-      res = await fetch(`${API_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(csrf ? { 'x-csrf-token': csrf } : {}),
-        },
-      });
-    } catch {
-      throw new ApiError(0, 'NETWORK_ERROR', 'Could not reach the server to refresh your session. Check your connection and try again.');
-    }
+    const refresh = async (): Promise<boolean> => {
+      const currentToken = getToken();
+      if (currentToken && currentToken !== tokenAtStart) return true;
 
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
+      const csrf = getCsrfToken();
+      let res: Response;
+      try {
+        res = await fetch(`${API_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrf ? { 'x-csrf-token': csrf } : {}),
+          },
+        });
+      } catch {
+        throw new ApiError(0, 'NETWORK_ERROR', 'Could not reach the server to refresh your session. Check your connection and try again.');
+      }
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          const latestToken = getToken();
+          if (latestToken && latestToken !== tokenAtStart) return true;
+          clearAuthStorage();
+          return false;
+        }
+        if (res.status === 403) {
+          throw new ApiError(res.status, 'REFRESH_FORBIDDEN', 'Could not verify the session renewal. Please try again.');
+        }
+        throw new ApiError(res.status, 'REFRESH_FAILED', 'Could not refresh your session. Please try again.');
+      }
+
+      let data: { accessToken?: string; csrfToken?: string };
+      try {
+        data = (await res.json()) as { accessToken?: string; csrfToken?: string };
+      } catch {
+        throw new ApiError(502, 'INVALID_REFRESH_RESPONSE', 'The server returned an invalid session response.');
+      }
+      if (!data.accessToken) {
+        throw new ApiError(502, 'INVALID_REFRESH_RESPONSE', 'The server returned an invalid session response.');
+      }
+      if (!setTokens(data.accessToken, data.csrfToken ?? null)) {
         clearAuthStorage();
         return false;
       }
-      throw new ApiError(res.status, 'REFRESH_FAILED', 'Could not refresh your session. Please try again.');
-    }
+      window.dispatchEvent(new Event('ds:token-refreshed'));
+      return true;
+    };
 
-    let data: { accessToken?: string; csrfToken?: string };
-    try {
-      data = (await res.json()) as { accessToken?: string; csrfToken?: string };
-    } catch {
-      throw new ApiError(502, 'INVALID_REFRESH_RESPONSE', 'The server returned an invalid session response.');
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      return navigator.locks.request('ds-auth-refresh', refresh);
     }
-    if (!data.accessToken) {
-      throw new ApiError(502, 'INVALID_REFRESH_RESPONSE', 'The server returned an invalid session response.');
-    }
-    if (!setTokens(data.accessToken, data.csrfToken ?? null)) {
-      clearAuthStorage();
-      return false;
-    }
-    window.dispatchEvent(new Event('ds:token-refreshed'));
-    return true;
+    return refresh();
   })();
   refreshPromise = refreshPromise.finally(() => {
     refreshPromise = null;

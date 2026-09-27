@@ -9,10 +9,12 @@ import {
   type ReactNode,
 } from 'react';
 import type { AuthUser } from '@delivery/shared';
-import { api, clearAuthStorage, getCsrfToken, getToken, hasRefreshCookie, refreshSession, setTokens } from './api';
+import { API_URL, api, clearAuthStorage, getCsrfToken, getToken, hasRefreshCookie, refreshSession, setTokens } from './api';
 import { createAppSocket, safeDisconnect, type AppSocket } from './socket';
 
 const USER_KEY = 'ds_user';
+const LOGOUT_PENDING_KEY = 'ds_logout_pending';
+const LOGOUT_CSRF_KEY = 'ds_logout_csrf';
 
 /**
  * Sessions are INDEFINITE: a signed-in visitor stays signed in until they press
@@ -84,6 +86,56 @@ function cacheUser(user: AuthUser | null): void {
   }
 }
 
+function hasPendingLogout(): boolean {
+  try {
+    return localStorage.getItem(LOGOUT_PENDING_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markLogoutPending(csrfToken: string | null): void {
+  try {
+    localStorage.setItem(LOGOUT_PENDING_KEY, '1');
+    if (csrfToken) localStorage.setItem(LOGOUT_CSRF_KEY, csrfToken);
+    else localStorage.removeItem(LOGOUT_CSRF_KEY);
+  } catch {
+    // Best effort; the server logout request still runs in this page.
+  }
+}
+
+function clearPendingLogout(): void {
+  try {
+    localStorage.removeItem(LOGOUT_PENDING_KEY);
+    localStorage.removeItem(LOGOUT_CSRF_KEY);
+  } catch {
+    // Storage failures must not block a completed sign-out.
+  }
+}
+
+async function retryPendingLogout(): Promise<boolean> {
+  if (!hasPendingLogout()) return true;
+  let csrfToken: string | null = null;
+  try {
+    csrfToken = localStorage.getItem(LOGOUT_CSRF_KEY);
+  } catch {
+    return false;
+  }
+  try {
+    const response = await fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: csrfToken ? { 'x-csrf-token': csrfToken } : {},
+    });
+    if (!response.ok && response.status !== 401) return false;
+    clearPendingLogout();
+    clearAuthStorage();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -152,6 +204,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
      * offline API: only an explicit "refresh refused" signs them out.
      */
     const restore = async (attempt = 0): Promise<void> => {
+      if (hasPendingLogout()) {
+        clearAuthStorage();
+        setUser(null);
+        finish();
+        void retryPendingLogout();
+        return;
+      }
       const cached = loadCachedUser();
       const token = getToken();
       const hint = hasRefreshHint();
@@ -176,7 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const status = (meError as { status?: number })?.status;
             const code = (meError as { code?: string })?.code;
             const refreshable =
-              status === 401 || code === 'SESSION_EXPIRED' || code === 'UNAUTHORIZED';
+              status === 401 || status === 403 || code === 'SESSION_EXPIRED' || code === 'UNAUTHORIZED';
             if (!refreshable) throw meError;
           }
         }
@@ -212,6 +271,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // restore that failed while offline.
     const onWake = () => {
       if (document.visibilityState !== 'visible') return;
+      if (hasPendingLogout()) {
+        void retryPendingLogout();
+        return;
+      }
       if (getToken()) return;
       if (!hasRefreshHint() && !loadCachedUser()) return;
       void restore(MAX_RESTORE_ATTEMPTS);
@@ -310,6 +373,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (payload: LoginPayload) => {
+      if (hasPendingLogout() && !(await retryPendingLogout())) {
+        throw new Error('Reconnect to finish signing out before signing in again.');
+      }
       const data = await api.post<{ user: AuthUser; accessToken: string; csrfToken: string }>(
         '/auth/login',
         payload,
@@ -322,6 +388,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (payload: RegisterPayload) => {
+      if (hasPendingLogout() && !(await retryPendingLogout())) {
+        throw new Error('Reconnect to finish signing out before creating an account.');
+      }
       const data = await api.post<{ user: AuthUser; accessToken: string; csrfToken: string }>(
         '/auth/register',
         payload,
@@ -333,12 +402,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    markLogoutPending(getCsrfToken());
+    let completed = false;
     try {
       await api.post('/auth/logout');
-    } catch {
-      // Sign out must always succeed locally.
+      completed = true;
+    } catch (error) {
+      const status = (error as { status?: number })?.status;
+      const code = (error as { code?: string })?.code;
+      completed = status === 401 || code === 'SESSION_EXPIRED';
     }
     clearAuthStorage();
+    if (completed) clearPendingLogout();
     setUser(null);
   }, [setUser]);
 

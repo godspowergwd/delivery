@@ -13,7 +13,6 @@ export function Login() {
   const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +31,7 @@ export function Login() {
     setBusy(true);
     setError(null);
     try {
-      const signedIn = await login({ email, password, rememberMe });
+      const signedIn = await login({ email, password });
       if (signedIn.role === 'ADMIN') navigate('/admin', { replace: true });
       else if (signedIn.role === 'KITCHEN') navigate('/kitchen', { replace: true });
       else if (signedIn.role === 'DRIVER') navigate('/driver/deliveries', { replace: true });
@@ -97,15 +96,6 @@ export function Login() {
               placeholder="••••••••"
             />
           </Field>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(event) => setRememberMe(event.target.checked)}
-              className="h-5 w-5 rounded border-slate-300 bg-slate-200 accent-red-600"
-            />
-            Keep me signed in on this device
-          </label>
           <ErrorText message={error} />
           <Button type="submit" size="lg" loading={busy} className="w-full">
             Sign in

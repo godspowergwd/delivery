@@ -65,13 +65,9 @@ export function randomCode(length = 10): string {
 }
 
 /**
- * Lifetime of the refresh session. Sessions are indefinite: browsers cap cookie
- * lifetimes at 400 days, so that is the ceiling we use, and every refresh slides
- * the window forward again. A user is only signed out when they sign out.
+ * Refresh cookies are capped at the browser-supported 400-day maximum. Each
+ * successful refresh slides this window forward for every account type.
  */
-export function refreshTtlMs(rememberMe: boolean): number {
-  const fourHundredDays = 400 * 86_400_000;
-  return rememberMe
-    ? durationToMs(env.JWT_REMEMBER_TTL, fourHundredDays)
-    : durationToMs(env.JWT_REFRESH_TTL, fourHundredDays);
+export function refreshTtlMs(_rememberMe: boolean): number {
+  return 400 * 86_400_000;
 }
