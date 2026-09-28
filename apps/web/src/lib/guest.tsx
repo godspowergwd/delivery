@@ -4,10 +4,9 @@ import {
   useContext,
   useMemo,
   useRef,
-  useState,
   type ReactNode,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { ProductDTO } from '@delivery/shared';
 import { useAuth } from './auth';
 import { useCart, type CartLine } from './cart';
@@ -20,7 +19,7 @@ import { toast } from './realtime';
  * details, search, map preview, promotions and settings — without an account.
  * The moment a guest attempts a protected action (add to cart, order now,
  * checkout, favorite, track orders, order history, contact driver, save
- * address) the premium sign-in sheet slides up, and the attempted action is
+ * address) the in-app login route opens, and the attempted action is
  * remembered so it runs automatically after authentication.
  *
  * Serializable actions also survive a full page navigation (the Create
@@ -33,7 +32,7 @@ export type SerializedAction =
 const PENDING_KEY = 'ds_pending_action_v1';
 
 interface PendingAction {
-  /** In-memory continuation used by the inline sign-in sheet. */
+  /** In-memory continuation used by the in-app login route. */
   run?: () => void;
 }
 
@@ -107,14 +106,11 @@ export function replayStashedAction(
 }
 
 interface GuestGateValue {
-  /** True when the sign-in sheet is visible. */
-  sheetOpen: boolean;
-  /** Opens the sign-in sheet without remembering an action. */
-  openSheet: () => void;
-  closeSheet: () => void;
+  /** Opens the authoritative in-app login route. */
+  openLogin: () => void;
   /**
-   * Runs `action` immediately for signed-in visitors; otherwise opens the
-   * sign-in sheet and remembers the action. Returns true when it ran.
+  * Runs `action` immediately for signed-in visitors; otherwise opens login
+  * and remembers the action. Returns true when it ran.
    */
   requireAuth: (action: () => void, serialized?: SerializedAction) => boolean;
   /**
@@ -122,8 +118,6 @@ interface GuestGateValue {
    * Returns what happened so full-page auth screens can route sensibly.
    */
   flushPending: () => 'none' | 'ran' | 'nav' | 'cart';
-  /** Closes the sheet but keeps the stashed action, then opens registration. */
-  goRegister: () => void;
 }
 
 const GuestGateContext = createContext<GuestGateValue | null>(null);
@@ -132,11 +126,14 @@ export function GuestGateProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { lines, add, setQuantity } = useCart();
   const navigate = useNavigate();
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const location = useLocation();
   const pendingRef = useRef<PendingAction | null>(null);
 
+  const openLogin = useCallback(() => {
+    navigate('/login', { state: { from: location.pathname } });
+  }, [location.pathname, navigate]);
+
   const flushPending = useCallback((): 'none' | 'ran' | 'nav' | 'cart' => {
-    setSheetOpen(false);
     const pending = pendingRef.current;
     pendingRef.current = null;
     if (pending?.run) {
@@ -164,33 +161,15 @@ export function GuestGateProvider({ children }: { children: ReactNode }) {
       }
       pendingRef.current = { run: action };
       storeAction(serialized ?? null);
-      setSheetOpen(true);
+      openLogin();
       return false;
     },
-    [user],
+    [user, openLogin],
   );
 
-  const openSheet = useCallback(() => {
-    pendingRef.current = null;
-    setSheetOpen(true);
-  }, []);
-
-  const closeSheet = useCallback(() => {
-    pendingRef.current = null;
-    storeAction(null);
-    setSheetOpen(false);
-  }, []);
-
-  const goRegister = useCallback(() => {
-    // Keep the stashed action so the item/destination resumes after sign-up.
-    pendingRef.current = null;
-    setSheetOpen(false);
-    navigate('/register');
-  }, [navigate]);
-
   const value = useMemo<GuestGateValue>(
-    () => ({ sheetOpen, openSheet, closeSheet, requireAuth, flushPending, goRegister }),
-    [sheetOpen, openSheet, closeSheet, requireAuth, flushPending, goRegister],
+    () => ({ openLogin, requireAuth, flushPending }),
+    [openLogin, requireAuth, flushPending],
   );
 
   return <GuestGateContext.Provider value={value}>{children}</GuestGateContext.Provider>;

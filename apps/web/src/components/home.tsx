@@ -127,7 +127,7 @@ export function TrustRow() {
  */
 export function PromoCapture() {
   const { user } = useAuth();
-  const { openSheet } = useGuestGate();
+  const { openLogin } = useGuestGate();
   if (user) return null;
 
   return (
@@ -140,7 +140,7 @@ export function PromoCapture() {
         <div className="flex flex-none gap-2">
           <button
             type="button"
-            onClick={openSheet}
+            onClick={openLogin}
             className="rounded-xl bg-white px-3.5 py-2.5 text-sm font-extrabold text-red-700 transition hover:bg-red-50 active:scale-[0.97]"
           >
             Sign in

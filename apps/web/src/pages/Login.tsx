@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useGuestGate } from '../lib/guest';
 import { Button, Card, ErrorText, Field, Input } from '../components/ui';
-import { LeafIcon } from '../components/icons';
+import { ArrowLeftIcon, LeafIcon } from '../components/icons';
 
 export function Login() {
   const { login, user } = useAuth();
@@ -13,6 +14,7 @@ export function Login() {
   const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,8 +50,14 @@ export function Login() {
     }
   };
 
+  const goBack = () => navigate('/app/home', { replace: true });
+
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center bg-white px-5">
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center bg-white px-5 py-8">
+      <Button type="button" variant="ghost" size="sm" className="mb-4 self-start" onClick={goBack}>
+        <ArrowLeftIcon className="h-4 w-4" />
+        Back
+      </Button>
       {params.get('expired') && (
         <p className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
           Your session expired. Please sign in again.
@@ -68,10 +76,10 @@ export function Login() {
         {/* One real credential form: identifier first, password second — the
             exact order and semantics every password manager expects. */}
         <form onSubmit={submit} className="space-y-4" autoComplete="on">
-          <Field label="Email or username" htmlFor="login-identifier">
+          <Field label="Email or username" htmlFor="login-email">
             <Input
-              id="login-identifier"
-              name="username"
+              id="login-email"
+              name="email"
               type="text"
               required
               autoComplete="username"
@@ -85,16 +93,29 @@ export function Login() {
             />
           </Field>
           <Field label="Password" htmlFor="login-password">
-            <Input
-              id="login-password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <Input
+                id="login-password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Password"
+                className="pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center text-slate-500 hover:text-slate-800"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
           </Field>
           <ErrorText message={error} />
           <Button type="submit" size="lg" loading={busy} className="w-full">

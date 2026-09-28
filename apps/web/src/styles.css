@@ -625,6 +625,11 @@ img {
   box-shadow: var(--shadow-soft);
   cursor: pointer;
 }
+.map-control-btn-compact {
+  width: 38px;
+  height: 38px;
+  border-radius: 0.8rem;
+}
 .map-control-btn:hover {
   background: var(--surface-muted);
 }
@@ -645,6 +650,50 @@ img {
 .map-control-btn-green:hover { background: var(--success-deep); }
 .map-control-btn-icon-red { color: var(--brand); }
 .map-control-btn-icon-green { color: var(--success); }
+
+.driver-turn-hud {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgb(15 23 42 / 0.12);
+  border-left: 3px solid var(--success);
+  border-radius: 0.85rem;
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(8px);
+}
+.driver-turn-main {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 28px;
+}
+.driver-turn-distance {
+  flex: none;
+  color: var(--brand);
+  font-size: 0.95rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.driver-turn-instruction {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.driver-turn-meta {
+  color: var(--ink-muted, #6a7383);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
 
 .mapboxgl-ctrl-attrib { font-size: 10px !important; }
 .mapboxgl-ctrl-group {

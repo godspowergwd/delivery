@@ -87,7 +87,7 @@ export function Menu() {
 
   const toggleFavorite = (product: ProductDTO) => {
     const wasFavorite = favorites.has(product.id);
-    // Saving a favorite is an account action — guests get the sign-in sheet.
+                // Saving a favorite is an account action — guests go through login.
     requireAuth(() => {
       void (async () => {
         try {
