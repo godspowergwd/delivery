@@ -630,6 +630,26 @@ img {
   height: 38px;
   border-radius: 0.8rem;
 }
+.map-control-rail {
+  max-height: min(55dvh, 420px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.map-control-rail::-webkit-scrollbar { display: none; }
+.map-control-cluster {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(8px);
+}
+.map-control-cluster .map-control-btn {
+  border: 0;
+  box-shadow: none;
+}
 .map-control-btn:hover {
   background: var(--surface-muted);
 }

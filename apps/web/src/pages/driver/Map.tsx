@@ -20,12 +20,16 @@ import {
   ArrowLeftIcon,
   BikeIcon,
   ChevronDownIcon,
+  CompassIcon,
   LeafIcon,
   LocateIcon,
   MapPinIcon,
   NavigationIcon,
   PhoneIcon,
   RouteIcon,
+  StoreIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
 } from '../../components/icons';
 import { Button, Modal, Spinner, StatusPill, Textarea } from '../../components/ui';
 
@@ -63,6 +67,7 @@ export default function DriverMap() {
    * collapsed (summary) and expanded (full order details).
    */
   const [snap, setSnap] = useState<SheetSnap>('peek');
+  const [rotated, setRotated] = useState(false);
   const [viewportH, setViewportH] = useState(() =>
     typeof window === 'undefined' ? 720 : window.innerHeight,
   );
@@ -284,6 +289,27 @@ export default function DriverMap() {
     mapRef.current.setFollow(true);
   }, [location, mapRef]);
 
+  const zoomBy = useCallback((direction: 1 | -1) => {
+    const map = mapRef.current.getMap();
+    if (!map) return;
+    if (direction > 0) map.zoomIn();
+    else map.zoomOut();
+  }, [mapRef]);
+
+  const resetBearing = useCallback(() => {
+    const map = mapRef.current.getMap();
+    if (!map) return;
+    map.easeTo({ bearing: 0, pitch: 0, duration: 350 });
+    setIsFollowing(false);
+  }, [mapRef]);
+
+  const focusDestination = useCallback(() => {
+    if (!target) return;
+    setIsFollowing(false);
+    mapRef.current.setFollow(false);
+    mapRef.current.focus({ lat: target.lat, lng: target.lng }, { zoom: 16 });
+  }, [target, mapRef]);
+
   const fitRoute = useCallback(() => {
     const points = route?.coordinates.map(([lng, lat]) => ({ lat, lng })) ?? [
       location.position ? { lat: location.position.lat, lng: location.position.lng } : null,
@@ -294,6 +320,28 @@ export default function DriverMap() {
     mapRef.current.setFollow(false);
     mapRef.current.fit(points, { maxZoom: 15 });
   }, [location.position, target, route, mapRef]);
+
+  useEffect(() => {
+    let timer = 0;
+    let detach: (() => void) | undefined;
+    let attempts = 0;
+    const attach = () => {
+      const map = mapRef.current.getMap();
+      if (map) {
+        const update = () => setRotated(Math.abs(map.getBearing()) > 1);
+        map.on('rotate', update);
+        update();
+        detach = () => map.off('rotate', update);
+      } else if (attempts++ < 40) {
+        timer = window.setTimeout(attach, 250);
+      }
+    };
+    attach();
+    return () => {
+      window.clearTimeout(timer);
+      detach?.();
+    };
+  }, [mapRef]);
 
   // Keep the canvas correctly sized whenever the sheet snaps to a new height,
   // and remember the viewport so the floating controls can track the sheet.
@@ -383,22 +431,40 @@ export default function DriverMap() {
             {directionMessage}
           </p>
         )}
-        {delivering && !navigationActive && (
+        {delivering && (
           <Button
             className="absolute left-3 z-20 min-h-10 rounded-xl px-3 text-sm"
             style={{ bottom: `${snapHeight + 12}px` }}
-            loading={routeLoading || location.requesting}
-            onClick={startNavigation}
+            loading={!navigationActive && (routeLoading || location.requesting)}
+            onClick={navigationActive ? fitRoute : startNavigation}
           >
-            <NavigationIcon className="h-4 w-4" />
+            {navigationActive ? <RouteIcon className="h-4 w-4" /> : <NavigationIcon className="h-4 w-4" />}
             Get Direction
           </Button>
         )}
 
         <div
-          className="absolute right-3 z-20 flex flex-col gap-1.5"
+          className="map-control-rail absolute right-3 z-20 flex flex-col gap-1.5"
           style={{ bottom: `${snapHeight + 12}px` }}
         >
+          <div className="map-control-cluster">
+            <button type="button" className="map-control-btn map-control-btn-compact" onClick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in">
+              <ZoomInIcon className="h-4 w-4" />
+            </button>
+            <button type="button" className="map-control-btn map-control-btn-compact" onClick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out">
+              <ZoomOutIcon className="h-4 w-4" />
+            </button>
+          </div>
+          <button
+            type="button"
+            className={`map-control-btn map-control-btn-compact ${rotated ? 'map-control-btn-red' : ''}`}
+            onClick={resetBearing}
+            aria-label="Reset map orientation to north"
+            title="Reset compass"
+            aria-pressed={rotated}
+          >
+            <CompassIcon className="h-4 w-4" />
+          </button>
           <button
             type="button"
             className={`map-control-btn map-control-btn-compact ${isFollowing ? 'map-control-btn-green' : ''}`}
@@ -418,6 +484,17 @@ export default function DriverMap() {
               title="Show route"
             >
               <RouteIcon className="h-4 w-4" />
+            </button>
+          )}
+          {target && (
+            <button
+              type="button"
+              className="map-control-btn map-control-btn-compact"
+              onClick={focusDestination}
+              aria-label={delivering ? 'Focus customer destination' : 'Focus restaurant'}
+              title={delivering ? 'Customer destination' : 'Restaurant'}
+            >
+              {delivering ? <MapPinIcon className="h-4 w-4" /> : <StoreIcon className="h-4 w-4" />}
             </button>
           )}
           {navigationActive && speechSupported && (
