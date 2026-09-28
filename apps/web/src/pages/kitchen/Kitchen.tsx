@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OrderDTO, Paginated } from '@delivery/shared';
+import type { OrderDTO, Paginated, ReceiptDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { api } from '../../lib/api';
+import { printDeliveryReceipt } from '../../lib/print-receipt';
 import { toast, useRealtimeSync } from '../../lib/realtime';
 import { Button, Card, EmptyState, Spinner, StatusPill } from '../../components/ui';
 import {
@@ -13,6 +14,7 @@ import {
   XCircleIcon,
   TruckIcon,
   WalletIcon,
+  ReceiptIcon,
 } from '../../components/icons';
 import type { ComponentType } from 'react';
 
@@ -168,7 +170,22 @@ function KitchenOrderCard({
   onAdvance: (id: string, action: string, note?: string) => void;
 }) {
   const isLive = (LIVE_STATUSES as readonly string[]).includes(order.status);
+  const receiptReady = ['PREPARING', 'READY', 'OUT_FOR_DELIVERY'].includes(order.status);
   const actions = kitchenActions(order.status);
+
+  async function printReceipt() {
+    try {
+      await printDeliveryReceipt(
+        async () => {
+          const result = await api.get<{ receipt: ReceiptDTO }>(`/receipts/order/${order.id}`);
+          return result.receipt;
+        },
+        { createdAt: order.createdAt, driverName: order.driverName },
+      );
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not open the receipt for printing.', 'error');
+    }
+  }
 
   return (
     <Card className="border-slate-200">
@@ -191,8 +208,16 @@ function KitchenOrderCard({
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-        <p className="text-sm font-bold text-red-600">{formatMoney(order.total)}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+        <div className="flex items-center gap-3">
+          <p className="text-sm font-bold text-red-600">{formatMoney(order.total)}</p>
+          {receiptReady && (
+            <Button size="sm" variant="outline" className="min-h-11" onClick={() => void printReceipt()}>
+              <ReceiptIcon className="h-4 w-4" aria-hidden="true" />
+              Print receipt
+            </Button>
+          )}
+        </div>
         {isLive && (
           <div className="flex gap-2 flex-wrap justify-end">
             {actions.map((action) => (

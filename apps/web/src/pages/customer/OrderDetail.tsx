@@ -11,6 +11,7 @@ import {
   orderStatusIndex,
 } from '@delivery/shared';
 import { api } from '../../lib/api';
+import { printDeliveryReceipt } from '../../lib/print-receipt';
 import { useCart } from '../../lib/cart';
 import { toast } from '../../lib/realtime';
 import { ArrowLeftIcon, CheckIcon } from '../../components/icons';
@@ -280,7 +281,12 @@ function OrderDetailBody({
             <Spinner />
           </div>
         ) : receipt.data ? (
-          <ReceiptView receipt={receipt.data.receipt} downloadUrl={receipt.data.downloadUrl} printUrl={receipt.data.printUrl} />
+          <ReceiptView
+            receipt={receipt.data.receipt}
+            downloadUrl={receipt.data.downloadUrl}
+            createdAt={data.createdAt}
+            driverName={data.driverName}
+          />
         ) : (
           <p className="text-sm text-slate-500">Generating your receipt…</p>
         )}
@@ -289,7 +295,12 @@ function OrderDetailBody({
   );
 }
 
-function ReceiptView({ receipt, downloadUrl, printUrl }: { receipt: ReceiptDTO; downloadUrl: string; printUrl: string }) {
+function ReceiptView({ receipt, downloadUrl, createdAt, driverName }: {
+  receipt: ReceiptDTO;
+  downloadUrl: string;
+  createdAt: string;
+  driverName: string | null;
+}) {
   const open = (path: string) => {
     const base = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/+$/, '');
     window.open(`${base}${path}`, '_blank', 'noopener');
@@ -335,7 +346,14 @@ function ReceiptView({ receipt, downloadUrl, printUrl }: { receipt: ReceiptDTO; 
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
-        <Button variant="outline" onClick={() => open(printUrl)}>
+        <Button
+          variant="outline"
+          onClick={() =>
+            void printDeliveryReceipt(async () => receipt, { createdAt, driverName }).catch((error) =>
+              toast(error instanceof Error ? error.message : 'Could not open the receipt for printing.', 'error'),
+            )
+          }
+        >
           Print
         </Button>
         <Button onClick={() => open(downloadUrl)}>Download PDF</Button>
