@@ -20,6 +20,9 @@ import {
   DriverProfile,
   KitchenProducts,
   KitchenQueue,
+  KitchenSettings,
+  KitchenDrivers,
+  KitchenDriverCreate,
   Menu,
   OrderDetail,
   Orders,
@@ -69,6 +72,9 @@ export function App() {
         <Route element={<AppShell />}>
           <Route path="/kitchen" element={<LazyRoute><KitchenQueue /></LazyRoute>} />
           <Route path="/kitchen/products" element={<LazyRoute><KitchenProducts /></LazyRoute>} />
+          <Route path="/kitchen/settings" element={<LazyRoute><KitchenSettings /></LazyRoute>} />
+          <Route path="/kitchen/drivers" element={<LazyRoute><KitchenDrivers /></LazyRoute>} />
+          <Route path="/kitchen/drivers/new" element={<LazyRoute><KitchenDriverCreate /></LazyRoute>} />
         </Route>
       </Route>
 

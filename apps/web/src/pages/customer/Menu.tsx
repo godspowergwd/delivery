@@ -8,8 +8,10 @@ import { useAuth } from '../../lib/auth';
 import { useCart } from '../../lib/cart';
 import { useGuestGate } from '../../lib/guest';
 import { toast } from '../../lib/realtime';
+import { useRestaurantStatus } from '../../lib/restaurant-status';
 import { HeartIcon, ImageIcon, LeafIcon } from '../../components/icons';
 import { EmptyState, Input, Select, Spinner } from '../../components/ui';
+import { RestaurantClosedNotice } from '../../components/restaurant-status';
 import {
   TRENDING_SEARCHES,
   clearRecentSearches,
@@ -30,6 +32,8 @@ export function Menu() {
   const { user } = useAuth();
   const { requireAuth } = useGuestGate();
   const { add } = useCart();
+  // Live open/closed state so guests see the closure without a refresh.
+  const { status } = useRestaurantStatus();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebounced(search.trim()), 350);
@@ -104,6 +108,9 @@ export function Menu() {
 
   return (
     <div className="space-y-4">
+      {/* Kitchen closed: browsing stays open, checkout does not. */}
+      {status && !status.open && <RestaurantClosedNotice status={status} />}
+
       <div className="space-y-3">
         <Input
           type="search"

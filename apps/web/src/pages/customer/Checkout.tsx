@@ -20,9 +20,11 @@ import {
   type OrderSubmissionPayload,
 } from '../../lib/offline-order';
 import { toast } from '../../lib/realtime';
+import { useRestaurantStatus } from '../../lib/restaurant-status';
 import { Button, Card, Field, Input, Textarea } from '../../components/ui';
 import { MapPreview } from '../../components/MapPreview';
 import { LocationSearch } from '../../components/LocationSearch';
+import { RestaurantClosedNotice } from '../../components/restaurant-status';
 import { CheckIcon, LeafIcon } from '../../components/icons';
 
 function toPlaceSuggestion(location: ConfirmedDeliveryLocation): PlaceSuggestion {
@@ -54,6 +56,8 @@ export function Checkout() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Live open/closed state — the same source the API re-checks on submit.
+  const { status: restaurantStatus, open: restaurantOpen } = useRestaurantStatus();
 
   const [confirmedLocation, setConfirmedLocation] = useState(() => readConfirmedDeliveryLocation(user?.id));
   const [addressText, setAddressText] = useState(() => confirmedLocation?.label ?? '');
@@ -223,8 +227,9 @@ export function Checkout() {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!settings?.acceptingOrders) {
-      toast('The kitchen is not accepting orders right now.', 'error');
+    if (!restaurantOpen) {
+      // The server refuses the order anyway — this only keeps the messaging clean.
+      toast('The kitchen is currently closed for new orders.', 'error');
       return;
     }
     if (!deliveryPhone.trim()) {
@@ -274,7 +279,7 @@ export function Checkout() {
     placeOrder.mutate(payload);
   };
 
-  const accepting = settings?.acceptingOrders ?? true;
+  const accepting = restaurantOpen;
   const busy = placeOrder.isPending;
 
   return (
@@ -283,6 +288,9 @@ export function Checkout() {
         <h1 className="text-2xl font-extrabold text-slate-900 lg:text-3xl">Checkout</h1>
         <p className="mt-1 text-sm text-slate-500">Choose your delivery address and confirm.</p>
       </header>
+
+      {/* Closed kitchen: full-width status card, checkout stays blocked. */}
+      {!restaurantOpen && <RestaurantClosedNotice status={restaurantStatus} />}
 
       {/* ---------- Address (intelligent autocomplete) ---------- */}
       <Card className="duo-top relative space-y-1">
@@ -420,12 +428,23 @@ export function Checkout() {
           Prepared fresh in the Mallam kitchen the moment you order.
         </p>
         {!accepting && (
-          <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
-            The kitchen is currently not accepting orders.
+          <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] font-bold leading-relaxed text-red-700">
+            Kitchen is currently closed — we are not accepting orders right now. Opens again when
+            the kitchen comes online.
           </p>
         )}
-        <Button type="submit" size="lg" block loading={busy} disabled={!accepting || !confirmedMatchesSelection || Boolean(pendingOrder)}>
-          {busy ? 'Sending…' : `Place order · ${formatMoney(totals.total)}`}
+        <Button
+          type="submit"
+          size="lg"
+          block
+          loading={busy}
+          disabled={!accepting || !confirmedMatchesSelection || Boolean(pendingOrder)}
+        >
+          {busy
+            ? 'Sending…'
+            : accepting
+              ? `Place order · ${formatMoney(totals.total)}`
+              : 'Orders are paused'}
         </Button>
       </Card>
     </form>

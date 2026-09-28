@@ -36,6 +36,14 @@ export function useRealtimeSync(): void {
       invalidate('orders', 'active-orders', 'kitchen-orders', 'kitchen-summary', 'admin-orders', 'driver-deliveries', 'driver-summary');
     };
 
+    /**
+     * The Kitchen opened or closed the restaurant: every screen that shows the
+     * status or gates checkout refetches immediately, with no manual refresh.
+     */
+    const onRestaurantStatus = () => {
+      invalidate('restaurant-status', 'settings', 'kitchen-status');
+    };
+
     socket.on('order:created', onOrderCreated);
     socket.on('order:updated', onOrderUpdated);
     socket.on('order:deleted', () => invalidate('orders', 'admin-orders', 'kitchen-orders'));
@@ -43,8 +51,9 @@ export function useRealtimeSync(): void {
     socket.on('notification:read', () => invalidate('notifications'));
     socket.on('product:changed', () => invalidate('products', 'admin-products', 'categories'));
     socket.on('category:changed', () => invalidate('categories', 'products'));
-    socket.on('user:changed', () => invalidate('admin-users'));
-    socket.on('settings:changed', () => invalidate('settings'));
+    socket.on('user:changed', () => invalidate('admin-users', 'kitchen-drivers'));
+    socket.on('settings:changed', () => invalidate('settings', 'restaurant-status'));
+    socket.on('restaurant:status', onRestaurantStatus);
     socket.on('analytics:refresh', () => invalidate('analytics-overview', 'analytics-charts'));
     socket.on('stock:low', (payload) => {
       if (user?.role !== 'CUSTOMER') {
@@ -64,6 +73,7 @@ export function useRealtimeSync(): void {
         'category:changed',
         'user:changed',
         'settings:changed',
+        'restaurant:status',
         'analytics:refresh',
         'stock:low',
         'receipt:generated',

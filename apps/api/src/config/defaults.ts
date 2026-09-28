@@ -21,6 +21,10 @@ export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
   taxRate: 2.5,
   minOrderTotal: 10,
   acceptingOrders: true,
+  // Restaurant open/close audit trail: written by the Kitchen every time the
+  // status toggle is pressed (Kitchen > Settings > Restaurant Status).
+  restaurantStatusChangedAt: '',
+  restaurantStatusChangedBy: '',
   supportPhone: '+233000000000',
   supportEmail: 'support@waakyeapp.com',
   lowStockThreshold: 10,
@@ -43,6 +47,8 @@ export const PUBLIC_SETTING_KEYS = [
   'taxRate',
   'minOrderTotal',
   'acceptingOrders',
+  'restaurantStatusChangedAt',
+  'restaurantStatusChangedBy',
   'supportPhone',
   'supportEmail',
   'deliveryRadiusKm',

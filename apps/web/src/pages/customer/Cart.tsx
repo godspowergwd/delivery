@@ -5,13 +5,17 @@ import { computeTotals, formatMoney } from '@delivery/shared';
 import { api, mediaUrl } from '../../lib/api';
 import { useCart } from '../../lib/cart';
 import { useGuestGate } from '../../lib/guest';
+import { useRestaurantStatus } from '../../lib/restaurant-status';
 import { Button, Card, EmptyState, Input } from '../../components/ui';
 import { ImageIcon, LeafIcon } from '../../components/icons';
+import { RestaurantClosedNotice } from '../../components/restaurant-status';
 
 export function Cart() {
   const { lines, itemCount, subtotal, setQuantity, setNotes, remove, clear } = useCart();
   const navigate = useNavigate();
   const { requireAuth } = useGuestGate();
+  // Live open/closed state so customer knows before attempting checkout
+  const { status: restaurantStatus, open: restaurantOpen } = useRestaurantStatus();
 
   const { data } = useQuery({
     queryKey: ['settings'],
@@ -40,6 +44,9 @@ export function Cart() {
 
   return (
     <div className="space-y-5">
+      {/* Show notice if kitchen is closed */}
+      {!restaurantOpen && <RestaurantClosedNotice status={restaurantStatus} />}
+
       <header>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-extrabold text-slate-900 lg:text-3xl">
@@ -116,10 +123,15 @@ export function Cart() {
             Minimum order is {formatMoney(settings?.minOrderTotal ?? 0)} — add a little more to check out.
           </p>
         )}
+        {!restaurantOpen && (
+          <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
+            Kitchen is currently closed — checkout will reopen when the kitchen comes online.
+          </p>
+        )}
         <Button
           size="lg"
           className="w-full"
-          disabled={belowMinimum}
+          disabled={belowMinimum || !restaurantOpen}
           onClick={() =>
             // Checkout is protected — guests get the sheet, then land here.
             requireAuth(() => navigate('/app/checkout'), {
@@ -128,7 +140,7 @@ export function Cart() {
             })
           }
         >
-          Continue to checkout
+          {restaurantOpen ? 'Continue to checkout' : 'Kitchen closed'}
         </Button>
       </Card>
     </div>

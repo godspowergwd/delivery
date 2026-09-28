@@ -7,7 +7,9 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useGuestGate } from '../lib/guest';
 import { loadDeliveryLocation } from '../lib/prefs';
+import { useRestaurantStatus } from '../lib/restaurant-status';
 import { BikeIcon, ClockIcon, LeafIcon, MapPinIcon, ShieldIcon } from './icons';
+import { RestaurantStatusPill } from './restaurant-status';
 
 /** Compact location + ETA strip shown under the customer header. */
 export function DeliveryStatusBar({ etaMinutes = 25 }: { etaMinutes?: number }) {
@@ -17,6 +19,8 @@ export function DeliveryStatusBar({ etaMinutes = 25 }: { etaMinutes?: number }) 
     queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
     staleTime: 300_000,
   });
+  // Live open/closed chip: updates the moment the Kitchen flips the switch.
+  const { status } = useRestaurantStatus();
   const fee = data?.settings.deliveryFee;
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] font-medium text-slate-500">
@@ -35,10 +39,7 @@ export function DeliveryStatusBar({ etaMinutes = 25 }: { etaMinutes?: number }) 
           Delivery {formatMoney(fee)}
         </span>
       )}
-      <span className="badge-fresh">
-        <LeafIcon className="h-3 w-3" aria-hidden="true" />
-        Available today
-      </span>
+      <RestaurantStatusPill status={status} />
     </div>
   );
 }

@@ -502,7 +502,13 @@ export async function resetUserPassword(
     body: 'An administrator reset your password. Sign in with the new password and change it.',
     type: 'SYSTEM',
     audience:
-      target.role === 'CUSTOMER' ? 'CUSTOMER' : target.role === 'KITCHEN' ? 'KITCHEN' : 'ADMIN',
+      target.role === 'CUSTOMER'
+        ? 'CUSTOMER'
+        : target.role === 'KITCHEN'
+          ? 'KITCHEN'
+          : target.role === 'DRIVER'
+            ? 'DRIVER'
+            : 'ADMIN',
   });
 
   await logActivity({

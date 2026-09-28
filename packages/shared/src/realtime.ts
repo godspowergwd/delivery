@@ -2,6 +2,7 @@ import type { NotificationDTO, OrderDTO, ProductDTO, CategoryDTO, AnalyticsOverv
 import type { OrderStatus } from './order-status';
 import type { Role } from './roles';
 import type { DriverLocationDTO, DriverLocationInput } from './tracking';
+import type { RestaurantStatusDTO } from './restaurant';
 
 export type { Role } from './roles';
 export type { OrderStatus } from './order-status';
@@ -33,6 +34,12 @@ export interface ServerToClientEvents {
   }) => void;
   'user:changed': (payload: { action: 'created' | 'updated' | 'deleted'; userId: string }) => void;
   'settings:changed': () => void;
+  /**
+   * Restaurant opened / closed by the Kitchen. Broadcast to every connected
+   * device (customers, kitchen, drivers and admins alike) the moment the toggle
+   * is pressed, so no screen ever needs a manual refresh.
+   */
+  'restaurant:status': (payload: { status: RestaurantStatusDTO }) => void;
   'analytics:refresh': (payload?: { overview?: AnalyticsOverview }) => void;
   'stock:low': (payload: { productId: string; name: string; stock: number }) => void;
   'receipt:generated': (payload: { orderId: string; receiptNumber: string }) => void;

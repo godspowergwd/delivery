@@ -5,8 +5,10 @@ import type { OrderDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { fetchDriverDeliveries, postDriverAction } from '../../lib/driver-api';
 import { useRealtimeSync, toast } from '../../lib/realtime';
+import { useRestaurantStatus } from '../../lib/restaurant-status';
 import { MapPinIcon } from '../../components/icons';
 import { Button, Card, EmptyState, Modal, Spinner, StatusPill, Textarea } from '../../components/ui';
+import { RestaurantStatusPill } from '../../components/restaurant-status';
 
 type Tab = 'available' | 'mine' | 'history';
 const TAB_ORDER: Tab[] = ['available', 'mine', 'history'];
@@ -41,6 +43,8 @@ export default function DriverDeliveries() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('available');
   const [issueOrder, setIssueOrder] = useState<OrderDTO | null>(null);
+  // Live kitchen status — drivers see the same open/closed state as customers.
+  const { status } = useRestaurantStatus();
 
   const { data: orders = [], isLoading, isError, error } = useQuery({
     queryKey: ['driver-deliveries', tab],
@@ -66,10 +70,21 @@ export default function DriverDeliveries() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-2xl font-extrabold text-slate-900">Deliveries</h1>
-        <p className="text-sm text-slate-500">Accept a delivery and the full-screen map opens right away.</p>
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-extrabold text-slate-900">Deliveries</h1>
+          <p className="text-sm text-slate-500">
+            Accept a delivery and the full-screen map opens right away.
+          </p>
+        </div>
+        <RestaurantStatusPill status={status} className="mt-1 flex-none" />
       </header>
+
+      {status && !status.open && (
+        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] font-bold text-red-700">
+          The kitchen is closed for new orders. Keep working on the deliveries already in progress.
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2" role="tablist">
         {TAB_ORDER.map((t) => (

@@ -10,14 +10,18 @@ import { Reveal } from '../../components/motion';
 import { FoodCard } from '../../components/FoodCard';
 import { MapPreview } from '../../components/MapPreview';
 import { CategoryRail, DeliveryStatusBar, PromoCapture, TrustRow } from '../../components/home';
-import { LeafIcon, SearchIcon, SparkleIcon, TruckIcon } from '../../components/icons';
+import { SearchIcon, SparkleIcon, TruckIcon } from '../../components/icons';
 import { Card, Spinner, StatusPill } from '../../components/ui';
+import { RestaurantClosedNotice, RestaurantStatusPill } from '../../components/restaurant-status';
+import { useRestaurantStatus } from '../../lib/restaurant-status';
 
 export default function CustomerHome() {
   const { user } = useAuth();
   const { itemCount } = useCart();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  // Live open/closed state, pushed by the Kitchen over the socket.
+  const { status } = useRestaurantStatus();
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -61,6 +65,9 @@ export default function CustomerHome() {
 
   return (
     <div className="space-y-7">
+      {/* Kitchen closed: browsing stays open, ordering does not. */}
+      {status && !status.open && <RestaurantClosedNotice status={status} />}
+
       {(active?.orders?.length ?? 0) > 0 && (
         <Link
           to={`/app/orders/${active!.orders[0].id}`}
@@ -90,10 +97,7 @@ export default function CustomerHome() {
         <div className="relative">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-bold text-slate-500">Hungry, {firstName}?</p>
-            <span className="badge-fresh">
-              <LeafIcon className="h-3 w-3" aria-hidden="true" />
-              Kitchen open
-            </span>
+            <RestaurantStatusPill status={status} />
           </div>
           <h1 className="mt-1 text-[26px] font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">
             <span className="text-green-700">Fresh food</span>, delivered{' '}

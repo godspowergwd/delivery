@@ -525,3 +525,41 @@ export const LockIcon = (p: IconProps) => (
   </Base>
 );
 
+/* ------------------------- kitchen / driver tools ------------------------ */
+
+/** Copy to clipboard (hand driver logins over in one tap). */
+export const CopyIcon = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="9" y="9" width="11" height="11" rx="2.2" />
+    <path d="M15 6.5V5.4A1.4 1.4 0 0 0 13.6 4H5.4A1.4 1.4 0 0 0 4 5.4v8.2A1.4 1.4 0 0 0 5.4 15h1.1" />
+  </Base>
+);
+
+/** Share through the device share sheet (WhatsApp, SMS, email…). */
+export const ShareIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 3v11" />
+    <path d="m8.2 6.8 3.8-3.8 3.8 3.8" />
+    <path d="M5 14v5.2A1.8 1.8 0 0 0 6.8 21h10.4A1.8 1.8 0 0 0 19 19.2V14" />
+  </Base>
+);
+
+/** Open / closed power switch for the restaurant status control. */
+export const PowerIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 3.5v8" />
+    <path d="M7.2 6.6a7 7 0 1 0 9.6 0" />
+  </Base>
+);
+
+/** Dispatch / driver assignment (order cards, pickup status). */
+export const BikeFleetIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="6" cy="17" r="3" />
+    <circle cx="18" cy="17" r="3" />
+    <path d="M9 17h6" />
+    <path d="M12 17 9.5 7h3.2l1.6 4.2H18" />
+  </Base>
+);
+
+

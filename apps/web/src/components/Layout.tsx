@@ -8,8 +8,10 @@ import { useCart } from '../lib/cart';
 import { useGuestGate } from '../lib/guest';
 import { applyPwaUpdate } from '../lib/pwa';
 import { isInstalledDisplay } from '../lib/pwa-display';
+import { useRestaurantStatus } from '../lib/restaurant-status';
 import { Button } from './ui';
 import { NotificationBell } from './NotificationBell';
+import { RestaurantStatusPill } from './restaurant-status';
 import {
   CartIcon,
   ChartIcon,
@@ -23,6 +25,7 @@ import {
   SearchIcon,
   TruckIcon,
   UserIcon,
+  UsersIcon,
   FlameIcon,
   WalletIcon,
 } from './icons';
@@ -141,9 +144,10 @@ const NAV: Record<Role, NavItem[]> = {
     { to: '/app/profile', label: 'Account', icon: UserIcon, tone: 'green' },
   ],
   KITCHEN: [
-    { to: '/kitchen', label: 'Queue', icon: FlameIcon, tone: 'red', emphasize: true },
-    { to: '/kitchen/products', label: 'Products', icon: PackageIcon, tone: 'green' },
-    { to: '/settings', label: 'Settings', icon: CogIcon, tone: 'red' },
+    { to: '/kitchen', label: 'Orders', icon: FlameIcon, tone: 'red', emphasize: true },
+    { to: '/kitchen/drivers', label: 'Drivers', icon: UsersIcon, tone: 'green' },
+    { to: '/kitchen/products', label: 'Products', icon: PackageIcon, tone: 'red' },
+    { to: '/kitchen/settings', label: 'Settings', icon: CogIcon, tone: 'green' },
   ],
   DRIVER: [
     { to: '/driver/deliveries', label: 'Deliveries', icon: TruckIcon, tone: 'red', emphasize: true },
@@ -161,7 +165,13 @@ const NAV: Record<Role, NavItem[]> = {
 };
 
 function isExactRoute(to: string): boolean {
-  return to === '/admin' || to === '/kitchen' || to === '/app/home' || to === '/driver/deliveries';
+  return (
+    to === '/admin' ||
+    to === '/kitchen' ||
+    to === '/app/home' ||
+    to === '/driver/deliveries' ||
+    to === '/kitchen/settings'
+  );
 }
 
 /** Active/idle classes per tone — equal red and green presence in the nav. */
@@ -295,6 +305,8 @@ export function AppShell() {
   const { itemCount } = useCart();
   const { openSheet } = useGuestGate();
   const navigate = useNavigate();
+  // Live open/closed badge: one shared query, updated by the socket event.
+  const { status } = useRestaurantStatus();
   // Guests browse the full customer storefront with the customer navigation.
   const items = user ? NAV[user.role] : NAV.CUSTOMER;
   const roleLabel = user ? ROLE_LABELS[user.role] : 'Guest browsing';
@@ -366,6 +378,7 @@ export function AppShell() {
               </div>
             </Link>
             <div className="flex flex-none items-center gap-2">
+              <RestaurantStatusPill status={status} />
               {user && <NotificationBell />}
               {user ? (
                 <button
@@ -386,11 +399,14 @@ export function AppShell() {
 
         {/* Desktop top bar */}
         <div className="sticky top-0 z-30 hidden items-center justify-end gap-3 border-b border-slate-200 bg-white/95 px-8 py-3 backdrop-blur lg:flex">
-          {!user && (
-            <span className="badge-fresh mr-auto" role="status">
-              Open today · delivering across Mallam & Gbawe
+          <span className="mr-auto flex items-center gap-2.5" role="status">
+            <RestaurantStatusPill status={status} />
+            <span className="hidden text-sm font-semibold text-slate-500 xl:inline">
+              {status && !status.open
+                ? 'Orders paused until the kitchen comes online'
+                : 'Delivering across Mallam & Gbawe'}
             </span>
-          )}
+          </span>
           <InstallButton />
           {user ? (
             <NotificationBell />

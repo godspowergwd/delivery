@@ -196,7 +196,16 @@ export interface SettingsDTO {
   deliveryFee: number;
   taxRate: number;
   minOrderTotal: number;
+  /**
+   * Restaurant open/closed switch controlled by the Kitchen
+   * (Kitchen > Settings > Restaurant Status). Also enforced by the API when an
+   * order is placed, so a stale client can never order while closed.
+   */
   acceptingOrders: boolean;
+  /** ISO timestamp of the last open/close action; empty string when never recorded. */
+  restaurantStatusChangedAt: string;
+  /** Who performed the last open/close action ("Kitchen", "Administrator", staff name). */
+  restaurantStatusChangedBy: string;
   supportPhone: string;
   supportEmail: string;
   lowStockThreshold: number;

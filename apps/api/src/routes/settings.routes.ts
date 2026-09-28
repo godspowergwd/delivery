@@ -5,6 +5,7 @@ import { asyncHandler } from '../lib/http';
 import { emailSchema, percentSchema, phoneSchema } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
 import { getPublicSettings, getSettings, updateSettings } from '../services/settings.service';
+import { applyRestaurantStatus, getRestaurantStatus } from '../services/restaurant.service';
 import { logActivity } from '../services/activity-log.service';
 import { emitToRole } from '../realtime/socket';
 
@@ -77,6 +78,20 @@ settingsRouter.get(
   }),
 );
 
+/**
+ * GET /api/settings/restaurant-status - live open/closed state of the kitchen.
+ *
+ * Public on purpose: the storefront shows it to browsing guests before any
+ * account exists, and every signed-in client also refreshes it through the
+ * `restaurant:status` socket event.
+ */
+settingsRouter.get(
+  '/restaurant-status',
+  asyncHandler(async (_req, res) => {
+    res.json({ status: await getRestaurantStatus() });
+  }),
+);
+
 /** PATCH /api/settings - update business settings (admin only). */
 settingsRouter.patch(
   '/',
@@ -87,7 +102,23 @@ settingsRouter.patch(
       Omit<SettingsDTO, 'updatedAt'>
     >;
     const actor = getAuth(req).user;
-    const settings = await updateSettings(patch, actor.id);
+
+    // Flipping "accepting orders" from Admin > Settings is the same business
+    // event as the Kitchen toggle: it is written with its audit trail and
+    // announced to every client on the same real-time event.
+    const { acceptingOrders, ...rest } = patch;
+    const settings =
+      acceptingOrders === undefined
+        ? await updateSettings(rest, actor.id)
+        : (
+            await applyRestaurantStatus({
+              open: acceptingOrders,
+              actor,
+              alsoPatch: rest,
+              request: req,
+            })
+          ).settings;
+
     broadcastSettingsChange();
 
     await logActivity({
