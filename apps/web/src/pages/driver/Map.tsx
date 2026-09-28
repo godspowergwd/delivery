@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth';
 import { fetchDriverDeliveries, postDriverAction } from '../../lib/driver-api';
 import { useRealtimeSync, toast } from '../../lib/realtime';
 import { useDeviceLocation } from '../../lib/geolocation';
+import { useDeviceHeading } from '../../lib/device-heading';
 import { useLocationPublisher } from '../../lib/tracking';
 import { MALAM_CENTER } from '../../lib/live-map';
 import { calculateRouteProgress, useDeliveryRoute } from '../../lib/route';
@@ -75,6 +76,12 @@ export default function DriverMap() {
   const [navigationError, setNavigationError] = useState<string | null>(null);
 
   const location = useDeviceLocation({ enabled: false, watch: true });
+  const {
+    heading: compassHeading,
+    status: headingStatus,
+    start: startHeading,
+    stop: stopHeading,
+  } = useDeviceHeading();
   const publisher = useLocationPublisher();
   const mapRef = useLiveMap(mapHostRef, {
     center: MALAM_CENTER,
@@ -153,6 +160,8 @@ export default function DriverMap() {
     : null;
   const directionMessage = navigationError ?? (
     !navigationActive ? null
+      : headingStatus === 'denied' ? 'Compass permission was denied; the arrow will use GPS travel direction.'
+        : headingStatus === 'unsupported' ? 'Compass heading is unavailable; the arrow will use GPS travel direction.'
       : routeLoading ? 'Finding route…'
         : routeError ? 'Unable to calculate route. Check your location and try again.'
           : route ? 'Route ready'
@@ -169,11 +178,10 @@ export default function DriverMap() {
     }
     mapRef.current.setDriver(
       { lat: location.position.lat, lng: location.position.lng },
-      // The device's own course: the SDK rotates the pin to it (map-aligned).
-      { animate: true, heading: location.position.heading },
+      { animate: true, heading: compassHeading ?? location.position.heading },
     );
     if (navigationActive) publish(location.position);
-  }, [location.position, mapRef, navigationActive, publish]);
+  }, [location.position, mapRef, navigationActive, publish, compassHeading]);
 
   useEffect(() => {
     mapRef.current.setDestination(target);
@@ -218,18 +226,20 @@ export default function DriverMap() {
     setNavigationActive(true);
     setIsFollowing(true);
     mapRef.current.setFollow(true);
+    void startHeading();
     if (!location.position) location.request();
-  }, [user?.role, selected, delivering, destination, mapRef, location]);
+  }, [user?.role, selected, delivering, destination, mapRef, location, startHeading]);
 
   const stopNavigation = useCallback(() => {
     setNavigationActive(false);
     setNavigationError(null);
     location.stop();
+    stopHeading();
     stopPublishing();
     mapRef.current.setDriver(null);
     mapRef.current.setFollow(false);
     setIsFollowing(false);
-  }, [location, mapRef, stopPublishing]);
+  }, [location, mapRef, stopHeading, stopPublishing]);
 
   useEffect(() => {
     if (!delivering && navigationActive) stopNavigation();

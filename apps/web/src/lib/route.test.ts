@@ -5,6 +5,26 @@ const route: RoadRoute = {
   coordinates: [[-0.31, 5.57], [-0.30, 5.57], [-0.30, 5.58]],
   distanceKm: 2.2,
   durationMin: 12,
+  legs: [{
+    distanceKm: 2.2,
+    durationMin: 12,
+    steps: [
+      {
+        instruction: 'Continue on Mallam Road',
+        distanceKm: 1.1,
+        durationMin: 6,
+        location: [-0.31, 5.57],
+        distanceFromStartKm: 0,
+      },
+      {
+        instruction: 'Turn right onto Gbawe Road',
+        distanceKm: 1.1,
+        durationMin: 6,
+        location: [-0.30, 5.57],
+        distanceFromStartKm: 1.1,
+      },
+    ],
+  }],
   road: true,
   provider: 'mapbox',
   steps: [

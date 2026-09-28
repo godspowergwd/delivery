@@ -65,17 +65,26 @@ export function estimateAddressCoordinates(
     lng: toFixed6(KITCHEN_ANCHOR.lng + (spread(hash ^ 0x9e3779b9) - 0.5) * 0.06),
   };
 }
+export interface RoadRouteStep {
+  instruction: string;
+  distanceKm: number;
+  durationMin: number;
+  location: [number, number];
+  distanceFromStartKm: number;
+}
+
+export interface RoadRouteLeg {
+  distanceKm: number;
+  durationMin: number;
+  steps: RoadRouteStep[];
+}
+
 export interface RoadRoute {
   coordinates: Array<[number, number]>;
   distanceKm: number;
   durationMin: number;
-  steps: Array<{
-    instruction: string;
-    distanceKm: number;
-    durationMin: number;
-    location: [number, number];
-    distanceFromStartKm: number;
-  }>;
+  legs: RoadRouteLeg[];
+  steps: RoadRouteStep[];
   road: boolean;
   /** Directions provider for the road geometry. */
   provider: 'mapbox';

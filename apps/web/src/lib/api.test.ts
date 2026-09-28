@@ -75,6 +75,44 @@ describe('authenticated API client', () => {
     expect(tokenRefreshed).toBe(true);
   });
 
+  it('gets the CSRF token before refresh when local storage has no header value', async () => {
+    installAuthGlobals();
+    setTokens('expired-access', null);
+    const calls: Array<{ url: string; credentials?: RequestCredentials; csrf?: string }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      const headers = init?.headers as Record<string, string> | undefined;
+      calls.push({ url, credentials: init?.credentials, csrf: headers?.['x-csrf-token'] });
+      if (url.endsWith('/auth/csrf')) {
+        return new Response(JSON.stringify({ csrfToken: 'cookie-csrf' }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ accessToken: 'new-access', csrfToken: 'next-csrf' }), { status: 200 });
+    }));
+
+    await expect(refreshSession()).resolves.toBe(true);
+    expect(calls.map((call) => call.url.split('/').pop())).toEqual(['csrf', 'refresh']);
+    expect(calls.every((call) => call.credentials === 'include')).toBe(true);
+    expect(calls[1]?.csrf).toBe('cookie-csrf');
+  });
+
+  it('shares one refresh request across concurrent callers', async () => {
+    installAuthGlobals();
+    setTokens('expired-access', 'csrf-value');
+    let refreshCalls = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      refreshCalls += 1;
+      await Promise.resolve();
+      return new Response(JSON.stringify({ accessToken: 'new-access', csrfToken: 'new-csrf' }), { status: 200 });
+    }));
+
+    await expect(Promise.all([refreshSession(), refreshSession(), refreshSession()])).resolves.toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(refreshCalls).toBe(1);
+  });
+
   it('reuses a token refreshed by another tab while waiting for the shared lock', async () => {
     installAuthGlobals();
     setTokens('expired-access', 'csrf-value');

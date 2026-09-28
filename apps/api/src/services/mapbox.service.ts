@@ -1,4 +1,5 @@
 import { AppError } from '../lib/errors';
+import { logger } from '../lib/logger';
 
 const MAPBOX_API = 'https://api.mapbox.com';
 const MAPBOX_TIMEOUT_MS = 8_000;
@@ -16,6 +17,11 @@ export interface MapboxRoadRoute {
   coordinates: Array<[number, number]>;
   distanceKm: number;
   durationMin: number;
+  legs: Array<{
+    distanceKm: number;
+    durationMin: number;
+    steps: MapboxRouteStep[];
+  }>;
   steps: Array<{
     instruction: string;
     distanceKm: number;
@@ -25,6 +31,14 @@ export interface MapboxRoadRoute {
   }>;
   road: true;
   provider: 'mapbox';
+}
+
+export interface MapboxRouteStep {
+  instruction: string;
+  distanceKm: number;
+  durationMin: number;
+  location: [number, number];
+  distanceFromStartKm: number;
 }
 
 interface MapboxFeature {
@@ -40,6 +54,8 @@ interface MapboxRoute {
   distance?: number;
   duration?: number;
   legs?: Array<{
+    distance?: number;
+    duration?: number;
     steps?: Array<{
       distance?: number;
       duration?: number;
@@ -48,28 +64,64 @@ interface MapboxRoute {
   }>;
 }
 
+let missingTokenLogged = false;
+
 function accessToken(): string {
   const token = process.env.MAPBOX_ACCESS_TOKEN?.trim() || process.env.MAPBOX_TOKEN?.trim();
   if (!token) {
-    throw new AppError(503, 'MAPBOX_UNAVAILABLE', 'Map search and routing are not configured.');
+    if (!missingTokenLogged) {
+      missingTokenLogged = true;
+      logger.error('[mapbox] server access token is missing', {
+        expectedVariables: ['MAPBOX_ACCESS_TOKEN', 'MAPBOX_TOKEN'],
+      });
+    }
+    throw new AppError(503, 'MAPBOX_TOKEN_MISSING', 'Mapbox routing is not configured on the server.');
   }
   return token;
 }
 
-async function fetchMapbox(url: URL): Promise<Response> {
+async function fetchMapbox(url: URL, operation: string): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), MAPBOX_TIMEOUT_MS);
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) {
-      throw new AppError(502, 'MAPBOX_UNAVAILABLE', 'Map search or routing is temporarily unavailable.');
+      logger.error('[mapbox] upstream request failed', {
+        operation,
+        status: response.status,
+        requestId: response.headers?.get?.('x-request-id') ?? null,
+      });
+      throw new AppError(502, 'MAPBOX_UPSTREAM_ERROR', 'Mapbox is temporarily unable to provide directions.');
     }
     return response;
   } catch (error) {
     if (error instanceof AppError) throw error;
-    throw new AppError(502, 'MAPBOX_UNAVAILABLE', 'Map search or routing is temporarily unavailable.');
+    logger.error('[mapbox] upstream request could not complete', {
+      operation,
+      timedOut: controller.signal.aborted,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw new AppError(
+      controller.signal.aborted ? 504 : 502,
+      controller.signal.aborted ? 'MAPBOX_TIMEOUT' : 'MAPBOX_NETWORK_ERROR',
+      controller.signal.aborted
+        ? 'Mapbox directions timed out. Please try again.'
+        : 'Mapbox directions are temporarily unreachable.',
+    );
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function readMapboxJson<T>(response: Response, operation: string): Promise<T> {
+  try {
+    return (await response.json()) as T;
+  } catch (error) {
+    logger.error('[mapbox] upstream returned invalid JSON', {
+      operation,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw new AppError(502, 'MAPBOX_INVALID_RESPONSE', 'Mapbox returned an unreadable directions response.');
   }
 }
 
@@ -85,8 +137,8 @@ export async function searchMapboxAddresses(query: string): Promise<MapboxAddres
   url.searchParams.set('proximity', '-0.284093,5.571264');
   url.searchParams.set('types', 'address,poi,place,neighborhood,locality');
 
-  const response = await fetchMapbox(url);
-  const payload = (await response.json()) as { features?: MapboxFeature[] };
+  const response = await fetchMapbox(url, 'geocoding search');
+  const payload = await readMapboxJson<{ features?: MapboxFeature[] }>(response, 'geocoding search');
   return (payload.features ?? []).flatMap((feature) => {
     const [longitude, latitude] = feature.center ?? [];
     const address = feature.place_name?.trim();
@@ -121,8 +173,8 @@ export async function reverseMapboxAddress(
   url.searchParams.set('country', 'GH');
   url.searchParams.set('limit', '1');
 
-  const response = await fetchMapbox(url);
-  const payload = (await response.json()) as { features?: MapboxFeature[] };
+  const response = await fetchMapbox(url, 'reverse geocoding');
+  const payload = await readMapboxJson<{ features?: MapboxFeature[] }>(response, 'reverse geocoding');
   const feature = payload.features?.[0];
   const address = feature?.place_name?.trim();
   if (!feature || !address) {
@@ -150,8 +202,8 @@ export async function getMapboxRoadRoute(
   url.searchParams.set('overview', 'full');
   url.searchParams.set('steps', 'true');
 
-  const response = await fetchMapbox(url);
-  const payload = (await response.json()) as { routes?: MapboxRoute[] };
+  const response = await fetchMapbox(url, 'driving directions');
+  const payload = await readMapboxJson<{ routes?: MapboxRoute[] }>(response, 'driving directions');
   const route = payload.routes?.[0];
   const coordinates = route?.geometry?.coordinates;
   if (
@@ -171,31 +223,46 @@ export async function getMapboxRoadRoute(
     throw new AppError(502, 'INVALID_ROUTE', 'Mapbox returned incomplete route details.');
   }
   let distanceFromStartKm = 0;
-  const steps = (route.legs?.[0]?.steps ?? []).flatMap((step) => {
-    const instruction = step.maneuver?.instruction?.trim();
-    const location = step.maneuver?.location;
-    const distance = step.distance;
-    const duration = step.duration;
-    if (
-      !instruction || !location || location.length !== 2 ||
-      !Number.isFinite(location[0]) || !Number.isFinite(location[1]) ||
-      typeof distance !== 'number' || !Number.isFinite(distance) ||
-      typeof duration !== 'number' || !Number.isFinite(duration)
-    ) return [];
-    const normalized = {
-      instruction,
-      distanceKm: Math.max(0, distance) / 1_000,
-      durationMin: Math.max(0, duration) / 60,
-      location,
-      distanceFromStartKm,
-    };
-    distanceFromStartKm += normalized.distanceKm;
-    return [normalized];
+  const legs = (route.legs ?? []).map((leg) => {
+    let legDistanceKm = 0;
+    let legDurationMin = 0;
+    const steps: MapboxRouteStep[] = (leg.steps ?? []).flatMap((step) => {
+      const instruction = step.maneuver?.instruction?.trim();
+      const location = step.maneuver?.location;
+      const distance = step.distance;
+      const duration = step.duration;
+      if (
+        !instruction || !location || location.length !== 2 ||
+        !Number.isFinite(location[0]) || !Number.isFinite(location[1]) ||
+        typeof distance !== 'number' || !Number.isFinite(distance) ||
+        typeof duration !== 'number' || !Number.isFinite(duration)
+      ) return [];
+      const normalized = {
+        instruction,
+        distanceKm: Math.max(0, distance) / 1_000,
+        durationMin: Math.max(0, duration) / 60,
+        location,
+        distanceFromStartKm: distanceFromStartKm + legDistanceKm,
+      };
+      legDistanceKm += normalized.distanceKm;
+      legDurationMin += normalized.durationMin;
+      return [normalized];
+    });
+    const distanceKm = typeof leg.distance === 'number' && Number.isFinite(leg.distance)
+      ? Math.max(0, leg.distance) / 1_000
+      : legDistanceKm;
+    const durationMin = typeof leg.duration === 'number' && Number.isFinite(leg.duration)
+      ? Math.max(0, leg.duration) / 60
+      : legDurationMin;
+    distanceFromStartKm += distanceKm;
+    return { distanceKm, durationMin, steps };
   });
+  const steps = legs.flatMap((leg) => leg.steps);
   return {
     coordinates,
     distanceKm: route.distance / 1_000,
     durationMin: Math.max(1, Math.round(route.duration / 60)),
+    legs,
     steps,
     road: true,
     provider: 'mapbox',

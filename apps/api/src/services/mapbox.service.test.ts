@@ -61,6 +61,17 @@ describe('Mapbox service', () => {
       coordinates: [[-0.31, 5.57], [-0.30, 5.58]],
       distanceKm: 2.5,
       durationMin: 10,
+      legs: [{
+        distanceKm: 1.2,
+        durationMin: 5,
+        steps: [{
+          instruction: 'Turn right onto Mallam Road',
+          distanceKm: 1.2,
+          durationMin: 5,
+          location: [-0.305, 5.575],
+          distanceFromStartKm: 0,
+        }],
+      }],
       steps: [{
         instruction: 'Turn right onto Mallam Road',
         distanceKm: 1.2,
@@ -73,6 +84,8 @@ describe('Mapbox service', () => {
     });
     expect(String(fetchMock.mock.calls[0][0])).toContain('/directions/v5/mapbox/driving/');
     expect(String(fetchMock.mock.calls[0][0])).toContain('steps=true');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('geometries=geojson');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('overview=full');
   });
 
   it('reverse-geocodes GPS coordinates to a readable address without changing the point', async () => {
@@ -107,7 +120,7 @@ describe('Mapbox service', () => {
     await expect(getMapboxRoadRoute(
       { latitude: 5.57, longitude: -0.31 },
       { latitude: 5.58, longitude: -0.30 },
-    )).rejects.toMatchObject({ statusCode: 502, code: 'MAPBOX_UNAVAILABLE' });
+    )).rejects.toMatchObject({ statusCode: 502, code: 'MAPBOX_UPSTREAM_ERROR' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -133,8 +146,21 @@ describe('Mapbox service', () => {
 
     await expect(searchMapboxAddresses('Mallam')).rejects.toMatchObject({
       statusCode: 503,
-      code: 'MAPBOX_UNAVAILABLE',
+      code: 'MAPBOX_TOKEN_MISSING',
     });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns a specific configuration error for Directions when no server token exists', async () => {
+    vi.stubEnv('MAPBOX_ACCESS_TOKEN', '');
+    vi.stubEnv('MAPBOX_TOKEN', '');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getMapboxRoadRoute(
+      { latitude: 5.57, longitude: -0.31 },
+      { latitude: 5.58, longitude: -0.30 },
+    )).rejects.toMatchObject({ statusCode: 503, code: 'MAPBOX_TOKEN_MISSING' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
