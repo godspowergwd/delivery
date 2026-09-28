@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Volume2, VolumeX } from 'lucide-react';
 import type { OrderDTO, SettingsDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatDistance, formatMoney } from '@delivery/shared';
 import { api } from '../../lib/api';
@@ -10,7 +9,6 @@ import { fetchDriverDeliveries, postDriverAction } from '../../lib/driver-api';
 import { useRealtimeSync, toast } from '../../lib/realtime';
 import { useDeviceLocation } from '../../lib/geolocation';
 import { useDeviceHeading } from '../../lib/device-heading';
-import { buildManeuverAnnouncement, shouldSpeakManeuver } from '../../lib/navigation-voice';
 import { useLocationPublisher } from '../../lib/tracking';
 import { MALAM_CENTER } from '../../lib/live-map';
 import { calculateRouteProgress, useDeliveryRoute } from '../../lib/route';
@@ -66,7 +64,7 @@ export default function DriverMap() {
    * Bolt-Food sheet behaviour: peek (handle only, map almost full-screen),
    * collapsed (summary) and expanded (full order details).
    */
-  const [snap, setSnap] = useState<SheetSnap>('peek');
+  const [snap, setSnap] = useState<SheetSnap>('collapsed');
   const [rotated, setRotated] = useState(false);
   const [viewportH, setViewportH] = useState(() =>
     typeof window === 'undefined' ? 720 : window.innerHeight,
@@ -76,10 +74,6 @@ export default function DriverMap() {
   const [isFollowing, setIsFollowing] = useState(true);
   const [navigationActive, setNavigationActive] = useState(false);
   const [navigationError, setNavigationError] = useState<string | null>(null);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
-  const lastSpokenManeuverRef = useRef<string | null>(null);
-  const activeManeuverRef = useRef<string | null>(null);
 
   const location = useDeviceLocation({ enabled: false, watch: true });
   const {
@@ -174,33 +168,6 @@ export default function DriverMap() {
             : location.status === 'requesting' ? 'Finding your location…'
               : location.message?.detail ?? 'Finding route…'
   );
-  const maneuverKey = nextStep
-    ? `${nextStep.instruction}|${nextStep.location[0]},${nextStep.location[1]}`
-    : null;
-  const voiceAnnouncement = buildManeuverAnnouncement(nextStep, nextStepDistanceKm);
-
-  useEffect(() => {
-    if (!navigationActive || !voiceEnabled || !voiceAnnouncement ||
-      typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    if (activeManeuverRef.current !== maneuverKey) {
-      activeManeuverRef.current = maneuverKey;
-      window.speechSynthesis.cancel();
-    }
-    if (!shouldSpeakManeuver(voiceAnnouncement, lastSpokenManeuverRef.current)) return;
-    const utterance = new SpeechSynthesisUtterance(voiceAnnouncement.text);
-    lastSpokenManeuverRef.current = voiceAnnouncement.key;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  }, [navigationActive, voiceEnabled, voiceAnnouncement, maneuverKey]);
-
-  useEffect(() => {
-    if (navigationActive && voiceEnabled) return;
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
-  }, [navigationActive, voiceEnabled]);
-
-  useEffect(() => () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
-  }, []);
 
   // Publish the driver's own GPS whenever the device reports a new fix.
   const { publish, stop: stopPublishing } = publisher;
@@ -258,8 +225,6 @@ export default function DriverMap() {
     }
     setNavigationActive(true);
     setIsFollowing(true);
-    lastSpokenManeuverRef.current = null;
-    activeManeuverRef.current = null;
     mapRef.current.setFollow(true);
     void startHeading();
     if (!location.position) location.request();
@@ -289,20 +254,6 @@ export default function DriverMap() {
     mapRef.current.setFollow(true);
   }, [location, mapRef]);
 
-  const zoomBy = useCallback((direction: 1 | -1) => {
-    const map = mapRef.current.getMap();
-    if (!map) return;
-    if (direction > 0) map.zoomIn();
-    else map.zoomOut();
-  }, [mapRef]);
-
-  const resetBearing = useCallback(() => {
-    const map = mapRef.current.getMap();
-    if (!map) return;
-    map.easeTo({ bearing: 0, pitch: 0, duration: 350 });
-    setIsFollowing(false);
-  }, [mapRef]);
-
   const focusDestination = useCallback(() => {
     if (!target) return;
     setIsFollowing(false);
@@ -321,28 +272,6 @@ export default function DriverMap() {
     mapRef.current.fit(points, { maxZoom: 15 });
   }, [location.position, target, route, mapRef]);
 
-  useEffect(() => {
-    let timer = 0;
-    let detach: (() => void) | undefined;
-    let attempts = 0;
-    const attach = () => {
-      const map = mapRef.current.getMap();
-      if (map) {
-        const update = () => setRotated(Math.abs(map.getBearing()) > 1);
-        map.on('rotate', update);
-        update();
-        detach = () => map.off('rotate', update);
-      } else if (attempts++ < 40) {
-        timer = window.setTimeout(attach, 250);
-      }
-    };
-    attach();
-    return () => {
-      window.clearTimeout(timer);
-      detach?.();
-    };
-  }, [mapRef]);
-
   // Keep the canvas correctly sized whenever the sheet snaps to a new height,
   // and remember the viewport so the floating controls can track the sheet.
   useEffect(() => {
@@ -356,6 +285,48 @@ export default function DriverMap() {
     return () => window.clearTimeout(id);
   }, [snap, mapRef]);
 
+  // Compass state: red selected treatment while the map is rotated off north.
+  useEffect(() => {
+    let timer = 0;
+    let detach: (() => void) | undefined;
+    let tries = 0;
+    const attach = () => {
+      const map = mapRef.current.getMap();
+      if (map) {
+        const onRotate = () => setRotated(Math.abs(map.getBearing()) > 1);
+        map.on('rotate', onRotate);
+        onRotate();
+        detach = () => map.off('rotate', onRotate);
+        return;
+      }
+      if (tries < 40) {
+        tries += 1;
+        timer = window.setTimeout(attach, 500);
+      }
+    };
+    attach();
+    return () => {
+      window.clearTimeout(timer);
+      detach?.();
+    };
+  }, [mapRef]);
+
+  const zoomBy = useCallback(
+    (direction: 1 | -1) => {
+      const map = mapRef.current.getMap();
+      if (!map) return;
+      if (direction > 0) map.zoomIn();
+      else map.zoomOut();
+    },
+    [mapRef],
+  );
+
+  const resetBearing = useCallback(() => {
+    const map = mapRef.current.getMap();
+    if (!map) return;
+    map.easeTo({ bearing: 0, pitch: 0, duration: 450 });
+  }, [mapRef]);
+
   const handleSnapChange = useCallback(
     (next: SheetSnap) => {
       setSnap(next);
@@ -366,7 +337,6 @@ export default function DriverMap() {
   );
 
   const showPermissionCard =
-    navigationActive &&
     !permissionDismissed &&
     ['idle', 'denied', 'unavailable', 'timeout', 'insecure', 'unsupported'].includes(location.status);
 
@@ -405,108 +375,73 @@ export default function DriverMap() {
           )}
         </div>
 
-        {navigationActive && nextStep && nextStepDistanceKm !== null && (
-          <div
-            className="driver-turn-hud absolute left-3 right-[4.25rem] z-20"
-            style={{ bottom: `${snapHeight + 12}px` }}
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <div className="driver-turn-main">
-              <span className="driver-turn-distance">{formatDistance(nextStepDistanceKm)}</span>
-              <span className="driver-turn-instruction">{nextStep.instruction}</span>
-            </div>
-            <span className="driver-turn-meta">
-              {remainingKm !== null ? `${formatDistance(remainingKm)} to customer` : 'Route active'}
-              {remainingDurationMin !== null ? ` · ${durationText(remainingDurationMin)}` : ''}
-            </span>
-          </div>
-        )}
-        {navigationActive && directionMessage && directionMessage !== 'Route ready' && !showPermissionCard && (
-          <p
-            className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top)+3.75rem)] z-20 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs font-semibold text-slate-700 shadow-soft"
-            role="status"
-            aria-live="polite"
-          >
-            {directionMessage}
-          </p>
-        )}
-        {delivering && (
-          <Button
-            className="absolute left-3 z-20 min-h-10 rounded-xl px-3 text-sm"
-            style={{ bottom: `${snapHeight + 12}px` }}
-            loading={!navigationActive && (routeLoading || location.requesting)}
-            onClick={navigationActive ? fitRoute : startNavigation}
-          >
-            {navigationActive ? <RouteIcon className="h-4 w-4" /> : <NavigationIcon className="h-4 w-4" />}
-            Get Direction
-          </Button>
-        )}
-
+        {/* Floating map controls — within one thumb, never eating screen space.
+            Red = selected / primary controls, green = location + route progress. */}
         <div
-          className="map-control-rail absolute right-3 z-20 flex flex-col gap-1.5"
-          style={{ bottom: `${snapHeight + 12}px` }}
+          className="absolute right-3 z-20 flex flex-col gap-2"
+          style={{ bottom: `${snapHeight + 16}px` }}
         >
-          <div className="map-control-cluster">
-            <button type="button" className="map-control-btn map-control-btn-compact" onClick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in">
-              <ZoomInIcon className="h-4 w-4" />
-            </button>
-            <button type="button" className="map-control-btn map-control-btn-compact" onClick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out">
-              <ZoomOutIcon className="h-4 w-4" />
-            </button>
-          </div>
           <button
             type="button"
-            className={`map-control-btn map-control-btn-compact ${rotated ? 'map-control-btn-red' : ''}`}
-            onClick={resetBearing}
-            aria-label="Reset map orientation to north"
-            title="Reset compass"
-            aria-pressed={rotated}
+            className="map-control-btn"
+            onClick={() => zoomBy(1)}
+            aria-label="Zoom in"
+            title="Zoom in"
           >
-            <CompassIcon className="h-4 w-4" />
+            <ZoomInIcon className="map-control-btn-icon-red h-5 w-5" />
           </button>
           <button
             type="button"
-            className={`map-control-btn map-control-btn-compact ${isFollowing ? 'map-control-btn-green' : ''}`}
+            className="map-control-btn"
+            onClick={() => zoomBy(-1)}
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            <ZoomOutIcon className="map-control-btn-icon-red h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className={`map-control-btn ${rotated ? 'map-control-btn-red' : ''}`}
+            onClick={resetBearing}
+            aria-label="Reset the map to north"
+            title="Reset to north"
+            aria-pressed={rotated}
+          >
+            <CompassIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className={`map-control-btn ${route ? 'map-control-btn-green' : ''}`}
+            onClick={fitRoute}
+            aria-label="Show the whole route"
+            title="Show the whole route"
+            aria-pressed={Boolean(route)}
+          >
+            <RouteIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className={`map-control-btn ${isFollowing ? 'map-control-btn-green' : ''}`}
             onClick={recenter}
             aria-label="Re-center and follow my location"
             title="Re-center and follow driver"
             aria-pressed={isFollowing}
           >
-            <LocateIcon className="h-4 w-4" />
+            <LocateIcon className={`h-5 w-5 ${isFollowing ? '' : 'map-control-btn-icon-green'}`} />
           </button>
-          {route && (
-            <button
-              type="button"
-              className="map-control-btn map-control-btn-compact"
-              onClick={fitRoute}
-              aria-label="Show the whole route"
-              title="Show route"
-            >
-              <RouteIcon className="h-4 w-4" />
-            </button>
-          )}
           {target && (
             <button
               type="button"
-              className="map-control-btn map-control-btn-compact"
+              className="map-control-btn"
               onClick={focusDestination}
-              aria-label={delivering ? 'Focus customer destination' : 'Focus restaurant'}
-              title={delivering ? 'Customer destination' : 'Restaurant'}
+              aria-label={delivering ? 'Centre on the customer' : 'Centre on the restaurant'}
+              title={delivering ? 'Centre on the customer' : 'Centre on the restaurant'}
             >
-              {delivering ? <MapPinIcon className="h-4 w-4" /> : <StoreIcon className="h-4 w-4" />}
-            </button>
-          )}
-          {navigationActive && speechSupported && (
-            <button
-              type="button"
-              className={`map-control-btn map-control-btn-compact ${voiceEnabled ? 'map-control-btn-green' : ''}`}
-              onClick={() => setVoiceEnabled((enabled) => !enabled)}
-              aria-label={voiceEnabled ? 'Turn voice navigation off' : 'Turn voice navigation on'}
-              aria-pressed={voiceEnabled}
-              title={voiceEnabled ? 'Voice navigation on' : 'Voice navigation off'}
-            >
-              {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              {delivering ? (
+                <MapPinIcon className="map-control-btn-icon-red h-5 w-5" />
+              ) : (
+                <StoreIcon className="map-control-btn-icon-red h-5 w-5" />
+              )}
             </button>
           )}
         </div>
@@ -627,12 +562,19 @@ export default function DriverMap() {
         {selected && (
           <DeliveryDetails
             order={selected}
+            remainingKm={remainingKm}
             delivering={Boolean(delivering)}
             destinationExact={destination?.exact ?? false}
+            routeLoading={routeLoading || location.requesting}
             navigationActive={navigationActive}
+            navigationMessage={directionMessage}
+            remainingDurationMin={remainingDurationMin}
+            nextManeuver={nextStep?.instruction ?? null}
+            nextManeuverDistanceKm={nextStepDistanceKm}
             busy={action.isPending}
             deliveryCount={orders.length}
             onComplete={() => action.mutate({ id: selected.id, verb: 'complete' })}
+            onGetDirection={startNavigation}
             onStopNavigation={stopNavigation}
             onIssue={() => setIssueOpen(true)}
             onSelectOther={() => {
@@ -740,27 +682,42 @@ function LocationPermissionCard({
 
 function DeliveryDetails({
   order,
+  remainingKm,
   delivering,
   destinationExact,
+  routeLoading,
   navigationActive,
+  navigationMessage,
+  remainingDurationMin,
+  nextManeuver,
+  nextManeuverDistanceKm,
   busy,
   deliveryCount,
   onComplete,
+  onGetDirection,
   onStopNavigation,
   onIssue,
   onSelectOther,
 }: {
   order: OrderDTO;
+  remainingKm: number | null;
   delivering: boolean;
   destinationExact: boolean;
+  routeLoading: boolean;
   navigationActive: boolean;
+  navigationMessage: string | null;
+  remainingDurationMin: number | null;
+  nextManeuver: string | null;
+  nextManeuverDistanceKm: number | null;
   busy: boolean;
   deliveryCount: number;
   onComplete: () => void;
+  onGetDirection: () => void;
   onStopNavigation: () => void;
   onIssue: () => void;
   onSelectOther: () => void;
 }) {
+  const eta = remainingDurationMin !== null ? durationText(remainingDurationMin) : null;
   const targetLabel = delivering ? 'Customer' : 'Restaurant';
 
   return (
@@ -774,6 +731,39 @@ function DeliveryDetails({
         </div>
         <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
       </div>
+
+      {/* ETA (red emphasis) paired with the live green distance-to-go. */}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-3 py-2.5">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-red-700/80">
+            Arriving in
+          </p>
+          <p className="text-xl font-extrabold leading-tight text-red-800">
+            {eta ?? (remainingKm !== null ? '—' : 'Waiting for GPS')}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-green-100 bg-green-50 px-3 py-2.5">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-green-700/80">
+            {delivering ? 'To customer' : 'To restaurant'}
+          </p>
+          <p className="text-xl font-extrabold leading-tight text-green-800">
+            {remainingKm !== null ? formatDistance(remainingKm) : '—'}
+          </p>
+        </div>
+      </div>
+      {navigationActive && nextManeuver && nextManeuverDistanceKm !== null && (
+        <div className="mt-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-wide text-green-800">
+            Next · {formatDistance(nextManeuverDistanceKm)}
+          </p>
+          <p className="text-sm font-bold text-slate-900">{nextManeuver}</p>
+        </div>
+      )}
+      {navigationMessage && (
+        <p className={`mt-2 text-xs font-semibold ${navigationMessage.startsWith('Unable') || navigationMessage.startsWith('The customer') ? 'text-red-700' : 'text-green-800'}`} role="status" aria-live="polite">
+          {navigationMessage}
+        </p>
+      )}
 
       <div className="mt-3 flex items-start gap-2 rounded-2xl border border-slate-200 px-3 py-2.5">
         <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-xl bg-red-50 text-red-600">
@@ -833,6 +823,12 @@ function DeliveryDetails({
           <PhoneIcon className="h-4 w-4" />
           Call
         </a>
+        {delivering && (
+          <Button loading={routeLoading} disabled={navigationActive} onClick={onGetDirection}>
+            <NavigationIcon className="h-4 w-4" />
+            Get Direction
+          </Button>
+        )}
         {navigationActive && <Button variant="ghost" onClick={onStopNavigation}>Stop navigation</Button>}
         <Button variant="ghost" size="md" onClick={onIssue}>
           Report issue

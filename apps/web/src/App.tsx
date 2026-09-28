@@ -43,7 +43,7 @@ export function App() {
       {/*
         Customer storefront. Browsing (home, categories, menu, search, food
         details, cart) works as a guest; account-only screens sit behind
-        <RequireAccount>, which opens the in-app login route.
+        <RequireAccount>, which opens the sign-in sheet instead of redirecting.
       */}
       <Route element={<AppShell />}>
         <Route path="/app" element={<Navigate to="/app/home" replace />} />
@@ -72,7 +72,7 @@ export function App() {
         </Route>
       </Route>
 
-      {/* Account settings — guests are sent through the in-app login route. */}
+      {/* Account settings — guests get the sign-in sheet instead of a redirect. */}
       <Route element={<RequireAccount />}>
         <Route element={<AppShell />}>
           <Route path="/settings" element={<LazyRoute><AccountSettings /></LazyRoute>} />

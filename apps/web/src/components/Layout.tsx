@@ -293,7 +293,7 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
 export function AppShell() {
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
-  const { openLogin } = useGuestGate();
+  const { openSheet } = useGuestGate();
   const navigate = useNavigate();
   // Guests browse the full customer storefront with the customer navigation.
   const items = user ? NAV[user.role] : NAV.CUSTOMER;
@@ -343,7 +343,7 @@ export function AppShell() {
               Sign out
             </button>
           ) : (
-            <Button block onClick={openLogin}>
+            <Button block onClick={openSheet}>
               <UserIcon className="h-4 w-4" aria-hidden="true" />
               Sign in
             </Button>
@@ -376,7 +376,7 @@ export function AppShell() {
                   <LogOutIcon className="h-5 w-5" />
                 </button>
               ) : (
-                <Button size="sm" onClick={openLogin}>
+                <Button size="sm" onClick={openSheet}>
                   Sign in
                 </Button>
               )}
@@ -395,7 +395,7 @@ export function AppShell() {
           {user ? (
             <NotificationBell />
           ) : (
-            <Button size="sm" variant="outline" onClick={openLogin}>
+            <Button size="sm" variant="outline" onClick={openSheet}>
               Sign in
             </Button>
           )}

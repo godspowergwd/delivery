@@ -16,7 +16,7 @@ import { ClockIcon, ImageIcon, LeafIcon, PlusIcon } from './icons';
  *   * red add-to-cart button (ordering is the action)
  *
  * Guests can browse every card; the add action routes through the guest gate
- * so the login route opens and the item is added automatically afterwards.
+ * so the sign-in sheet appears and the item is added automatically afterwards.
  */
 export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: number }) {
   const { add } = useCart();

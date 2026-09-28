@@ -28,16 +28,19 @@ export function ProtectedRoute({ roles }: { roles?: Role[] }) {
 /**
  * Account-only customer surface (checkout, orders, tracking, profile).
  *
- * Guests are sent to the in-app login route, then return to this protected path
- * after signing in.
+ * Guests are NOT bounced to a login page — the storefront stays on screen and
+ * the premium sign-in sheet opens over it. Once the visitor signs in, the same
+ * route renders immediately with no extra clicks.
  */
 export function RequireAccount({ roles }: { roles?: Role[] }) {
   const { user, loading } = useAuth();
-  const { openLogin } = useGuestGate();
+  const { openSheet, sheetOpen } = useGuestGate();
 
   useEffect(() => {
-    if (!loading && !user) openLogin();
-  }, [loading, user, openLogin]);
+    if (!loading && !user && !sheetOpen) openSheet();
+    // Open exactly once per mount; later dismissals stay dismissed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user]);
 
   if (loading) {
     return (
@@ -48,7 +51,7 @@ export function RequireAccount({ roles }: { roles?: Role[] }) {
   }
   if (user && roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
   if (!user) {
-    // Keep the protected view covered during the login route transition.
+    // The sheet slides up over this branded holding state.
     return (
       <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4 rounded-card border border-green-200 bg-white px-6 py-12 text-center shadow-card duo-top">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-600 text-white shadow-brand">
@@ -60,7 +63,7 @@ export function RequireAccount({ roles }: { roles?: Role[] }) {
             This part of Maame’s Waakye App is linked to your account.
           </p>
         </div>
-        <Button onClick={openLogin}>
+        <Button onClick={openSheet}>
           <UserIcon className="h-4 w-4" aria-hidden="true" />
           Sign in
         </Button>
