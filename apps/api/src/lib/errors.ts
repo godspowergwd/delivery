@@ -34,3 +34,9 @@ export const conflict = (message: string) => new AppError(409, 'CONFLICT', messa
 
 export const tooManyRequests = (message = 'Too many requests. Please slow down.') =>
   new AppError(429, 'RATE_LIMITED', message);
+
+export const internalError = (message = 'Internal server error.') =>
+  new AppError(500, 'INTERNAL_SERVER_ERROR', message);
+
+export const badGateway = (message = 'Bad gateway.') =>
+  new AppError(502, 'BAD_GATEWAY', message);

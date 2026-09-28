@@ -1,18 +1,9 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
 import multer from 'multer';
 import type { Request } from 'express';
 import { MAX_IMAGE_BYTES, SUPPORTED_IMAGE_TYPES } from '@delivery/shared';
 import { UPLOAD_DIR } from '../config/env';
 import { badRequest } from '../lib/errors';
-
-const EXTENSIONS: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'image/avif': '.avif',
-};
 
 export function ensureUploadDir(): void {
   if (!fs.existsSync(UPLOAD_DIR)) {
@@ -20,17 +11,7 @@ export function ensureUploadDir(): void {
   }
 }
 
-const storage = multer.diskStorage({
-  destination(_req, _file, callback) {
-    ensureUploadDir();
-    callback(null, UPLOAD_DIR);
-  },
-  filename(_req, file, callback) {
-    const extension = EXTENSIONS[file.mimetype] ?? path.extname(file.originalname) ?? '.bin';
-    const name = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${extension}`;
-    callback(null, name);
-  },
-});
+const storage = multer.memoryStorage();
 
 function fileFilter(_req: Request, file: Express.Multer.File, callback: multer.FileFilterCallback) {
   if (!SUPPORTED_IMAGE_TYPES.includes(file.mimetype)) {

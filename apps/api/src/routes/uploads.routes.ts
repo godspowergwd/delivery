@@ -4,12 +4,13 @@ import { authenticate, getAuth, requireKitchenOrAdmin } from '../middleware/auth
 import { uploadImage } from '../middleware/upload';
 import { badRequest } from '../lib/errors';
 import { logActivity } from '../services/activity-log.service';
+import { uploadToR2 } from '../services/r2.service';
 
 export const uploadsRouter = Router();
 
 /**
  * POST /api/uploads - multipart image upload used by product/category management.
- * Responds with a relative path so the PWA works from any host (localhost, POS LAN, domain).
+ * Uploads directly to Cloudflare R2 and returns a public URL.
  *
  * Kitchen accounts upload product images as part of product management, so this
  * route allows kitchen *and* admin. Every other admin surface stays admin-only.
@@ -24,12 +25,14 @@ uploadsRouter.post(
       throw badRequest('Choose an image file to upload (JPG, PNG, WEBP or AVIF).');
     }
 
+    const uploaded = await uploadToR2(req.file);
+
     const actor = getAuth(req).user;
     await logActivity({
       action: 'IMAGE_UPLOADED',
       entity: 'Upload',
-      entityId: req.file.filename,
-      description: `Uploaded ${req.file.originalname} (${Math.round(req.file.size / 1024)} KB)`,
+      entityId: uploaded.key,
+      description: `Uploaded ${req.file.originalname} (${Math.round(uploaded.size / 1024)} KB)`,
       userId: actor.id,
       actorEmail: actor.email,
       actorRole: actor.role,
@@ -37,10 +40,10 @@ uploadsRouter.post(
     });
 
     res.status(201).json({
-      url: `/uploads/${req.file.filename}`,
-      fileName: req.file.filename,
-      size: req.file.size,
-      mimeType: req.file.mimetype,
+      url: uploaded.url,
+      fileName: uploaded.key,
+      size: uploaded.size,
+      mimeType: uploaded.mimeType,
     });
   }),
 );

@@ -31,6 +31,14 @@ const envSchema = z.object({
    * session. Refresh-cookie persistence is fixed at the browser maximum (400 days).
    */
   JWT_ACCESS_TTL: z.string().default('12h'),
+  /**
+   * Cloudflare R2 object storage credentials and bucket configuration.
+   */
+  R2_ACCOUNT_ID: z.string().trim().default(''),
+  R2_ACCESS_KEY_ID: z.string().trim().default(''),
+  R2_SECRET_ACCESS_KEY: z.string().trim().default(''),
+  R2_BUCKET_NAME: z.string().trim().default(''),
+  R2_PUBLIC_URL: z.string().trim().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);
