@@ -196,9 +196,25 @@ Only these belong on the Render service (Environment tab). All of them are
 | `API_PUBLIC_URL` | `https://delivery-2xbo.onrender.com` | Recommended | Absolute URLs for uploaded images, receipts and QR links |
 | `APP_PUBLIC_URL` | `https://delivery.<account>.workers.dev` | Recommended | Primary public app URL + CORS allowlist |
 | `APP_ALLOWED_ORIGINS` | `https://delivery-preview.example.workers.dev` | Optional | Comma-separated exact additional frontend origins for credentialed CORS |
+| `R2_ACCOUNT_ID` | Cloudflare account ID | **Yes for image uploads** | Account hosting the R2 bucket |
+| `R2_ACCESS_KEY_ID` | R2 access key ID | **Yes for image uploads** | S3-compatible API credential with write access to the bucket |
+| `R2_SECRET_ACCESS_KEY` | R2 secret access key | **Yes for image uploads** | Secret paired with the R2 access key ID |
+| `R2_BUCKET_NAME` | `waakye-uploads` | **Yes for image uploads** | Existing R2 bucket receiving product and category images |
+| `R2_PUBLIC_URL` | `https://images.example.com` | **Yes for public image display** | Publicly accessible custom domain or R2 public-bucket base URL; do not include `/uploads` |
 | `MAPBOX_ACCESS_TOKEN` | restricted Mapbox token | **Yes for routing** | Server-only Directions/Geocoding token; never a `VITE_` variable |
 | `JWT_ACCESS_TTL` | `12h` | Optional | Access token lifetime; silently renewed with the refresh session |
 | `BCRYPT_ROUNDS` | `10` | Optional | bcrypt work factor for new hashes (default 10) |
+
+Set the R2 values in Render's Environment tab and redeploy or restart the API.
+The API returns HTTP 500 for missing R2 credentials or bucket name, and HTTP
+502 when the configured storage provider rejects an upload. `R2_PUBLIC_URL`
+must point to a public bucket endpoint or custom domain for browser image loads;
+the S3 API endpoint is not necessarily public.
+
+Older image records that contain `/uploads/...` paths refer to files on the
+API's local filesystem. Render's local filesystem is ephemeral unless a disk is
+attached, so those files do not become available in R2 automatically; restore
+them from their originals or upload them again after configuring R2.
 
 Refresh sessions use a rolling 400-day cookie lifetime for every role; shorter
 `JWT_REFRESH_TTL` / `JWT_REMEMBER_TTL` overrides are no longer used. In production,
