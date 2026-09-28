@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useGuestGate } from '../lib/guest';
 import { Button, ErrorText, Field, Input, Sheet } from './ui';
@@ -12,12 +13,14 @@ import { LeafIcon, LockIcon, UserIcon } from './icons';
  * never has to tap the original button twice.
  */
 export function AuthSheet() {
+  const location = useLocation();
   const { sheetOpen, closeSheet, flushPending, goRegister } = useGuestGate();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const isLoginRoute = location.pathname.replace(/\/+$/, '') === '/login';
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -33,6 +36,8 @@ export function AuthSheet() {
       setBusy(false);
     }
   };
+
+  if (isLoginRoute) return null;
 
   return (
     <Sheet open={sheetOpen} onClose={closeSheet} title="Sign in to continue your order.">
@@ -65,9 +70,9 @@ export function AuthSheet() {
         {/* One real credential form: identifier first, password second — the
             exact order and semantics every password manager expects. */}
         <form onSubmit={submit} className="space-y-3" autoComplete="on">
-          <Field label="Email or username" htmlFor="authsheet-identifier">
+          <Field label="Email or username" htmlFor="auth-sheet-email">
             <Input
-              id="authsheet-identifier"
+              id="auth-sheet-email"
               name="username"
               type="text"
               required
@@ -81,9 +86,9 @@ export function AuthSheet() {
               placeholder="you@example.com"
             />
           </Field>
-          <Field label="Password" htmlFor="authsheet-password">
+          <Field label="Password" htmlFor="auth-sheet-password">
             <Input
-              id="authsheet-password"
+              id="auth-sheet-password"
               name="password"
               type="password"
               required

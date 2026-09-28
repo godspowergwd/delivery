@@ -68,9 +68,9 @@ export function Login() {
         {/* One real credential form: identifier first, password second — the
             exact order and semantics every password manager expects. */}
         <form onSubmit={submit} className="space-y-4" autoComplete="on">
-          <Field label="Email or username" htmlFor="login-identifier">
+          <Field label="Email or username" htmlFor="login-email">
             <Input
-              id="login-identifier"
+              id="login-email"
               name="username"
               type="text"
               required
