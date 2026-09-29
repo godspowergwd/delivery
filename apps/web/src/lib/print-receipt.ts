@@ -130,13 +130,14 @@ export async function printDeliveryReceipt(
 ): Promise<void> {
   const printWindow = window.open('', '_blank');
   if (!printWindow) throw new Error('Allow pop-ups to print this receipt.');
+  const printDocument = printWindow.document;
 
-  printWindow.document.write('<!doctype html><title>Preparing receipt</title><p>Preparing receipt...</p>');
+  printDocument.write('<!doctype html><title>Preparing receipt</title><p>Preparing receipt...</p>');
   try {
     const receipt = await loadReceipt();
-    printWindow.document.open();
-    printWindow.document.write(buildDeliveryReceiptHtml(receipt, options));
-    printWindow.document.close();
+    printDocument.open();
+    printDocument.write(buildDeliveryReceiptHtml(receipt, options));
+    printDocument.close();
   } catch (error) {
     printWindow.close();
     throw error;

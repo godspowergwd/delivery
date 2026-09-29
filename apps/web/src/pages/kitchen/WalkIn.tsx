@@ -237,7 +237,7 @@ export function KitchenWalkIn() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="space-y-5" noValidate>
       <header className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-extrabold uppercase text-green-700">Kitchen point of sale</p>
@@ -305,7 +305,7 @@ export function KitchenWalkIn() {
       </section>
 
       <section id="walkin-cart" className="scroll-mt-20 lg:sticky lg:top-24">
-      <Card className="space-y-4">
+      <Card className="space-y-4 overflow-x-clip">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-extrabold text-slate-900">Order</h2>
           <span className="text-sm font-semibold text-slate-500">{itemCount} item{itemCount === 1 ? '' : 's'}</span>
@@ -378,9 +378,12 @@ export function KitchenWalkIn() {
               value={addressText}
               onChange={(value) => {
                 setAddressText(value);
-                setLocation(null);
+                setLocation((current) => current?.label === value ? current : null);
               }}
-              onSelect={(place) => setLocation(place)}
+              onSelect={(place) => {
+                setLocation(place);
+                setErrorMessage('');
+              }}
               selected={location}
               required
               disabled={locked}

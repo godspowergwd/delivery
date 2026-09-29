@@ -132,6 +132,18 @@ function formatDateTime(value: string): string {
   });
 }
 
+function orderTypeLabel(payload: ReceiptPayload): string {
+  const fulfillment = payload.fulfillmentType ?? 'DELIVERY';
+  return payload.source === 'KITCHEN_WALK_IN'
+    ? `Walk-In ${fulfillment === 'PICKUP' ? 'Pickup' : 'Delivery'}`
+    : `Online ${fulfillment === 'PICKUP' ? 'Pickup' : 'Delivery'}`;
+}
+
+function paymentMethodLabel(payload: ReceiptPayload): string {
+  if (payload.paymentMethod !== 'CASH') return 'Mobile Money';
+  return payload.fulfillmentType === 'PICKUP' ? 'Cash' : 'Cash on delivery';
+}
+
 export const receiptHelpers = { formatMoney, formatDateTime, ORDER_STATUS_LABELS };
 export async function renderReceiptPdf(input: {
   payload: ReceiptPayload;
@@ -181,16 +193,14 @@ export async function renderReceiptPdf(input: {
     // Meta grid (two columns, four rows)
     const metaTop = 156;
     const metaRows: Array<[string, string]> = [
-      ['Order number', `${payload.orderNumber} · ${payload.source === 'KITCHEN_WALK_IN' ? `Walk-In ${payload.fulfillmentType === 'PICKUP' ? 'Pickup' : 'Delivery'}` : 'Online'}`],
+      ['Order number', payload.orderNumber],
+      ['Order type', orderTypeLabel(payload)],
       ['Status', ORDER_STATUS_LABELS[payload.status] ?? payload.status],
-      ['Payment method', payload.paymentMethod === 'CASH'
-        ? payload.fulfillmentType === 'PICKUP' ? 'Cash' : 'Cash on delivery'
-        : 'Mobile Money'],
+      ['Payment method', paymentMethodLabel(payload)],
       ['Payment status', payload.paymentStatus],
       ['Customer', payload.customerName],
       ['Phone', payload.customerPhone],
-      ['Deliver to', payload.deliveryAddress],
-      ['Items', String(payload.items.reduce((sum, item) => sum + item.quantity, 0))],
+      [payload.fulfillmentType === 'PICKUP' ? 'Fulfilment' : 'Deliver to', payload.deliveryAddress],
     ];
 
     metaRows.forEach((row, index) => {
@@ -242,9 +252,11 @@ export async function renderReceiptPdf(input: {
     const totalsX = left + width / 2;
     const totalsRows: Array<[string, string, boolean?]> = [
       ['Subtotal', money(payload.subtotal)],
-      ['Delivery fee', money(payload.deliveryFee)],
       ['Tax', money(payload.tax)],
     ];
+    if (payload.fulfillmentType !== 'PICKUP') {
+      totalsRows.splice(1, 0, ['Delivery fee', money(payload.deliveryFee)]);
+    }
     if (payload.discount > 0) totalsRows.push(['Discount', `-${money(payload.discount)}`]);
     totalsRows.push(['TOTAL', money(payload.total), true]);
 
@@ -315,6 +327,8 @@ export function renderReceiptHtml(input: {
 }): string {
   const { payload, qrDataUrl, autoPrint } = input;
   const symbol = payload.currencySymbol;
+  const isPickup = payload.fulfillmentType === 'PICKUP';
+  const customerName = payload.customerName || (isPickup ? 'Walk-In' : 'Customer');
   const lines = payload.items
     .map(
       (item) => `
@@ -389,12 +403,13 @@ export function renderReceiptHtml(input: {
     </header>
     <div class="meta">
       <div><span>Order number</span><strong>${escapeHtml(payload.orderNumber)}</strong></div>
+      <div><span>Order type</span><strong>${escapeHtml(orderTypeLabel(payload))}</strong></div>
       <div><span>Status</span><strong>${escapeHtml(ORDER_STATUS_LABELS[payload.status] ?? payload.status)}</strong></div>
-      <div><span>Payment method</span><strong>${payload.paymentMethod === 'CASH' ? 'Cash on delivery' : 'Mobile Money'}</strong></div>
+      <div><span>Payment method</span><strong>${escapeHtml(paymentMethodLabel(payload))}</strong></div>
       <div><span>Payment status</span><strong>${escapeHtml(payload.paymentStatus)}</strong></div>
-      <div><span>Customer</span><strong>${escapeHtml(payload.customerName)}</strong></div>
-      <div><span>Phone</span><strong>${escapeHtml(payload.customerPhone)}</strong></div>
-      <div><span>Deliver to</span><strong>${escapeHtml(payload.deliveryAddress)}</strong></div>
+      <div><span>Customer</span><strong>${escapeHtml(customerName)}</strong></div>
+      ${payload.customerPhone ? `<div><span>Phone</span><strong>${escapeHtml(payload.customerPhone)}</strong></div>` : ''}
+      <div><span>${isPickup ? 'Fulfilment' : 'Deliver to'}</span><strong>${escapeHtml(payload.deliveryAddress)}</strong></div>
     </div>
     <table>
       <thead>
@@ -404,7 +419,7 @@ export function renderReceiptHtml(input: {
     </table>
     <div class="totals">
       <div><span>Subtotal</span><span>${formatMoney(payload.subtotal, symbol)}</span></div>
-      <div><span>Delivery fee</span><span>${formatMoney(payload.deliveryFee, symbol)}</span></div>
+      ${!isPickup ? `<div><span>Delivery fee</span><span>${formatMoney(payload.deliveryFee, symbol)}</span></div>` : ''}
       <div><span>Tax</span><span>${formatMoney(payload.tax, symbol)}</span></div>
       ${payload.discount > 0 ? `<div><span>Discount</span><span>-${formatMoney(payload.discount, symbol)}</span></div>` : ''}
       <div class="grand"><span>Total</span><span>${formatMoney(payload.total, symbol)}</span></div>
