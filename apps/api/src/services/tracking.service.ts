@@ -231,6 +231,9 @@ export async function buildTrackingSnapshot(
   user: SessionUser,
 ): Promise<OrderTrackingDTO> {
   assertCanViewOrder(order, user);
+  if (order.fulfillmentType !== 'DELIVERY') {
+    throw badRequest('Pickup orders do not have delivery tracking.');
+  }
 
   const restaurant = await getRestaurantAnchor();
   const destination = destinationPoint(order);

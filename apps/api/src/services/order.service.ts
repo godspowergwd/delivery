@@ -42,6 +42,23 @@ export interface CreateOrderInput {
   idempotencyKey?: string;
 }
 
+export interface CreateWalkInOrderInput {
+  items: CreateOrderItemInput[];
+  fulfillmentType: 'PICKUP' | 'DELIVERY';
+  customerName?: string;
+  deliveryPhone?: string;
+  deliveryAddress?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+  deliveryLocationSource?: 'gps' | 'search';
+  deliveryLocationConfirmedAt?: Date;
+  deliveryOriginalLatitude?: number | null;
+  deliveryOriginalLongitude?: number | null;
+  paymentMethod: PaymentMethod;
+  paymentStatus?: 'PAID' | 'PENDING';
+  idempotencyKey: string;
+}
+
 interface LineDraft {
   productId: string;
   name: string;
@@ -371,6 +388,206 @@ export async function createOrder(params: {
 
   return fullOrder;
 }
+
+/** Creates Kitchen-entered transactions without routing pickup sales to delivery. */
+export async function createWalkInOrder(params: {
+  user: SessionUser;
+  input: CreateWalkInOrderInput;
+  request?: Request;
+}): Promise<OrderWithRelations> {
+  const { user, input, request } = params;
+  const existing = await prisma.order.findUnique({
+    where: { clientRequestId: input.idempotencyKey },
+    include: ORDER_INCLUDE,
+  });
+  if (existing) {
+    if (existing.source !== 'KITCHEN_WALK_IN' || existing.createdById !== user.id) {
+      throw conflict('This order request cannot be safely reused.');
+    }
+    return existing;
+  }
+
+  const isDelivery = input.fulfillmentType === 'DELIVERY';
+  if (isDelivery) {
+    if (!input.customerName?.trim() || !input.deliveryPhone?.trim() || !input.deliveryAddress?.trim()) {
+      throw badRequest('Customer name, phone number and delivery location are required for delivery.');
+    }
+    if (!isValidLatitude(input.deliveryLatitude) || !isValidLongitude(input.deliveryLongitude)) {
+      throw badRequest('Choose a confirmed delivery location from the suggestions.');
+    }
+    await assertDeliverableTo(input.deliveryLatitude!, input.deliveryLongitude!);
+  }
+
+  const settings = await getSettings();
+  const quantities = new Map<string, CreateOrderItemInput>();
+  for (const item of input.items) {
+    const previous = quantities.get(item.productId);
+    const quantity = (previous?.quantity ?? 0) + item.quantity;
+    if (quantity > 50) throw badRequest('A product quantity cannot exceed 50.');
+    quantities.set(item.productId, { ...item, quantity });
+  }
+  if (quantities.size === 0) throw badRequest('Your cart is empty.');
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...quantities.keys()] } },
+  });
+  const productMap = new Map(products.map((product) => [product.id, product]));
+  const lineDrafts: LineDraft[] = [];
+  let maxPrepMinutes = 10;
+  for (const item of quantities.values()) {
+    const product = productMap.get(item.productId);
+    if (!product) throw badRequest('One of the products in your cart no longer exists.');
+    if (product.isArchived) throw badRequest(`${product.name} is no longer sold.`);
+    if (!product.isAvailable) throw badRequest(`${product.name} is currently unavailable.`);
+    if (product.stock < item.quantity) {
+      throw conflict(`Only ${product.stock} × ${product.name} left. Please adjust the cart.`);
+    }
+    const unitPrice = decimalToNumber(product.price);
+    maxPrepMinutes = Math.max(maxPrepMinutes, product.prepTimeMinutes);
+    lineDrafts.push({
+      productId: product.id,
+      name: product.name,
+      imageUrl: product.imageUrl,
+      unitPrice,
+      quantity: item.quantity,
+      lineTotal: Math.round(unitPrice * item.quantity * 100) / 100,
+      notes: item.notes?.trim() ? item.notes.trim().slice(0, 200) : null,
+    });
+  }
+
+  const totals = computeTotals({
+    items: lineDrafts.map(({ unitPrice, quantity }) => ({ unitPrice, quantity })),
+    deliveryFee: isDelivery ? settings.deliveryFee : 0,
+    taxRate: settings.taxRate,
+  });
+  const status = isDelivery ? OrderStatus.RECEIVED : OrderStatus.DELIVERED;
+  let orderId: string | null = null;
+  for (let attempt = 0; attempt < 5 && !orderId; attempt += 1) {
+    const now = new Date();
+    const orderNumber = await nextOrderNumber();
+    try {
+      orderId = await prisma.$transaction(async (tx) => {
+        const order = await tx.order.create({
+          data: {
+            orderNumber,
+            status,
+            source: 'KITCHEN_WALK_IN',
+            fulfillmentType: input.fulfillmentType,
+            customerId: null,
+            customerName: isDelivery ? input.customerName!.trim() : null,
+            deliveryAddress: isDelivery ? input.deliveryAddress!.trim() : '',
+            deliveryPhone: isDelivery ? input.deliveryPhone!.trim() : '',
+            deliveryLatitude: isDelivery ? input.deliveryLatitude! : null,
+            deliveryLongitude: isDelivery ? input.deliveryLongitude! : null,
+            deliveryOriginalLatitude: isDelivery ? input.deliveryOriginalLatitude ?? null : null,
+            deliveryOriginalLongitude: isDelivery ? input.deliveryOriginalLongitude ?? null : null,
+            deliveryLocationSource: isDelivery ? input.deliveryLocationSource ?? null : null,
+            deliveryLocationConfirmedAt: isDelivery ? input.deliveryLocationConfirmedAt ?? now : null,
+            createdById: user.id,
+            clientRequestId: input.idempotencyKey,
+            subtotal: new Prisma.Decimal(totals.subtotal),
+            deliveryFee: new Prisma.Decimal(totals.deliveryFee),
+            tax: new Prisma.Decimal(totals.tax),
+            discount: new Prisma.Decimal(totals.discount),
+            total: new Prisma.Decimal(totals.total),
+            itemCount: totals.itemCount,
+            paymentMethod: input.paymentMethod,
+            paymentStatus: input.paymentStatus ?? (isDelivery ? 'PENDING' : 'PAID'),
+            estimatedReadyAt: isDelivery ? new Date(now.getTime() + maxPrepMinutes * 60_000) : null,
+            deliveredAt: isDelivery ? null : now,
+            completedById: isDelivery ? null : user.id,
+            items: { create: lineDrafts },
+            events: {
+              create: {
+                status,
+                changedById: user.id,
+                note: isDelivery ? 'Walk-In delivery order received' : 'Walk-In pickup processed',
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        for (const line of lineDrafts) {
+          const updated = await tx.product.updateMany({
+            where: { id: line.productId, stock: { gte: line.quantity }, isAvailable: true, isArchived: false },
+            data: { stock: { decrement: line.quantity } },
+          });
+          if (updated.count !== 1) {
+            throw conflict(`${line.name} is no longer available in that quantity.`);
+          }
+        }
+        return order.id;
+      }, { maxWait: 10_000, timeout: 30_000 });
+    } catch (error) {
+      if (isRequestIdConflict(error)) {
+        const retry = await prisma.order.findUnique({
+          where: { clientRequestId: input.idempotencyKey },
+          include: ORDER_INCLUDE,
+        });
+        if (retry?.source === 'KITCHEN_WALK_IN' && retry.createdById === user.id) return retry;
+        throw conflict('This order request could not be safely retried.');
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') continue;
+      throw error;
+    }
+  }
+  if (!orderId) throw conflict('Could not allocate an order number. Please try again.');
+
+  const fullOrder = await getOrderById(orderId);
+  const dto = serializeOrder(fullOrder);
+  emitToRole('KITCHEN', 'order:created', { order: dto });
+  emitToRole('ADMIN', 'order:created', { order: dto });
+  emitToRole('ADMIN', 'analytics:refresh', {});
+
+  if (isDelivery) {
+    const money = (amount: number) => `${settings.currencySymbol}${amount.toFixed(2)}`;
+    await notifyKitchen({
+      title: `New Walk-In delivery ${fullOrder.orderNumber}`,
+      body: `${fullOrder.customerName} • ${totals.itemCount} items • ${money(totals.total)}`,
+      type: 'ORDER_UPDATE',
+      audience: 'KITCHEN',
+      orderId: fullOrder.id,
+      link: '/kitchen',
+    });
+    await notifyAdmins({
+      title: `New Walk-In delivery ${fullOrder.orderNumber}`,
+      body: `${fullOrder.customerName} placed an order worth ${money(totals.total)}.`,
+      type: 'BUSINESS_ALERT',
+      audience: 'ADMIN',
+      orderId: fullOrder.id,
+      link: '/admin/orders',
+    });
+  }
+
+  const lowStock = await prisma.product.findMany({
+    where: { id: { in: lineDrafts.map((line) => line.productId) }, stock: { lte: settings.lowStockThreshold } },
+    select: { id: true, name: true, stock: true },
+  });
+  for (const product of lowStock) {
+    emitToRole('ADMIN', 'stock:low', { productId: product.id, name: product.name, stock: product.stock });
+    await notifyAdmins({
+      title: 'Low stock warning',
+      body: `${product.name} is down to ${product.stock} unit(s).`,
+      type: 'LOW_STOCK',
+      audience: 'ADMIN',
+      link: '/admin/products',
+    });
+  }
+
+  await logActivity({
+    action: 'ORDER_CREATED',
+    entity: 'Order',
+    entityId: fullOrder.id,
+    description: `Walk-In ${input.fulfillmentType.toLowerCase()} ${fullOrder.orderNumber} created`,
+    metadata: { total: totals.total, paymentMethod: input.paymentMethod, source: 'KITCHEN_WALK_IN' },
+    userId: user.id,
+    actorEmail: user.email,
+    actorRole: user.role,
+    request,
+  });
+  return fullOrder;
+}
 export interface ChangeStatusInput {
   orderId: string;
   to: OrderStatusType;
@@ -455,6 +672,10 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
   const { orderId, to, actor, note, request } = input;
   const order = await getOrderById(orderId);
 
+  if (order.fulfillmentType === 'PICKUP' && to === 'OUT_FOR_DELIVERY') {
+    throw badRequest('Pickup orders cannot enter the delivery workflow.');
+  }
+
   if (order.status === to) {
     throw conflict(`The order is already ${statusLabel(to).toLowerCase()}.`);
   }
@@ -507,18 +728,22 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
   emitToRole('KITCHEN', 'order:updated', { order: dto, previousStatus: order.status });
   emitToRole('ADMIN', 'order:updated', { order: dto, previousStatus: order.status });
   emitToRole('DRIVER', 'order:updated', { order: dto, previousStatus: order.status });
-  emitToUser(order.customerId, 'order:updated', { order: dto, previousStatus: order.status });
+  if (order.customerId) {
+    emitToUser(order.customerId, 'order:updated', { order: dto, previousStatus: order.status });
+  }
 
   if (to === 'CANCELLED') {
-    await notifyCustomer({
-      userId: order.customerId,
-      title: `Order ${order.orderNumber} cancelled`,
-      body: note?.trim() ? note.trim() : 'Your order was cancelled.',
-      type: 'ORDER_UPDATE',
-      audience: 'CUSTOMER',
-      orderId: order.id,
-      link: `/app/orders/${order.id}`,
-    });
+    if (order.customerId) {
+      await notifyCustomer({
+        userId: order.customerId,
+        title: `Order ${order.orderNumber} cancelled`,
+        body: note?.trim() ? note.trim() : 'Your order was cancelled.',
+        type: 'ORDER_UPDATE',
+        audience: 'CUSTOMER',
+        orderId: order.id,
+        link: `/app/orders/${order.id}`,
+      });
+    }
     await notifyAdmins({
       title: `Order ${order.orderNumber} cancelled`,
       body: `${statusLabel(order.status)} → Cancelled by ${actor.name}.`,
@@ -539,7 +764,7 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
     }
   } else {
     const message = CUSTOMER_MESSAGES[to];
-    if (message) {
+    if (message && order.customerId) {
       await notifyCustomer({
         userId: order.customerId,
         title: `${message.title} • ${order.orderNumber}`,
@@ -608,6 +833,9 @@ export async function assignDriver(params: {
   }
 
   const order = await getOrderById(orderId);
+  if (order.fulfillmentType !== 'DELIVERY') {
+    throw badRequest('Pickup orders cannot be assigned to a driver.');
+  }
   if (['RECEIVED', 'DELIVERED', 'CANCELLED'].includes(order.status)) {
     throw badRequest(
       `A driver can only be assigned to an accepted, preparing, ready or out-for-delivery order (currently "${statusLabel(order.status)}").`,
@@ -640,7 +868,9 @@ export async function assignDriver(params: {
   emitToRole('KITCHEN', 'order:updated', { order: dto, previousStatus: order.status });
   emitToRole('ADMIN', 'order:updated', { order: dto, previousStatus: order.status });
   emitToRole('DRIVER', 'order:updated', { order: dto, previousStatus: order.status });
-  emitToUser(order.customerId, 'order:updated', { order: dto, previousStatus: order.status });
+  if (order.customerId) {
+    emitToUser(order.customerId, 'order:updated', { order: dto, previousStatus: order.status });
+  }
 
   if (driverId) {
     await notifyUser(driverId, {
@@ -795,6 +1025,7 @@ export function buildOrderWhere(filters: OrderQueryFilters): Prisma.OrderWhereIn
         OR: [
           { orderNumber: { contains: term, mode: 'insensitive' } },
           { deliveryPhone: { contains: term, mode: 'insensitive' } },
+          { customerName: { contains: term, mode: 'insensitive' } },
           { customer: { name: { contains: term, mode: 'insensitive' } } },
         ],
       });

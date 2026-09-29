@@ -28,6 +28,7 @@ import {
   UsersIcon,
   FlameIcon,
   WalletIcon,
+  StoreIcon,
 } from './icons';
 
 /** Shows the native install button once the browser fires beforeinstallprompt. */
@@ -128,6 +129,8 @@ export interface NavItem {
   emphasize?: boolean;
   /** Shows the live cart count badge. */
   cart?: boolean;
+  /** Prominent mobile action, visually distinct from the other destinations. */
+  primary?: boolean;
 }
 
 /**
@@ -146,6 +149,7 @@ const NAV: Record<Role, NavItem[]> = {
   KITCHEN: [
     { to: '/kitchen', label: 'Orders', icon: FlameIcon, tone: 'red', emphasize: true },
     { to: '/kitchen/drivers', label: 'Drivers', icon: UsersIcon, tone: 'green' },
+    { to: '/kitchen/walk-in', label: 'Walk-In', icon: StoreIcon, tone: 'green', primary: true },
     { to: '/kitchen/products', label: 'Products', icon: PackageIcon, tone: 'red' },
     { to: '/kitchen/settings', label: 'Settings', icon: CogIcon, tone: 'green' },
   ],
@@ -276,10 +280,12 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
               'relative flex items-center justify-center',
               item.cart
                 ? 'h-12 w-12 rounded-full bg-red-600 text-white shadow-lg shadow-red-600/25'
-                : 'h-7 w-7',
+                : item.primary
+                  ? 'h-12 w-12 -mt-4 rounded-full bg-red-600 text-white shadow-lg shadow-red-600/25 ring-4 ring-white'
+                  : 'h-7 w-7',
             )}
           >
-            <Icon className={clsx(item.cart ? 'h-6 w-6' : item.emphasize ? 'h-7 w-7' : 'h-5 w-5')} />
+            <Icon className={clsx(item.cart || item.primary ? 'h-6 w-6' : item.emphasize ? 'h-7 w-7' : 'h-5 w-5')} />
             {item.cart && cartCount > 0 && (
               <span className="absolute -right-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-sm font-bold text-white">
                 {cartCount}

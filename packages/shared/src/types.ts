@@ -100,11 +100,17 @@ export interface OrderStatusEventDTO {
   createdAt: string;
 }
 
+export type OrderSource = 'ONLINE' | 'KITCHEN_WALK_IN';
+export type FulfillmentType = 'DELIVERY' | 'PICKUP';
+
 export interface OrderDTO {
   id: string;
   orderNumber: string;
   status: OrderStatus;
-  customerId: string;
+  source: OrderSource;
+  fulfillmentType: FulfillmentType;
+  customerId: string | null;
+  createdById: string | null;
   customerName: string;
   customerEmail: string;
   deliveryAddress: string;
@@ -171,6 +177,8 @@ export interface ReceiptDTO {
   orderId: string;
   issuedAt: string;
   status: OrderStatus;
+  source?: OrderSource;
+  fulfillmentType?: FulfillmentType;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   customerName: string;

@@ -19,6 +19,7 @@ import {
   DriverMap,
   DriverProfile,
   KitchenProducts,
+  KitchenWalkIn,
   KitchenQueue,
   KitchenSettings,
   KitchenDrivers,
@@ -71,6 +72,7 @@ export function App() {
       <Route element={<ProtectedRoute roles={['KITCHEN', 'ADMIN']} />}>
         <Route element={<AppShell />}>
           <Route path="/kitchen" element={<LazyRoute><KitchenQueue /></LazyRoute>} />
+          <Route path="/kitchen/walk-in" element={<LazyRoute><KitchenWalkIn /></LazyRoute>} />
           <Route path="/kitchen/products" element={<LazyRoute><KitchenProducts /></LazyRoute>} />
           <Route path="/kitchen/settings" element={<LazyRoute><KitchenSettings /></LazyRoute>} />
           <Route path="/kitchen/drivers" element={<LazyRoute><KitchenDrivers /></LazyRoute>} />

@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
+import { Prisma } from '@prisma/client';
 import type { OrderStatus, PaymentMethod, PaymentStatus, ReceiptDTO, SettingsDTO } from '@delivery/shared';
 import { prisma, decimalToNumber } from '../lib/prisma';
 import { env } from '../config/env';
@@ -31,11 +32,15 @@ export function buildReceiptPayload(
     orderId: order.id,
     issuedAt: new Date().toISOString(),
     status: order.status as OrderStatus,
+    source: order.source,
+    fulfillmentType: order.fulfillmentType,
     paymentMethod: order.paymentMethod as PaymentMethod,
     paymentStatus: order.paymentStatus as PaymentStatus,
-    customerName: order.customer?.name ?? 'Customer',
+    customerName: order.customerName ?? order.customer?.name ?? (order.fulfillmentType === 'PICKUP' ? 'Walk-in' : 'Customer'),
     customerPhone: order.deliveryPhone,
-    deliveryAddress: [order.deliveryAddress, order.deliveryArea].filter(Boolean).join(', '),
+    deliveryAddress: order.fulfillmentType === 'PICKUP'
+      ? 'Pickup at business'
+      : [order.deliveryAddress, order.deliveryArea].filter(Boolean).join(', '),
     items: order.items.map((item) => ({
       id: item.id,
       productId: item.productId,
@@ -74,16 +79,24 @@ export async function ensureReceipt(orderId: string, generatedById?: string | nu
     { margin: 1, width: 360, errorCorrectionLevel: 'M' },
   );
 
-  const receipt = await prisma.receipt.create({
-    data: {
-      receiptNumber: payload.receiptNumber,
-      orderId,
-      verifyCode,
-      payload: { ...payload } as never,
-      qrDataUrl,
-      generatedById: generatedById ?? null,
-    },
-  });
+  let receipt;
+  try {
+    receipt = await prisma.receipt.create({
+      data: {
+        receiptNumber: payload.receiptNumber,
+        orderId,
+        verifyCode,
+        payload: { ...payload } as never,
+        qrDataUrl,
+        generatedById: generatedById ?? null,
+      },
+    });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+    const existing = await prisma.receipt.findUnique({ where: { orderId } });
+    if (existing) return existing;
+    throw error;
+  }
 
   emitToOrder(orderId, 'receipt:generated', {
     orderId,
@@ -168,9 +181,11 @@ export async function renderReceiptPdf(input: {
     // Meta grid (two columns, four rows)
     const metaTop = 156;
     const metaRows: Array<[string, string]> = [
-      ['Order number', payload.orderNumber],
+      ['Order number', `${payload.orderNumber} · ${payload.source === 'KITCHEN_WALK_IN' ? `Walk-In ${payload.fulfillmentType === 'PICKUP' ? 'Pickup' : 'Delivery'}` : 'Online'}`],
       ['Status', ORDER_STATUS_LABELS[payload.status] ?? payload.status],
-      ['Payment method', payload.paymentMethod === 'CASH' ? 'Cash on delivery' : 'Mobile Money'],
+      ['Payment method', payload.paymentMethod === 'CASH'
+        ? payload.fulfillmentType === 'PICKUP' ? 'Cash' : 'Cash on delivery'
+        : 'Mobile Money'],
       ['Payment status', payload.paymentStatus],
       ['Customer', payload.customerName],
       ['Phone', payload.customerPhone],

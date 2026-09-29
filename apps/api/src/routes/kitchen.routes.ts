@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { ORDER_STATUSES, type OrderStatus as OrderStatusType } from '@delivery/shared';
+import { ORDER_STATUSES, PAYMENT_METHODS, type OrderStatus as OrderStatusType } from '@delivery/shared';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import {
   csvSchema,
@@ -24,9 +24,11 @@ import {
   allowedKitchenTransitions,
   buildOrderWhere,
   changeOrderStatus,
+  createWalkInOrder,
   getOrderById,
 } from '../services/order.service';
 import { ORDER_INCLUDE, serializeOrder } from '../services/serializers';
+import { ensureReceipt, receiptDto, type ReceiptPayload } from '../services/receipt.service';
 import { applyRestaurantStatus, getRestaurantStatus } from '../services/restaurant.service';
 import {
   createDriver,
@@ -65,6 +67,47 @@ const createDriverSchema = z.object({
 
 const resetDriverPasswordSchema = z.object({ newPassword: passwordSchema.optional() });
 
+export const walkInOrderSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string().trim().min(1),
+    quantity: z.coerce.number().int().min(1).max(50),
+    notes: z.string().trim().max(200).optional(),
+  })).min(1).max(100),
+  fulfillmentType: z.enum(['PICKUP', 'DELIVERY']),
+  customerName: z.string().trim().min(2).max(120).optional(),
+  deliveryPhone: z.string().trim().min(7).max(20).optional(),
+  deliveryAddress: z.string().trim().min(6).max(300).optional(),
+  deliveryLatitude: z.number().finite().min(-90).max(90).optional(),
+  deliveryLongitude: z.number().finite().min(-180).max(180).optional(),
+  deliveryLocationSource: z.enum(['gps', 'search']).optional(),
+  deliveryLocationConfirmedAt: z.string().datetime({ offset: true }).optional().transform((value) =>
+    value ? new Date(value) : undefined,
+  ),
+  deliveryOriginalLatitude: z.number().finite().min(-90).max(90).nullable().optional(),
+  deliveryOriginalLongitude: z.number().finite().min(-180).max(180).nullable().optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS),
+  paymentStatus: z.enum(['PAID', 'PENDING']).optional(),
+  idempotencyKey: z.string().uuid(),
+}).superRefine((input, context) => {
+  if (input.fulfillmentType === 'DELIVERY') {
+    for (const key of ['customerName', 'deliveryPhone', 'deliveryAddress', 'deliveryLatitude', 'deliveryLongitude', 'deliveryLocationSource'] as const) {
+      if (input[key] == null || input[key] === '') {
+        context.addIssue({ code: 'custom', path: [key], message: 'Required for delivery orders.' });
+      }
+    }
+  }
+  if ((input.deliveryOriginalLatitude == null) !== (input.deliveryOriginalLongitude == null)) {
+    context.addIssue({ code: 'custom', path: ['deliveryOriginalLongitude'], message: 'Original coordinates must be supplied as a pair.' });
+  }
+  if (input.deliveryLocationSource === 'gps' && input.deliveryOriginalLatitude == null) {
+    context.addIssue({ code: 'custom', path: ['deliveryOriginalLatitude'], message: 'GPS orders must retain their original coordinates.' });
+  }
+  const ids = input.items.map((item) => item.productId);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({ code: 'custom', path: ['items'], message: 'Each product can only appear once in the cart.' });
+  }
+});
+
 /** Parses an optional YYYY-MM-DD (or ISO) query bound; end of day when asked. */
 function parseBound(value: string | undefined, endOfDay = false): Date | undefined {
   if (!value) return undefined;
@@ -73,6 +116,24 @@ function parseBound(value: string | undefined, endOfDay = false): Date | undefin
   if (endOfDay) date.setHours(23, 59, 59, 999);
   return date;
 }
+
+/** POST /api/kitchen/walk-in/orders - create a pickup sale or existing-workflow delivery. */
+kitchenRouter.post(
+  '/walk-in/orders',
+  authenticate,
+  requireKitchenOrAdmin,
+  writeLimiter,
+  asyncHandler(async (req, res) => {
+    const input = walkInOrderSchema.parse(req.body);
+    const user = getAuth(req).user;
+    const order = await createWalkInOrder({ input, user, request: req });
+    const receipt = await ensureReceipt(order.id, user.id);
+    res.status(201).json({
+      order: serializeOrder(order),
+      receipt: receiptDto(receipt.payload as unknown as ReceiptPayload, receipt.qrDataUrl),
+    });
+  }),
+);
 
 /** GET /api/kitchen/summary - counts and revenue for the kitchen dashboard cards. */
 kitchenRouter.get(

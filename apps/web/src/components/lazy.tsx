@@ -43,6 +43,7 @@ export const Orders = interop(() => import('../pages/customer/Orders'), 'Orders'
 export const OrderDetail = interop(() => import('../pages/customer/OrderDetail'), 'OrderDetail');
 export const Profile = interop(() => import('../pages/customer/Profile'), 'Profile');
 export const KitchenQueue = interop(() => import('../pages/kitchen/Kitchen'), 'KitchenQueue');
+export const KitchenWalkIn = interop(() => import('../pages/kitchen/WalkIn'), 'KitchenWalkIn');
 export const KitchenSettings = interop(() => import('../pages/kitchen/Settings'), 'KitchenSettings');
 export const KitchenDrivers = interop(() => import('../pages/kitchen/Drivers'), 'KitchenDrivers');
 export const KitchenDriverCreate = interop(

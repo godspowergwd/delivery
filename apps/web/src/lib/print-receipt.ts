@@ -48,20 +48,23 @@ export function buildDeliveryReceiptHtml(
   const paymentMethodValue: string = receipt.paymentMethod;
   const paymentMethod =
     paymentMethodValue === 'CASH'
-      ? 'Payment on Delivery'
+      ? receipt.fulfillmentType === 'PICKUP' ? 'Cash' : 'Payment on Delivery'
       : paymentMethodValue === 'MOBILE_MONEY'
         ? 'MoMo'
         : paymentMethodValue === 'BANK_TRANSFER'
           ? 'Bank Transfer'
           : paymentMethodValue;
   const placedAt = options.createdAt ?? receipt.issuedAt;
+  const isPickup = receipt.fulfillmentType === 'PICKUP';
+  const isWalkIn = receipt.source === 'KITCHEN_WALK_IN';
+  const orderType = isWalkIn ? `Walk-In ${isPickup ? 'Pickup' : 'Delivery'}` : 'Online Delivery';
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Delivery receipt ${escapeHtml(receipt.orderNumber)}</title>
+<title>Receipt ${escapeHtml(receipt.orderNumber)}</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; padding: 12px; color: #000; background: #fff; font: 12px/1.4 Arial, sans-serif; }
@@ -94,23 +97,25 @@ export function buildDeliveryReceiptHtml(
     </header>
     <section class="section">
       <div class="row"><strong>Order</strong><strong>${escapeHtml(receipt.orderNumber)}</strong></div>
+      <div class="row"><span>Order type</span><span>${escapeHtml(orderType)}</span></div>
       <div class="row"><span>Date &amp; time</span><span>${escapeHtml(formatDateTime(placedAt))}</span></div>
       <p class="order-id">Order ID: ${escapeHtml(receipt.orderId)}</p>
     </section>
     <section class="section">
-      <div class="row"><span>Customer</span><span>${escapeHtml(receipt.customerName)}</span></div>
-      <div class="row"><span>Phone</span><span>${escapeHtml(receipt.customerPhone)}</span></div>
-      <div class="row"><span>Deliver to</span><span>${escapeHtml(receipt.deliveryAddress)}</span></div>
+      <div class="row"><span>Customer</span><span>${escapeHtml(receipt.customerName || 'Walk-in')}</span></div>
+      ${receipt.customerPhone ? `<div class="row"><span>Phone</span><span>${escapeHtml(receipt.customerPhone)}</span></div>` : ''}
+      <div class="row"><span>${isPickup ? 'Fulfilment' : 'Deliver to'}</span><span>${escapeHtml(receipt.deliveryAddress)}</span></div>
       ${options.driverName ? `<div class="row"><span>Driver</span><span>${escapeHtml(options.driverName)}</span></div>` : ''}
     </section>
     <section class="section">${items}</section>
     <section class="section">
       <div class="row"><span>Food subtotal</span><span>${money(receipt.subtotal)}</span></div>
-      <div class="row"><span>Delivery fee</span><span>${money(receipt.deliveryFee)}</span></div>
+      ${!isPickup ? `<div class="row"><span>Delivery fee</span><span>${money(receipt.deliveryFee)}</span></div>` : ''}
       ${receipt.tax > 0 ? `<div class="row"><span>Tax</span><span>${money(receipt.tax)}</span></div>` : ''}
       ${receipt.discount > 0 ? `<div class="row"><span>Discount</span><span>-${money(receipt.discount)}</span></div>` : ''}
       <div class="row total"><span>TOTAL AMOUNT TO PAY</span><span>${money(receipt.total)}</span></div>
       <div class="row"><span>Payment method</span><strong>${paymentMethod}</strong></div>
+      <div class="row"><span>Payment status</span><strong>${escapeHtml(receipt.paymentStatus)}</strong></div>
     </section>
   </main>
   <script>window.addEventListener('load', () => window.print(), { once: true });</script>

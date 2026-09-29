@@ -99,6 +99,9 @@ export function AdminOrders() {
                                 <div className="min-w-0">
                   <p className="font-mono text-base font-bold text-slate-900">{order.orderNumber}</p>
                   <p className="truncate text-sm text-slate-500">
+                    {order.source === 'KITCHEN_WALK_IN'
+                      ? `Walk-In ${order.fulfillmentType === 'PICKUP' ? 'pickup' : 'delivery'} · `
+                      : ''}
                     {order.customerName} · {order.itemCount} item(s) · {formatRelativeTime(order.createdAt)}
                   </p>
                 </div>
@@ -188,13 +191,20 @@ function OrderDialog({
     <Modal open title={`Order ${order.orderNumber}`} onClose={onClose} wide>
       <div className="space-y-4 text-sm text-slate-700">
         <div className="rounded-2xl border border-slate-200 bg-slate-100 p-4">
+          <p className="mb-1 text-xs font-extrabold uppercase text-green-700">
+            {order.source === 'KITCHEN_WALK_IN'
+              ? `Walk-In ${order.fulfillmentType === 'PICKUP' ? 'pickup' : 'delivery'}`
+              : 'Online delivery'}
+          </p>
           <p className="font-semibold text-slate-900">{order.customerName}</p>
           <p className="text-sm text-slate-600">{order.customerEmail}</p>
-          <p className="text-sm text-slate-600">{order.deliveryPhone}</p>
-          <p className="mt-2 flex items-center gap-1 text-sm text-slate-600">
-            <MapPinIcon className="h-3.5 w-3.5 flex-none text-slate-400" aria-hidden="true" />
-            <span className="truncate">{order.deliveryAddress}</span>
-          </p>
+          {order.deliveryPhone && <p className="text-sm text-slate-600">{order.deliveryPhone}</p>}
+          {order.fulfillmentType === 'DELIVERY' && (
+            <p className="mt-2 flex items-center gap-1 text-sm text-slate-600">
+              <MapPinIcon className="h-3.5 w-3.5 flex-none text-slate-400" aria-hidden="true" />
+              <span className="truncate">{order.deliveryAddress}</span>
+            </p>
+          )}
           {order.notes && <p className="mt-1 text-xs text-red-700">Note: {order.notes}</p>}
         </div>
 
@@ -215,6 +225,7 @@ function OrderDialog({
           <Row label="Tax" value={formatMoney(order.tax)} />
           <Row label="Total" value={formatMoney(order.total)} bold />
           <Row label="Payment" value={order.paymentMethod.replace('_', ' ')} />
+          <Row label="Payment status" value={order.paymentStatus} />
         </div>
 
         {dispatchable && (

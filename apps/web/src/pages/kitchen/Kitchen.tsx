@@ -170,7 +170,7 @@ function KitchenOrderCard({
   onAdvance: (id: string, action: string, note?: string) => void;
 }) {
   const isLive = (LIVE_STATUSES as readonly string[]).includes(order.status);
-  const receiptReady = ['PREPARING', 'READY', 'OUT_FOR_DELIVERY'].includes(order.status);
+  const receiptReady = ['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(order.status);
   const actions = kitchenActions(order.status);
 
   async function printReceipt() {
@@ -193,6 +193,9 @@ function KitchenOrderCard({
         <div>
           <p className="text-sm font-extrabold text-slate-900">{order.orderNumber}</p>
           <p className="text-sm text-slate-500">
+            {order.source === 'KITCHEN_WALK_IN'
+              ? `Walk-In ${order.fulfillmentType === 'PICKUP' ? 'pickup' : 'delivery'} · `
+              : ''}
             {order.customerName} · {formatRelativeTime(order.createdAt)}
           </p>
         </div>

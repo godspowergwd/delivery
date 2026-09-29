@@ -35,6 +35,16 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum OrderSource {
+  ONLINE
+  KITCHEN_WALK_IN
+}
+
+enum FulfillmentType {
+  DELIVERY
+  PICKUP
+}
+
 enum DeliveryLocationSource {
   gps
   search
@@ -88,6 +98,7 @@ model User {
 
   addresses       Address[]
   orders          Order[]            @relation("CustomerOrders")
+  createdOrders   Order[]            @relation("OrderCreatedBy")
   acceptedOrders  Order[]            @relation("OrderAcceptedBy")
   completedOrders Order[]            @relation("OrderCompletedBy")
   deliveredOrders Order[]            @relation("OrderDriver")
@@ -161,8 +172,11 @@ model Order {
   id              String        @id @default(cuid())
   orderNumber     String        @unique
   status          OrderStatus   @default(RECEIVED)
-  customerId      String
-  customer        User          @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Cascade)
+  source          OrderSource   @default(ONLINE)
+  fulfillmentType FulfillmentType @default(DELIVERY)
+  customerId      String?
+  customer        User?         @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Cascade)
+  customerName    String?
   deliveryAddress String
   deliveryArea    String?
   deliveryPhone   String
@@ -190,6 +204,8 @@ model Order {
 
   acceptedById String?
   acceptedBy   User?   @relation("OrderAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdBy    User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   completedById String?
   completedBy   User?   @relation("OrderCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
 
@@ -218,6 +234,7 @@ model Order {
 
   @@index([status, createdAt])
   @@index([customerId, createdAt])
+  @@index([source, fulfillmentType, createdAt])
   @@index([driverId, status])
   @@index([createdAt])
 }
