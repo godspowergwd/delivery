@@ -445,6 +445,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
 export function PasswordInput({
   className,
   disabled,
+  placeholder = 'Enter your password',
   ...rest
 }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   const [visible, setVisible] = useState(false);
@@ -455,6 +456,7 @@ export function PasswordInput({
       <Input
         {...rest}
         disabled={disabled}
+        placeholder={placeholder}
         type={visible ? 'text' : 'password'}
         className={clsx('pr-12', className)}
       />
