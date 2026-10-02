@@ -126,7 +126,7 @@ export function AdminReports() {
           <Card>
             <p className="text-sm text-slate-500">{summary.periodLabel}</p>
             <p className="text-sm text-slate-700">
-              {new Date(summary.periodStart).toLocaleDateString()} → {new Date(summary.periodEnd).toLocaleDateString()}
+              {new Date(summary.periodStart).toLocaleDateString()} to {new Date(summary.periodEnd).toLocaleDateString()}
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Metric label="Revenue" value={formatMoney(summary.totals.revenue)} />

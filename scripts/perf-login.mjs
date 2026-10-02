@@ -12,16 +12,17 @@
  */
 import bcrypt from 'bcryptjs';
 import { Client } from 'pg';
+import { requireIsolatedTestApi } from './test-safety.mjs';
 
 const API = (process.argv[2] ?? 'http://127.0.0.1:4000/api').replace(/\/+$/, '');
-const PASSWORD = 'Perf@12345';
-const connectionString =
-  process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5433/delivery_system';
+const { environment, accounts } = await requireIsolatedTestApi(API);
+const PASSWORD = accounts.CUSTOMER.password;
+const connectionString = environment.DATABASE_URL;
 const ROUNDS = [1, 2, 3];
 
 const CASES = [
-  { email: 'perf.legacy@test.local', rounds: 12 },
-  { email: 'perf.fast@test.local', rounds: 10 },
+  { email: 'perf.legacy@loadtest.invalid', rounds: 12 },
+  { email: 'perf.fast@loadtest.invalid', rounds: 10 },
 ];
 
 const { hostname, port, pathname } = new URL(connectionString);

@@ -4,6 +4,7 @@ import type { Paginated } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useRealtimeSync } from '../../lib/realtime';
 import { Badge, Button, Card, EmptyState, Input, Select, Spinner } from '../../components/ui';
+import { ChevronLeftIcon, ChevronRightIcon } from '../../components/icons';
 
 interface LogRow {
   id: string;
@@ -115,7 +116,7 @@ export function AdminLogs() {
                     <Badge variant="default">{log.action}</Badge>
                     <span className="text-sm text-slate-500">{log.entity}</span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-800">{log.description ?? '—'}</p>
+                  <p className="mt-1 text-sm text-slate-800">{log.description ?? '-'}</p>
                   <p className="text-sm text-slate-500">
                     {log.actorName}
                     {log.actorEmail ? ` · ${log.actorEmail}` : ''}
@@ -133,13 +134,15 @@ export function AdminLogs() {
       {data && data.pageCount > 1 && (
         <div className="flex items-center justify-center gap-3">
           <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
-            ← Prev
+            <ChevronLeftIcon className="h-4 w-4" />
+            Prev
           </Button>
           <span className="text-sm text-slate-500">
             Page {data.page} of {data.pageCount}
           </span>
           <Button size="sm" variant="outline" disabled={!data.hasMore} onClick={() => setPage((current) => current + 1)}>
-            Next →
+            Next
+            <ChevronRightIcon className="h-4 w-4" />
           </Button>
         </div>
       )}

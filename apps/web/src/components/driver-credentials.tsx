@@ -34,7 +34,7 @@ export function DriverCredentialsCard({
       toast('Username and password copied', 'success');
       window.setTimeout(() => setCopied(false), 4000);
     } else {
-      toast('Could not copy — select the text and copy manually.', 'error');
+      toast('Could not copy - select the text and copy manually.', 'error');
     }
   };
 
@@ -42,7 +42,7 @@ export function DriverCredentialsCard({
     const result = await shareDriverLogin({ driverName, credentials });
     if (result === 'shared') return;
     if (result === 'copied') {
-      toast('Share sheet unavailable — the login was copied instead.', 'info');
+      toast('Share sheet unavailable - the login was copied instead.', 'info');
       return;
     }
     toast('Could not share or copy the login.', 'error');

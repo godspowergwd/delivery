@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { asyncHandler } from '../lib/http';
 import { authenticate, getAuth, requireKitchenOrAdmin } from '../middleware/authenticate';
-import { uploadImage } from '../middleware/upload';
+import { assertImageSignature, uploadImage } from '../middleware/upload';
+import { uploadLimiter } from '../middleware/rateLimit';
 import { badRequest } from '../lib/errors';
 import { logActivity } from '../services/activity-log.service';
 import { uploadToR2 } from '../services/r2.service';
@@ -14,16 +15,19 @@ export const uploadsRouter = Router();
  *
  * Kitchen accounts upload product images as part of product management, so this
  * route allows kitchen *and* admin. Every other admin surface stays admin-only.
+ * Uploads are rate limited and the payload must be a real image (magic bytes).
  */
 uploadsRouter.post(
   '/',
   authenticate,
   requireKitchenOrAdmin,
+  uploadLimiter,
   uploadImage,
   asyncHandler(async (req, res) => {
     if (!req.file) {
       throw badRequest('Choose an image file to upload (JPG, PNG, WEBP or AVIF).');
     }
+    assertImageSignature(req.file);
 
     const uploaded = await uploadToR2(req.file);
 

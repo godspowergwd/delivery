@@ -21,9 +21,9 @@ export default function DriverProfile() {
 
       <Card className="!p-4">
         <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Account</h2>
-        <p className="mt-2 text-sm text-slate-800"><strong>Name:</strong> {user?.name ?? '—'}</p>
-        <p className="text-sm text-slate-800"><strong>Email:</strong> {user?.email ?? '—'}</p>
-        <p className="text-sm text-slate-800"><strong>Driver ID:</strong> {user?.id ?? '—'}</p>
+        <p className="mt-2 text-sm text-slate-800"><strong>Name:</strong> {user?.name ?? '-'}</p>
+        <p className="text-sm text-slate-800"><strong>Email:</strong> {user?.email ?? '-'}</p>
+        <p className="text-sm text-slate-800"><strong>Driver ID:</strong> {user?.id ?? '-'}</p>
       </Card>
 
       <Card className="!p-4">

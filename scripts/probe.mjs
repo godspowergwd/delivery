@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /** One-off probe: prints status + top-level keys for each API surface. */
-const BASE = 'http://localhost:4000/api';
+import { requireIsolatedTestApi } from './test-safety.mjs';
 
+const BASE = 'http://localhost:4000/api';
+const { accounts } = await requireIsolatedTestApi(BASE);
 const CREDS = {
-  admin: ['admin@deliverysystem.app', 'Admin@12345'],
-  kitchen: ['kitchen@deliverysystem.app', 'Kitchen@12345'],
-  customer: ['customer@deliverysystem.app', 'Customer@12345'],
+  admin: accounts.ADMIN,
+  kitchen: accounts.KITCHEN,
+  customer: accounts.CUSTOMER,
 };
 
 async function login(role) {
-  const [email, password] = CREDS[role];
+  const { email, password } = CREDS[role];
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

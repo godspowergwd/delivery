@@ -125,7 +125,7 @@ export function Menu() {
             <option value="popular">Most ordered</option>
             <option value="price_asc">Price: low to high</option>
             <option value="price_desc">Price: high to low</option>
-            <option value="name_asc">Name A → Z</option>
+            <option value="name_asc">Name A to Z</option>
           </Select>
           <div className="flex flex-1 gap-2 overflow-x-auto pb-1">
             <Chip active={categoryId === null} tone="red" onClick={() => setCategoryId(null)}>
@@ -148,7 +148,7 @@ export function Menu() {
           <Spinner className="h-8 w-8" />
         </div>
       ) : items.length === 0 ? (
-        <EmptyState title="No products match" hint="Try a different search or category — the kitchen is always adding more." />
+        <EmptyState title="No products match" hint="Try a different search or category - the kitchen is always adding more." />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {items.map((product) => (

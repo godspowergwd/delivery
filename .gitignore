@@ -6,7 +6,10 @@ coverage/
 # environment
 .env
 .env.local
+.env.*
 !.env.example
+!**/.env.example
+apps/api/.load-test-runtime-*.json
 
 # local PostgreSQL cluster used for development
 .pgdata/

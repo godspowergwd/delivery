@@ -4,15 +4,22 @@ import type { Prisma } from '@prisma/client';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { idParamSchema, moneySchema, paginationSchema, optionalBooleanQuery } from '../lib/validation';
 import { authenticate, getAuth, optionalAuthenticate, requireAdmin, requireKitchenOrAdmin } from '../middleware/authenticate';
-import { writeLimiter } from '../middleware/rateLimit';
+import { publicReadLimiter, writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { PRODUCT_INCLUDE, serializeProduct } from '../services/serializers';
 import { logActivity } from '../services/activity-log.service';
+import { canViewCatalogProduct } from '../services/product-access.service';
 import { emitToRole } from '../realtime/socket';
 import type { AuthedRequest } from '../middleware/authenticate';
 
 export const productsRouter = Router();
+
+/**
+ * Catalogue reads are the busiest public surface: they get their own per-client
+ * budget (240 requests per minute) instead of leaning on the global limit alone.
+ */
+productsRouter.use(publicReadLimiter);
 
 const productQuerySchema = paginationSchema.extend({
   q: z.string().trim().max(120).optional(),
@@ -138,7 +145,7 @@ productsRouter.get(
     const product = await prisma.product.findUnique({ where: { id }, include: PRODUCT_INCLUDE });
     if (!product) throw notFound('That product no longer exists.');
     const viewer = (req as AuthedRequest).auth?.user;
-    if (viewer?.role === 'CUSTOMER' && (product.isArchived || !product.isAvailable)) {
+    if (!canViewCatalogProduct(product, viewer?.role)) {
       throw notFound('That product is not available right now.');
     }
     res.json({ product: serializeProduct(product) });

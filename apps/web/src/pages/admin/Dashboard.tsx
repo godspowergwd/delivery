@@ -27,6 +27,7 @@ import {
   UsersIcon,
   StoreIcon,
   AlertTriangleIcon,
+  ChevronRightIcon,
   type IconProps,
 } from '../../components/icons';
 
@@ -89,7 +90,7 @@ export function AdminDashboard() {
     { label: 'Pending', value: String(overview?.pendingOrders ?? 0), icon: ClockIcon, tile: 'bg-red-50', iconColor: 'text-red-600' },
     { label: 'Completion', value: `${overview?.completionRate ?? 0}%`, icon: CheckCircleIcon, tile: 'bg-red-50', iconColor: 'text-red-600' },
     { label: 'Customers', value: String(overview?.customersTotal ?? 0), icon: UsersIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
-    { label: 'Business', value: settings?.businessName ?? '—', icon: StoreIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
+    { label: 'Business', value: settings?.businessName ?? '-', icon: StoreIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
   ];
 
   return (
@@ -195,8 +196,9 @@ export function AdminDashboard() {
             ))
           )}
         </div>
-        <Link to="/admin/orders" className="mt-3 block text-center text-sm text-red-700 hover:underline">
-          View all orders →
+        <Link to="/admin/orders" className="mt-3 flex items-center justify-center gap-1 text-sm text-red-700 hover:underline">
+          View all orders
+          <ChevronRightIcon className="h-4 w-4" />
         </Link>
       </Card>
 

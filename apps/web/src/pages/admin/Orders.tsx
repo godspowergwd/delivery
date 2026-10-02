@@ -6,7 +6,7 @@ import { api } from '../../lib/api';
 import { useRealtimeSync } from '../../lib/realtime';
 import { Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, StatusPill, Textarea } from '../../components/ui';
 import { toast } from '../../lib/realtime';
-import { MapPinIcon, TruckIcon } from '../../components/icons';
+import { MapPinIcon, TruckIcon, ChevronLeftIcon, ChevronRightIcon } from '../../components/icons';
 
 const FILTERS: Array<'ALL' | OrderStatus> = ['ALL', ...ORDER_STATUS_VALUES];
 
@@ -39,7 +39,7 @@ export function AdminOrders() {
         await api.post(`/kitchen/orders/${order.id}/status`, { status: next, note });
       }
       void queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-      toast(`Order ${order.orderNumber} → ${ORDER_STATUS_LABELS[next]}`, 'success');
+      toast(`Order ${order.orderNumber} updated to ${ORDER_STATUS_LABELS[next]}`, 'success');
       setDetail(null);
     } catch (error: any) {
       toast(error?.message ?? 'Failed to update the order', 'error');
@@ -124,13 +124,15 @@ export function AdminOrders() {
       {data && data.pageCount > 1 && (
         <div className="flex items-center justify-center gap-3">
           <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
-            ← Prev
+            <ChevronLeftIcon className="h-4 w-4" />
+            Prev
           </Button>
           <span className="text-sm text-slate-500">
             Page {data.page} of {data.pageCount}
           </span>
           <Button size="sm" variant="outline" disabled={!data.hasMore} onClick={() => setPage((current) => current + 1)}>
-            Next →
+            Next
+            <ChevronRightIcon className="h-4 w-4" />
           </Button>
         </div>
       )}
@@ -236,7 +238,7 @@ function OrderDialog({
             >
               <div className="flex gap-2">
                 <Select value={driverId} onChange={(event) => setDriverId(event.target.value)}>
-                  <option value="">— Pickup pool (any driver can accept) —</option>
+                  <option value="">- Pickup pool (any driver can accept) -</option>
                   {activeDrivers.map((driver) => (
                     <option key={driver.id} value={driver.id}>
                       {driver.name}
@@ -263,7 +265,7 @@ function OrderDialog({
               <p key={event.id} className="text-sm text-slate-600">
                 {ORDER_STATUS_LABELS[event.status] ?? event.status} · {event.changedByName ?? 'System'} ·{' '}
                 {formatRelativeTime(event.createdAt)}
-                {event.note ? ` — ${event.note}` : ''}
+                {event.note ? ` - ${event.note}` : ''}
               </p>
             ))}
           </div>

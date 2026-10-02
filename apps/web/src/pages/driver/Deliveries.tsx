@@ -59,11 +59,11 @@ export default function DriverDeliveries() {
       void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
       void queryClient.invalidateQueries({ queryKey: ['driver-summary'] });
       if (variables.verb === 'accept') {
-        toast(`${order.orderNumber} accepted — opening the delivery map`, 'success');
+        toast(`${order.orderNumber} accepted - opening the delivery map`, 'success');
         navigate(`/driver/map?order=${order.id}`);
         return;
       }
-      toast(`Order ${order.orderNumber} → ${ORDER_STATUS_LABELS[order.status]}`, 'success');
+      toast(`Order ${order.orderNumber} updated to ${ORDER_STATUS_LABELS[order.status]}`, 'success');
     },
     onError: (err: Error) => toast(err.message, 'error'),
   });

@@ -111,7 +111,7 @@ export function OfflineBar() {
       role="status"
     >
       <span className="h-2 w-2 rounded-full bg-green-300" aria-hidden="true" />
-      Offline — showing cached data. Actions will sync when you reconnect.
+      Offline. Showing cached data. Actions will sync when you reconnect.
     </div>
   );
 }

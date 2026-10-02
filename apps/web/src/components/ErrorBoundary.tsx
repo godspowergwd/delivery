@@ -83,7 +83,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             {chunkIssue
-              ? 'The app was updated while you were using it. Reload to pick up the newest version — your cart and details are kept.'
+              ? 'The app was updated while you were using it. Reload to pick up the newest version. Your cart and details are kept.'
               : 'The rest of the app keeps working. Try again, or reload if the problem continues.'}
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">

@@ -216,7 +216,7 @@ export function Checkout() {
     return (
       <Card>
         <p className="text-center text-sm text-slate-600">
-          Your cart is empty — add items before checking out.
+          Your cart is empty - add items before checking out.
         </p>
         <div className="mt-4 flex justify-center">
           <Button onClick={() => navigate('/app/menu')}>Open the menu</Button>
@@ -349,7 +349,7 @@ export function Checkout() {
         )}
         {selected && selected.lat === 0 && selected.lng === 0 && (
           <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-            That saved address has no GPS pin yet — pick a suggestion above so the courier gets an exact pin.
+            That saved address has no GPS pin yet - pick a suggestion above so the courier gets an exact pin.
           </p>
         )}
         {pendingOrder && (
@@ -429,7 +429,7 @@ export function Checkout() {
         </p>
         {!accepting && (
           <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] font-bold leading-relaxed text-red-700">
-            Kitchen is currently closed — we are not accepting orders right now. Opens again when
+            Kitchen is currently closed - we are not accepting orders right now. Opens again when
             the kitchen comes online.
           </p>
         )}

@@ -1,5 +1,6 @@
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { mapboxMockEnabled } from '../config/env';
 
 const MAPBOX_API = 'https://api.mapbox.com';
 const MAPBOX_TIMEOUT_MS = 8_000;
@@ -66,6 +67,81 @@ interface MapboxRoute {
 
 let missingTokenLogged = false;
 
+/**
+ * Mock map mode (development and test only).
+ *
+ * The mock flag is read from the configuration, which itself refuses to enable
+ * it when NODE_ENV=production, so a load test can simulate hundreds of map
+ * lookups without spending a single unit of Mapbox quota and a production
+ * deployment can never accidentally answer from synthetic data.
+ */
+function mockEnabled(): boolean {
+  return mapboxMockEnabled;
+}
+
+/** Deterministic synthetic address for a coordinate, used only by mock mode. */
+function mockAddress(latitude: number, longitude: number): MapboxAddressSuggestion {
+  const round = (value: number): number => Math.round(value * 1e6) / 1e6;
+  const label = `Mock address ${Math.abs(Math.round(latitude * 1000))}-${Math.abs(Math.round(longitude * 1000))}`;
+  return {
+    label,
+    address: `${label}, Mallam, Accra, Ghana`,
+    latitude: round(latitude),
+    longitude: round(longitude),
+    placeId: `mock:${round(longitude)},${round(latitude)}`,
+    type: 'address',
+  };
+}
+
+/** Synthetic road route between two points, used only by mock mode. */
+function mockRoute(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number },
+): MapboxRoadRoute {
+  const coordinates: Array<[number, number]> = [
+    [from.longitude, from.latitude],
+    [
+      (from.longitude + to.longitude) / 2,
+      (from.latitude + to.latitude) / 2,
+    ],
+    [to.longitude, to.latitude],
+  ];
+  const distanceKm = Math.max(
+    0.2,
+    distanceBetweenKm(from.latitude, from.longitude, to.latitude, to.longitude),
+  );
+  const durationMin = Math.max(1, Math.round((distanceKm / 30) * 60));
+  const steps: MapboxRouteStep[] = [
+    {
+      instruction: 'Head towards the delivery address (mock route)',
+      distanceKm,
+      durationMin,
+      location: [from.longitude, from.latitude],
+      distanceFromStartKm: 0,
+    },
+  ];
+  return {
+    coordinates,
+    distanceKm,
+    durationMin,
+    legs: [{ distanceKm, durationMin, steps }],
+    steps,
+    road: true,
+    provider: 'mapbox',
+  };
+}
+
+function distanceBetweenKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const earth = 6_371;
+  const toRad = (degrees: number): number => (degrees * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earth * Math.asin(Math.sqrt(a));
+}
+
 function accessToken(): string {
   const token = process.env.MAPBOX_ACCESS_TOKEN?.trim() || process.env.MAPBOX_TOKEN?.trim();
   if (!token) {
@@ -99,7 +175,7 @@ async function fetchMapbox(url: URL, operation: string): Promise<Response> {
     logger.error('[mapbox] upstream request could not complete', {
       operation,
       timedOut: controller.signal.aborted,
-      message: error instanceof Error ? error.message : String(error),
+      errorType: error instanceof Error ? error.name : 'UnknownError',
     });
     throw new AppError(
       controller.signal.aborted ? 504 : 502,
@@ -119,7 +195,7 @@ async function readMapboxJson<T>(response: Response, operation: string): Promise
   } catch (error) {
     logger.error('[mapbox] upstream returned invalid JSON', {
       operation,
-      message: error instanceof Error ? error.message : String(error),
+      errorType: error instanceof Error ? error.name : 'UnknownError',
     });
     throw new AppError(502, 'MAPBOX_INVALID_RESPONSE', 'Mapbox returned an unreadable directions response.');
   }
@@ -128,6 +204,20 @@ async function readMapboxJson<T>(response: Response, operation: string): Promise
 export async function searchMapboxAddresses(query: string): Promise<MapboxAddressSuggestion[]> {
   const clean = query.trim();
   if (clean.length < 3) return [];
+
+  if (mockEnabled()) {
+    // Deterministic, Ghana-valid coordinates: plenty for load testing without
+    // ever leaving the delivery region the app filters on.
+    let hash = 2166136261;
+    for (let index = 0; index < clean.length; index += 1) {
+      hash ^= clean.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    const unit = (hash >>> 0) / 4_294_967_295; // 0..1
+    return Array.from({ length: 5 }, (_value, index) =>
+      mockAddress(5.53 + unit * 0.1 + index * 0.003, -0.37 + unit * 0.08 + index * 0.003),
+    );
+  }
 
   const url = new URL(`${MAPBOX_API}/geocoding/v5/mapbox.places/${encodeURIComponent(clean)}.json`);
   url.searchParams.set('access_token', accessToken());
@@ -166,6 +256,8 @@ export async function reverseMapboxAddress(
   latitude: number,
   longitude: number,
 ): Promise<MapboxAddressSuggestion> {
+  if (mockEnabled()) return mockAddress(latitude, longitude);
+
   const url = new URL(
     `${MAPBOX_API}/geocoding/v5/mapbox.places/${longitude},${latitude}.json`,
   );
@@ -194,6 +286,8 @@ export async function getMapboxRoadRoute(
   from: { latitude: number; longitude: number },
   to: { latitude: number; longitude: number },
 ): Promise<MapboxRoadRoute> {
+  if (mockEnabled()) return mockRoute(from, to);
+
   const url = new URL(
     `${MAPBOX_API}/directions/v5/mapbox/driving/${from.longitude},${from.latitude};${to.longitude},${to.latitude}`,
   );

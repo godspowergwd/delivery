@@ -17,10 +17,12 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { requireIsolatedTestApi } from './test-safety.mjs';
 
 const WEB = (process.argv[2] || 'http://localhost:5173').replace(/\/$/, '');
 const API = (process.argv[3] || 'http://localhost:4000/api').replace(/\/$/, '');
 const CDP_PORT = Number(process.env.CDP_PORT || 9313);
+const { accounts } = await requireIsolatedTestApi(API, WEB);
 
 const CHROME_CANDIDATES = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -226,7 +228,10 @@ async function main() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: 'admin@deliverysystem.app', password: 'Admin@12345' }),
+        body: JSON.stringify({
+          email: ${JSON.stringify(accounts.ADMIN.email)},
+          password: ${JSON.stringify(accounts.ADMIN.password)},
+        }),
       });
       if (!res.ok) return { ok: false, status: res.status };
       const data = await res.json();

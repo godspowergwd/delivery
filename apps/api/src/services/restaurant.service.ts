@@ -13,7 +13,7 @@ import type { SessionUser } from '../middleware/authenticate';
  * PostgreSQL, which the order service already enforces at checkout. Two sibling
  * settings keys carry the audit trail (when and by whom), so the state survives
  * refreshes and server restarts without any schema change. Opening hours are
- * never hardcoded — only the Kitchen (or an administrator) decides.
+ * never hardcoded: only the Kitchen (or an administrator) decides.
  */
 
 /** Label stored with the change; customers read it as "… by Kitchen". */

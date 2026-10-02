@@ -3,6 +3,7 @@ import type { Role } from '@delivery/shared';
 import { prisma } from '../lib/prisma';
 import { forbidden, unauthorized } from '../lib/errors';
 import { verifyAccessToken } from '../lib/tokens';
+import { authenticationDenial } from './authentication-state';
 
 export interface SessionUser {
   id: string;
@@ -67,14 +68,12 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
       }),
     ]);
 
-    if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
-      throw unauthorized('Your session has expired. Please sign in again.');
-    }
-    if (session.userId !== payload.sub) {
-      throw unauthorized('Your session is no longer valid. Please sign in again.');
-    }
-    if (!user) throw unauthorized('Account not found.');
-    if (!user.isActive) throw forbidden('Your account has been disabled. Contact support.');
+    const denial = authenticationDenial(session, user, payload.sub);
+    if (denial === 'SESSION_EXPIRED') throw unauthorized('Your session has expired. Please sign in again.');
+    if (denial === 'SESSION_MISMATCH') throw unauthorized('Your session is no longer valid. Please sign in again.');
+    if (denial === 'ACCOUNT_MISSING') throw unauthorized('Account not found.');
+    if (denial === 'ACCOUNT_DISABLED') throw forbidden('Your account has been disabled. Contact support.');
+    if (!session || !user) throw unauthorized();
 
     (req as AuthedRequest).auth = { user: user as SessionUser, sessionId: session.id };
     next();

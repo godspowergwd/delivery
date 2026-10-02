@@ -42,10 +42,15 @@ export function absoluteUrl(value: string | null | undefined, baseUrl: string): 
   return `${baseUrl.replace(/\/$/, '')}${value.startsWith('/') ? value : `/${value}`}`;
 }
 
+/**
+ * Best-effort client identity for audit logs.
+ *
+ * `req.ip` is derived by Express from the configured trust-proxy hop count, so it
+ * is the very same value the rate limiters key on and can never be a raw header
+ * a client made up. Anything IPv4-mapped (`::ffff:1.2.3.4`) is normalised.
+ */
 export function clientIp(req: Request): string | undefined {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.length > 0) {
-    return forwarded.split(',')[0]?.trim();
-  }
-  return req.ip;
+  const raw = req.ip ?? req.socket?.remoteAddress ?? undefined;
+  if (!raw) return undefined;
+  return raw.startsWith('::ffff:') ? raw.slice(7) : raw;
 }

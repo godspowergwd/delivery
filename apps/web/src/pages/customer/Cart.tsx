@@ -120,12 +120,12 @@ export function Cart() {
         </p>
         {belowMinimum && (
           <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
-            Minimum order is {formatMoney(settings?.minOrderTotal ?? 0)} — add a little more to check out.
+            Minimum order is {formatMoney(settings?.minOrderTotal ?? 0)} - add a little more to check out.
           </p>
         )}
         {!restaurantOpen && (
           <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
-            Kitchen is currently closed — checkout will reopen when the kitchen comes online.
+            Kitchen is currently closed - checkout will reopen when the kitchen comes online.
           </p>
         )}
         <Button

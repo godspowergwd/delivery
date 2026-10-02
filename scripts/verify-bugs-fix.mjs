@@ -23,9 +23,11 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { io } from 'socket.io-client';
+import { requireIsolatedTestApi } from './test-safety.mjs';
 
 const API = (process.argv[2] ?? 'http://127.0.0.1:4000/api').replace(/\/+$/, '');
 const SOCKET_URL = API.replace(/\/api$/, '');
+const { accounts } = await requireIsolatedTestApi(API);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0;
@@ -77,11 +79,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /* BUG 2 — authentication: username OR email, credential persistence           */
 /* -------------------------------------------------------------------------- */
 console.log('\n=== BUG 2a. LOGIN WITH EMAIL OR USERNAME (same backend) ===');
-const emailLogin = await login('driver@deliverysystem.app', 'Driver@12345', { expectOk: false });
+const emailLogin = await login(accounts.DRIVER.email, accounts.DRIVER.password, { expectOk: false });
 check(emailLogin.status === 200, 'Email + Password signs in', `status=${emailLogin.status}`);
 check(Boolean(emailLogin.token), 'access token issued for email login');
 
-const usernameLogin = await login('driver', 'Driver@12345', { expectOk: false });
+const usernameLogin = await login(accounts.DRIVER.username ?? accounts.DRIVER.email, accounts.DRIVER.password, { expectOk: false });
 check(usernameLogin.status === 200, 'Username + Password signs in via the same endpoint', `status=${usernameLogin.status}`);
 check(
   usernameLogin.user?.id === emailLogin.user?.id,
@@ -97,7 +99,7 @@ check(unknownUser.status === 401, 'unknown identifier is rejected', `status=${un
 
 console.log('\n=== BUG 2b. NEW ACCOUNT CREATION SAVES CREDENTIALS ===');
 const stamp = Date.now();
-const newEmail = `bugfix.verify.${stamp}@example.com`;
+const newEmail = `bugfix.verify.${stamp}@loadtest.invalid`;
 const newPassword = 'Verify@12345';
 const registerRes = await call('/auth/register', {
   method: 'POST',
@@ -180,9 +182,9 @@ auditLoginForm('apps/web/src/components/AuthSheet.tsx', { idPrefix: 'authsheet' 
 /* BUG 1 — kitchen -> backend -> database -> driver, in real time              */
 /* -------------------------------------------------------------------------- */
 console.log('\n=== BUG 1a. SESSIONS + DRIVER SOCKET (connected BEFORE dispatch) ===');
-const customerToken = (await login('customer@deliverysystem.app', 'Customer@12345')).token;
-const kitchenToken = (await login('kitchen@deliverysystem.app', 'Kitchen@12345')).token;
-const driverToken = (await login('driver@deliverysystem.app', 'Driver@12345')).token;
+const customerToken = (await login(accounts.CUSTOMER.email, accounts.CUSTOMER.password)).token;
+const kitchenToken = (await login(accounts.KITCHEN.email, accounts.KITCHEN.password)).token;
+const driverToken = (await login(accounts.DRIVER.email, accounts.DRIVER.password)).token;
 check(Boolean(customerToken && kitchenToken && driverToken), 'all three roles sign in');
 
 const events = { orderUpdated: [], notifications: [] };

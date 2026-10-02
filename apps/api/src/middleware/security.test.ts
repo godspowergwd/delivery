@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { corsOptions, csrfGuard } from './security';
+import { corsOptions, csrfGuard, securityHeaders } from './security';
 import { corsOrigins, isAllowedOrigin } from '../config/env';
 
 describe('authentication request security', () => {
@@ -62,5 +62,33 @@ describe('authentication request security', () => {
     );
 
     expect(received).toBeUndefined();
+  });
+
+  it('emits a strict API content-security policy plus a deny-by-default permissions policy', () => {
+    expect(securityHeaders.length).toBe(2);
+    const headers: Record<string, string> = {};
+    const helmetLayer = securityHeaders[0];
+    const responseStub = {
+      setHeader: (name: string, value: string) => { headers[name.toLowerCase()] = value; },
+      removeHeader: (name: string) => { delete headers[name.toLowerCase()]; },
+    };
+    helmetLayer(
+      { method: 'GET', headers: {}, url: '/api/products' } as never,
+      responseStub as never,
+      () => undefined,
+    );
+    expect(headers['content-security-policy']).toContain("default-src 'none'");
+    expect(headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(headers['x-frame-options']).toBe('DENY');
+    expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+
+    const policyLayer = securityHeaders[1];
+    const policyHeaders: Record<string, string> = {};
+    policyLayer(
+      {} as never,
+      { setHeader: (name: string, value: string) => { policyHeaders[name.toLowerCase()] = value; } } as never,
+      () => undefined,
+    );
+    expect(policyHeaders['permissions-policy']).toContain('geolocation=()');
   });
 });

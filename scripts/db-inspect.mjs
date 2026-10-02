@@ -4,10 +4,12 @@
  * healthy and seeded. Run with: node scripts/db-inspect.mjs
  */
 import pg from 'pg';
+import { loadApiEnvironment } from './loadtest-safety.mjs';
+import { requireLocalReadOnlyDatabase } from './test-safety.mjs';
 
-const url =
-  process.env.DATABASE_URL ||
-  'postgresql://postgres:postgres@127.0.0.1:5433/delivery_system';
+const environment = loadApiEnvironment();
+const url = environment.DATABASE_URL;
+requireLocalReadOnlyDatabase(url, environment.NODE_ENV);
 
 const TABLES = [
   'User',
@@ -36,7 +38,7 @@ try {
       const result = await client.query(`select count(*)::int as n from "${table}"`);
       console.log(`  ${table} = ${result.rows[0].n}`);
     } catch (error) {
-      console.log(`  ${table} = ERROR (${String(error.message).split('\n')[0]})`);
+      console.log(`  ${table} = ERROR (${error instanceof Error ? error.name : 'UnknownError'})`);
     }
   }
 
@@ -48,7 +50,7 @@ try {
     console.log(`  ${row.role.padEnd(8)} ${row.email} active=${row.isActive}`);
   }
 } catch (error) {
-  console.error('Database inspection failed:', error.message);
+  console.error('Database inspection failed:', error instanceof Error ? error.name : 'UnknownError');
   process.exitCode = 1;
 } finally {
   await client.end().catch(() => {});

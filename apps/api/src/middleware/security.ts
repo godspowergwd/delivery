@@ -9,16 +9,57 @@ export const REFRESH_COOKIE = 'ds_refresh';
 export const CSRF_COOKIE = 'ds_csrf';
 
 /**
- * Secure headers for a JSON/asset API. Cross-origin resource policy is relaxed so the
- * web app (different origin in development) can render uploaded product images.
+ * Secure headers for a JSON/asset API.
+ *
+ * The API only ever answers JSON, files and one small receipt document, so the
+ * Content-Security-Policy can be locked down to `default-src 'none'`. The
+ * receipt print view is HTML and overrides this header with `RECEIPT_HTML_CSP`.
+ * Cross-origin resource policy stays relaxed so the web app (different origin)
+ * can render uploaded product images.
  */
-export const securityHeaders = helmet({
-  contentSecurityPolicy: false,
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-  crossOriginEmbedderPolicy: false,
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-  hsts: isProduction ? { maxAge: 31_536_000, includeSubDomains: true } : false,
-});
+export const securityHeaders: RequestHandler[] = [
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        'default-src': ["'none'"],
+        'base-uri': ["'none'"],
+        'form-action': ["'none'"],
+        'frame-ancestors': ["'none'"],
+        'img-src': ["'self'", 'data:'],
+      },
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: isProduction ? { maxAge: 31_536_000, includeSubDomains: true } : false,
+    frameguard: { action: 'deny' },
+  }),
+  // Helmet 8 has no permissions-policy middleware, so the header is set here.
+  // The API itself never asks the browser for a device capability.
+  (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+    );
+    next();
+  },
+];
+
+/**
+ * Content-Security-Policy for the self-contained receipt print page: inline
+ * styles and the small print button are part of that document, everything else
+ * (scripts from the network, framing, form posts) stays disabled.
+ */
+export const RECEIPT_HTML_CSP = [
+  "default-src 'none'",
+  "img-src data:",
+  "style-src 'unsafe-inline'",
+  "script-src 'unsafe-inline'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
 
 export const corsOptions = {
   origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {

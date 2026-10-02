@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+﻿import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { DEFAULT_MAP_ZOOM, KITCHEN_ANCHOR, mapFallbackStyleUrl, mapStyleUrl, type LatLng } from '../lib/live-map';
 import {
   dropUncoveredIncidentLayers,
@@ -40,13 +40,13 @@ export interface LiveMapHandle {
   getMap(): GLMap | null;
   /**
    * Writes a route leg directly onto the map's GeoJSON sources. Replacing the
-   * existing source data updates the same line in place — the handle never
+   * existing source data updates the same line in place â€” the handle never
    * creates duplicate sources or layers and never rebuilds the map itself, so
    * live GPS fixes move the route without a flash or reset.
    */
   setRoute(coordinates: Array<[number, number]>, options?: { fit?: boolean }): void;
   /**
-   * Driver's live GPS pin (native SDK marker — no accuracy overlay).
+   * Driver's live GPS pin (native SDK marker â€” no accuracy overlay).
    *
    * `heading` is the device-reported bearing in degrees clockwise from north
    * (`GeolocationCoordinates.heading`, carried through `DriverLocationDTO`). The
@@ -113,7 +113,7 @@ function createMapHandleDispatcher(
 const ROUTE_SOURCE = 'onyx-route';
 
 /**
- * Native SDK pin colors only — no custom marker DOM, no overlay layer.
+ * Native SDK pin colors only â€” no custom marker DOM, no overlay layer.
  * Green marks the driver; red marks the active destination. Mapbox owns each
  * pin element and attaches it directly to this map instance.
  */
@@ -122,7 +122,7 @@ const NATIVE_MARKER_COLORS: Record<MapMarkerKind, string> = {
   destination: '#D40000',
 };
 
-/** Branded placeholder — a failed map never leaves a blank pane behind. */
+/** Branded placeholder â€” a failed map never leaves a blank pane behind. */
 function showFallback(container: HTMLElement, message: string): void {
   container.dataset.mapState = 'failed';
   container.innerHTML = `<div class="map-fallback">${message}</div>`;
@@ -174,13 +174,13 @@ function distanceMeters(from: LatLng, to: LatLng): number {
  */
 const ROTATING_KINDS: ReadonlySet<MapMarkerKind> = new Set(['driver']);
 
-/** A device heading only counts when it is a real, finite 0–360° reading. */
+/** A device heading only counts when it is a real, finite 0â€“360Â° reading. */
 function normaliseHeading(heading: number | null | undefined): number | null {
   if (typeof heading !== 'number' || !Number.isFinite(heading)) return null;
   return ((heading % 360) + 360) % 360;
 }
 
-/** The signed shortest turn from `from` to `to` — always within ±180°. */
+/** The signed shortest turn from `from` to `to` â€” always within Â±180Â°. */
 function headingDelta(from: number, to: number): number {
   return ((to - from + 540) % 360) - 180;
 }
@@ -285,7 +285,7 @@ export function useLiveMap(
     let rebuilds = 0;
 
     /**
-     * Full in-place restart — used by the retry button and by self-healing.
+     * Full in-place restart â€” used by the retry button and by self-healing.
      * It drops the current renderer, clears any recovery content and starts a
      * fresh attempt on the same container (no page reload, no duplicate maps).
      * Returns `false` once the budget is spent.
@@ -295,7 +295,7 @@ export function useLiveMap(
       rebuilds += 1;
       // A rebuild is a real repair, never routine: state the cause so the
       // console answers "the map vanished" instead of hiding why.
-      window.console.warn(`[map] rebuilding the renderer — ${reason}`);
+      window.console.warn(`[map] rebuilding the renderer â€” ${reason}`);
       dispose?.();
       dispose = null;
       // The old renderer's dispose flips the shared flag; the effect itself is
@@ -317,7 +317,7 @@ export function useLiveMap(
 
     const initMap = (container: HTMLDivElement): (() => void) => {
       // A container that still carries a live renderer (Strict Mode re-entry or
-      // a fast remount) is torn down first — `new Map` would otherwise throw.
+      // a fast remount) is torn down first â€” `new Map` would otherwise throw.
       const stale = activeMaps.get(container);
       if (stale) {
         try {
@@ -330,14 +330,14 @@ export function useLiveMap(
       // Content from an earlier attempt (fallback/retry card) must not survive
       // underneath the new renderer.
       container.innerHTML = '';
-      // Honest renderer state, read by the `.map-canvas[data-map-state=…]` CSS:
+      // Honest renderer state, read by the `.map-canvas[data-map-state=â€¦]` CSS:
       // until the style's first data lands the pane shows a "loading" chip
       // instead of an empty surface that looks like a map that vanished. It is
       // purely decorative (`pointer-events: none`) and never covers the canvas
       // once the style is ready.
       container.dataset.mapState = 'loading';
       if (!mapboxgl.supported()) {
-        showFallback(container, 'Live map needs WebGL on this device — the delivery details are listed below.');
+        showFallback(container, 'Live map needs WebGL on this device. The delivery details are listed below.');
         return () => undefined;
       }
 
@@ -352,7 +352,7 @@ export function useLiveMap(
           style: mapStyleUrl(),
           center: [center.lng, center.lat],
           zoom: optionsRef.current.zoom ?? DEFAULT_MAP_ZOOM,
-          // Attribution stays visible but compact — the provider always gets
+          // Attribution stays visible but compact â€” the provider always gets
           // credit without a full-width bar over the delivery details.
           attributionControl: false,
           interactive,
@@ -398,7 +398,7 @@ export function useLiveMap(
       //
       // Two signals are combined, because neither is complete on its own:
       //
-      //   * the interaction handlers' `isActive()` — the SDK's own answer to
+      //   * the interaction handlers' `isActive()` â€” the SDK's own answer to
       //     "is a gesture in progress?". It is gesture-scoped, so a camera move
       //     this component started never reads back as user input (the public
       //     `isMoving()` cannot tell the two apart), and it covers drag pan,
@@ -427,7 +427,7 @@ export function useLiveMap(
 
       const onGestureStart = (event: unknown): void => {
         // Map-level `mousedown`/`mouseup` also fire for clicks on the zoom buttons
-        // and the attribution bubble — only canvas input counts as steering.
+        // and the attribution bubble â€” only canvas input counts as steering.
         if ((event as { originalEvent?: unknown } | undefined)?.originalEvent === undefined) return;
         gestureDepth += 1;
         gestureStartedAt = Date.now();
@@ -443,7 +443,7 @@ export function useLiveMap(
       const userIsSteering = (): boolean => {
         if (gestureDepth > 0) {
           if (Date.now() - gestureStartedAt < GESTURE_MAX_MS) return true;
-          gestureDepth = 0; // an end event never arrived — never wedge follow
+          gestureDepth = 0; // an end event never arrived â€” never wedge follow
         }
         const handlers: Array<{ isActive?: () => boolean } | undefined> = [
           mapInstance.dragPan,
@@ -467,7 +467,7 @@ export function useLiveMap(
         if (userOriginated(event)) releaseFollow();
       });
       // Two-finger pitch / rotate move the camera without ever firing drag or
-      // zoom events — without these the followed view would fight them.
+      // zoom events â€” without these the followed view would fight them.
       mapInstance.on('pitchstart', (event: unknown) => {
         if (userOriginated(event)) releaseFollow();
       });
@@ -489,7 +489,7 @@ export function useLiveMap(
 
       // Ensure the route sources + layers exist and return whether they do.
       // Repair (never duplicate): a style swap or a torn-down transition can
-      // leave a source without its layer or a layer without its source — the
+      // leave a source without its layer or a layer without its source â€” the
       // missing half is re-added onto the existing half. `setData` on an
       // existing source updates the line in place; layers are only ever
       // created once per map, so the route can never vanish behind a
@@ -523,7 +523,7 @@ export function useLiveMap(
           }
           return true;
         } catch {
-          // Mid style-swap the document rejects adds — the next style event retries.
+          // Mid style-swap the document rejects adds â€” the next style event retries.
           return false;
         }
       };
@@ -538,7 +538,7 @@ export function useLiveMap(
           source.setData(coordinates.length === 0 ? emptyCollection() : lineFeature(coordinates));
           return true;
         } catch {
-          // The source belongs to a style document being torn down — the next
+          // The source belongs to a style document being torn down â€” the next
           // style event re-applies `applyRoute`, never a rebuild.
           return false;
         }
@@ -562,7 +562,7 @@ export function useLiveMap(
           // it can never intercept a gesture or float above the canvas as a
           // custom overlay. `rotationAlignment: 'map'` makes the SDK turn the
           // glyph with the map plane, so a device heading points along the real
-          // travel direction no matter how the basemap is bearing — which is the
+          // travel direction no matter how the basemap is bearing â€” which is the
           // only alignment that stays true while a user rotates the view.
           const rotating = ROTATING_KINDS.has(kind);
           markers[kind] = new mapboxgl.Marker({
@@ -584,7 +584,7 @@ export function useLiveMap(
           // An existing pin is *moved in place*, never rebuilt. `setDestination`
           // and `setRestaurant` are non-animated and are re-sent on every
           // polling tick: destroying and re-creating a `Marker` each time makes
-          // the pin blink and churns DOM nodes under the canvas — churn that
+          // the pin blink and churns DOM nodes under the canvas â€” churn that
           // reads as pins "disappearing" while an order is live. `setLngLat`
           // with unchanged coordinates is a projection-level no-op.
           markers[kind]?.setLngLat([point.lng, point.lat]);
@@ -628,7 +628,7 @@ export function useLiveMap(
       /**
        * True when both tracked markers sit comfortably inside the current view.
        * The 44px margin is deliberately smaller than the fit padding used below
-       * (~56px), so a re-fit always pushes the markers back inside the margin —
+       * (~56px), so a re-fit always pushes the markers back inside the margin â€”
        * the camera cannot ping-pong between two nearly identical fits.
        */
       const bothMarkersVisible = (driver: LatLng, destination: LatLng): boolean => {
@@ -657,7 +657,7 @@ export function useLiveMap(
         const destination = targets.destination;
         if (followMode() === 'bounds' && destination) {
           // Customer tracking: only move when a marker is about to leave the
-          // view, then fit both — the courier and the drop-off stay visible.
+          // view, then fit both â€” the courier and the drop-off stay visible.
           if (!force && bothMarkersVisible(driver, destination)) return;
           handleRef.current.fit([driver, destination], {
             padding: 56,
@@ -679,8 +679,8 @@ export function useLiveMap(
       // ---------------------------------------------------------------------
       // Resilience: the map must never stay white.
       //
-      // Everything below watches the renderer's real state — canvas attached,
-      // canvas matched to its container, style loaded, camera finite — and
+      // Everything below watches the renderer's real state â€” canvas attached,
+      // canvas matched to its container, style loaded, camera finite â€” and
       // repairs or rebuilds in place instead of leaving a blank pane behind.
       // ---------------------------------------------------------------------
       const canvas = mapInstance.getCanvas();
@@ -716,7 +716,7 @@ export function useLiveMap(
       let pendingRoute: Array<[number, number]> | null = null;
       let appliedRoute: Array<[number, number]> | null = null;
       /**
-       * Set once the first route leg frames the camera — later `setRoute`
+       * Set once the first route leg frames the camera â€” later `setRoute`
        * calls replace the line in place without touching the camera, so live
        * position updates move markers + the route, never the viewport.
        */
@@ -791,7 +791,7 @@ export function useLiveMap(
         if (cancelled || styleReady) return;
         if (!triedFallbackStyle) {
           triedFallbackStyle = true;
-          window.console.warn('[map] no style data after 8s — switching to the keyless fallback style');
+          window.console.warn('[map] no style data after 8s â€” switching to the keyless fallback style');
           try {
             mapInstance.setStyle(mapFallbackStyleUrl());
           } catch {
@@ -808,7 +808,7 @@ export function useLiveMap(
         const error = (event as { error?: { status?: number; message?: string } } | undefined)?.error;
         const message = typeof error?.message === 'string' ? error.message : '';
         // An explicit style/resource failure must name the style document, the
-        // token, or an auth status — never a layer id from application code
+        // token, or an auth status â€” never a layer id from application code
         // (e.g. a `queryRenderedFeatures` on a not-yet-added layer, which the
         // engine re-fires as an `error` event).
         const looksLikeStyle =
@@ -828,7 +828,7 @@ export function useLiveMap(
       mapInstance.on('error', onMapError);
 
       // Ensure the route sources + layers exist even when `style.load` fires
-      // before these listeners attach — the failure mode behind "pins work,
+      // before these listeners attach â€” the failure mode behind "pins work,
       // the route never renders". `styledata`/`load` handlers only run for
       // style documents installed *after* the listener attaches; on a warm
       // cache the style can be fully loaded before `initMap` finishes wiring,
@@ -846,7 +846,7 @@ export function useLiveMap(
       };
       mapInstance.on('styledata', onStyleData);
 
-      // `style.load` fires for every style the map installs — the initial one and
+      // `style.load` fires for every style the map installs â€” the initial one and
       // each swapped-in fallback. The sources are empty at that point, so the
       // last known geometry is force-re-applied instead of silently vanishing.
       const onStyleLoad = (): void => {
@@ -855,9 +855,9 @@ export function useLiveMap(
         window.clearTimeout(styleWatchdog);
         // Before the first tile request goes out: neutralise the style's strict
         // numeric filters (Mapbox v3 vs MapLibre-tolerant styles) so the worker
-        // never logs `… evaluated to null but was expected to be of type number`.
+        // never logs `â€¦ evaluated to null but was expected to be of type number`.
         relaxStyleFilters(mapInstance);
-        // …and drop the incidents layers+source whose tiles 404 outside their
+        // â€¦and drop the incidents layers+source whose tiles 404 outside their
         // sparse coverage, so the console stays clean on a healthy screen.
         dropUncoveredIncidentLayers(mapInstance);
         try {
@@ -875,7 +875,7 @@ export function useLiveMap(
 
       // The style can be fully loaded before these listeners attach (fast
       // cache, local style, instant fallback). Without this the map paints and
-      // the markers place — but the sources/layers this section is responsible
+      // the markers place â€” but the sources/layers this section is responsible
       // for never get created, so the route silently never renders.
       if (mapInstance.isStyleLoaded()) {
         styleReady = true;
@@ -886,7 +886,7 @@ export function useLiveMap(
         applyRoute(true);
       } else {
         // `load` may already have fired with the style still settling: poll
-        // briefly for the load flip and repair once, then stop — `styledata`
+        // briefly for the load flip and repair once, then stop â€” `styledata`
         // keeps every later swap covered.
         let settleChecks = 0;
         const settleTimer = window.setInterval(() => {
@@ -910,14 +910,14 @@ export function useLiveMap(
       //
       // Mobile reality: backgrounding the PWA, a memory squeeze or a GPU reset
       // all drop the context. The browser fires `webglcontextrestored` when it
-      // can — usually within a second — so a short grace period plus the
+      // can â€” usually within a second â€” so a short grace period plus the
       // restore handler recovers in place, without ever tearing down a map that
       // is about to come back. `canvasMisses` also feeds the watchdog below.
       let rebuildTimer = 0;
       let canvasMisses = 0;
       const onContextLost = (event: Event): void => {
         event.preventDefault();
-        // The pane is genuinely blank until the context returns — say so instead
+        // The pane is genuinely blank until the context returns â€” say so instead
         // of showing empty grey.
         container.dataset.mapState = 'loading';
         window.clearTimeout(rebuildTimer);
@@ -948,7 +948,7 @@ export function useLiveMap(
       canvas.addEventListener('webglcontextrestored', onContextRestored, false);
 
       // Container box changes (sheet snaps, rotation, URL-bar shifts) are not
-      // seen by the engine on its own — mirror them onto the canvas.
+      // seen by the engine on its own â€” mirror them onto the canvas.
       let observer: ResizeObserver | null = null;
       if (typeof ResizeObserver !== 'undefined') {
         observer = new ResizeObserver(() => {
@@ -959,11 +959,11 @@ export function useLiveMap(
       }
 
       // Watchdog: catches layouts that never resize (so the observer stays
-      // silent) and the one failure the engine cannot report — a canvas that got
+      // silent) and the one failure the engine cannot report â€” a canvas that got
       // detached or zeroed.
       //
       // False positives are the real danger here: a sheet snap, an orientation
-      // change or a background tab can leave the canvas momentarily 0×0, and
+      // change or a background tab can leave the canvas momentarily 0Ã-0, and
       // rebuilding on that single sample is exactly how a working map gets torn
       // down and looks like it "disappeared". So a rebuild needs two consecutive
       // bad samples on a *visible* page, and every repair is logged with a
@@ -1017,7 +1017,7 @@ export function useLiveMap(
           applyRoute();
           if (routeOptions?.fit !== false && coordinates.length > 1 && containerSized()) {
             // Once, at route load: frame the whole leg. Later position fixes
-            // only update markers + source data — never the camera — so the
+            // only update markers + source data â€” never the camera â€” so the
             // map stops flashing/resetting on every GPS tick.
             if (routeFitted) return;
             // ...but never over an in-progress gesture: the fit is retried on the
@@ -1106,7 +1106,7 @@ export function useLiveMap(
         },
         isFollowing: () => following,
         resize: () => {
-          // A 0×0 resize would break the camera; a stale box is healed instead.
+          // A 0Ã-0 resize would break the camera; a stale box is healed instead.
           if (!containerSized()) return;
           try {
             mapInstance.resize();

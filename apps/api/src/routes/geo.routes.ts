@@ -2,14 +2,21 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../lib/http';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
+import { geoLimiter } from '../middleware/rateLimit';
 import { haversineDistance, isWithinDeliveryZone } from '../services/geo.service';
 import { getMapboxRoadRoute, reverseMapboxAddress, searchMapboxAddresses } from '../services/mapbox.service';
 import { getSettings } from '../services/settings.service';
 
 export const geoRouter = Router();
 
+/**
+ * Every geo route spends paid Mapbox quota, so the whole router is rate limited
+ * per client (60 lookups per minute) in addition to the global API limit.
+ */
+geoRouter.use(geoLimiter);
+
 const searchQuerySchema = z.object({
-  q: z.string().trim().min(3, 'Enter at least 3 characters'),
+  q: z.string().trim().min(3, 'Enter at least 3 characters').max(120),
 });
 
 /**

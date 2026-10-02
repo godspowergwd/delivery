@@ -8,7 +8,10 @@
  *
  * Usage: node scripts/verify-backend.mjs [apiUrl]
  */
+import { requireIsolatedTestApi } from './test-safety.mjs';
+
 const API = (process.argv[2] ?? 'http://127.0.0.1:4000/api').replace(/\/+$/, '');
+const { accounts } = await requireIsolatedTestApi(API);
 
 let pass = 0;
 let fail = 0;
@@ -45,21 +48,22 @@ async function call(path, options = {}) {
 // 1. Sign in with an email address and with a username.
 const adminLogin = await call('/auth/login', {
   method: 'POST',
-  body: { email: 'admin@deliverysystem.app', password: 'Admin@12345' },
+  body: { email: accounts.ADMIN.email, password: accounts.ADMIN.password },
 });
 check(adminLogin.status === 200, 'admin signs in with an email address', `status=${adminLogin.status}`);
 check(adminLogin.data?.user?.username === 'admin', 'admin account exposes its username', `username=${adminLogin.data?.user?.username}`);
 
+const kitchenIdentifier = accounts.KITCHEN.username || accounts.KITCHEN.email;
 const cashierLogin = await call('/auth/login', {
   method: 'POST',
-  body: { email: 'cashier', password: 'Cashier@12345' },
+  body: { email: kitchenIdentifier, password: accounts.KITCHEN.password },
 });
-check(cashierLogin.status === 200, 'cashier signs in with a username only', `status=${cashierLogin.status}`);
-check(cashierLogin.data?.user?.role === 'KITCHEN', 'cashier lands on the operations role', `role=${cashierLogin.data?.user?.role}`);
+check(cashierLogin.status === 200, 'kitchen synthetic account signs in', `status=${cashierLogin.status}`);
+check(cashierLogin.data?.user?.role === 'KITCHEN', 'kitchen account has the operations role', `role=${cashierLogin.data?.user?.role}`);
 
 const wrongPassword = await call('/auth/login', {
   method: 'POST',
-  body: { email: 'cashier', password: 'not-my-password' },
+  body: { email: kitchenIdentifier, password: 'Synthetic-Wrong-Password' },
 });
 check(wrongPassword.status === 401, 'wrong password is rejected', `status=${wrongPassword.status}`);
 

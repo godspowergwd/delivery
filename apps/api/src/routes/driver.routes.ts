@@ -6,7 +6,7 @@ import { authenticate, getAuth, requireRole, type SessionUser } from '../middlew
 import { writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
-import { ORDER_INCLUDE, serializeOrder, type OrderWithRelations } from '../services/serializers';
+import { ORDER_INCLUDE, serializeDriverOffer, serializeOrder, type OrderWithRelations } from '../services/serializers';
 import {
   driverLocationInputSchema,
   publishDriverLocation,
@@ -16,7 +16,9 @@ import {
 import { changeOrderStatus, statusLabel } from '../services/order.service';
 import { logActivity } from '../services/activity-log.service';
 import { notifyAdmins } from '../services/notification.service';
-import { emitToRole } from '../realtime/socket';
+import { emitToRole, hasConnectedDriverSockets } from '../realtime/socket';
+import { invalidateActiveDeliveryTargets } from '../services/driver-delivery-cache';
+import { claimUnassignedDelivery } from '../services/driver-claim';
 
 export const driverRouter = Router();
 
@@ -95,7 +97,7 @@ driverRouter.get(
       take: 100,
     });
 
-    res.json({ data: orders.map(serializeOrder) });
+    res.json({ data: orders.map(serializeDriverOffer) });
   }),
 );
 
@@ -110,7 +112,7 @@ driverRouter.get(
       take: 50,
     });
 
-    res.json({ data: orders.map(serializeOrder) });
+    res.json({ data: orders.map(serializeDriverOffer) });
   }),
 );
 
@@ -140,17 +142,7 @@ driverRouter.post(
     }
 
     const order = await prisma.$transaction(async (tx) => {
-      // Re-check inside the transaction so two drivers cannot claim the same order.
-      const claimable = await tx.order.findFirst({
-        where: { id: existing.id, driverId: null, status: 'OUT_FOR_DELIVERY' },
-        select: { id: true },
-      });
-      if (!claimable) throw conflict('Another driver already accepted this delivery.');
-
-      await tx.order.update({
-        where: { id: existing.id },
-        data: { driverId: driver.id },
-      });
+      await claimUnassignedDelivery(tx, existing.id, driver.id);
       await tx.orderStatusEvent.create({
         data: {
           orderId: existing.id,
@@ -162,9 +154,11 @@ driverRouter.post(
       return tx.order.findUniqueOrThrow({ where: { id: existing.id }, include: ORDER_INCLUDE });
     }, { maxWait: 10_000, timeout: 30_000 });
 
+    invalidateActiveDeliveryTargets(driver.id);
+
     // Every open driver screen drops the order from its pool immediately.
     const dto = serializeOrder(order);
-    emitToRole('DRIVER', 'order:updated', { order: dto, previousStatus: dto.status });
+    emitToRole('DRIVER', 'order:updated', { order: serializeDriverOffer(order), previousStatus: dto.status });
 
     await logActivity({
       action: 'DRIVER_ACCEPTED',
@@ -226,6 +220,10 @@ driverRouter.delete(
   writeLimiter,
   asyncHandler(async (req, res) => {
     const driver = getAuth(req).user;
+    if (hasConnectedDriverSockets(driver.id)) {
+      res.json({ ok: true, orderIds: [] });
+      return;
+    }
     const result = await stopDriverLocation({ id: driver.id });
     res.json({ ok: true, orderIds: result.orderIds });
   }),

@@ -11,7 +11,10 @@
  *
  * Usage: node scripts/verify-lifecycle.mjs [apiUrl]
  */
+import { requireIsolatedTestApi } from './test-safety.mjs';
+
 const API = (process.argv[2] ?? 'http://127.0.0.1:4000/api').replace(/\/+$/, '');
+const { accounts } = await requireIsolatedTestApi(API);
 
 let pass = 0;
 let fail = 0;
@@ -57,10 +60,10 @@ const login = async (email, password) => {
 const list = (payload) => payload?.items ?? payload?.data ?? payload?.orders ?? [];
 
 console.log('\n=== 0. AUTHENTICATION ===');
-const customerToken = await login('customer@deliverysystem.app', 'Customer@12345');
-const kitchenToken = await login('kitchen@deliverysystem.app', 'Kitchen@12345');
-const driverToken = await login('driver@deliverysystem.app', 'Driver@12345');
-const adminToken = await login('admin@deliverysystem.app', 'Admin@12345');
+const customerToken = await login(accounts.CUSTOMER.email, accounts.CUSTOMER.password);
+const kitchenToken = await login(accounts.KITCHEN.email, accounts.KITCHEN.password);
+const driverToken = await login(accounts.DRIVER.email, accounts.DRIVER.password);
+const adminToken = await login(accounts.ADMIN.email, accounts.ADMIN.password);
 check(Boolean(customerToken && kitchenToken && driverToken && adminToken), 'all four roles sign in');
 
 console.log('\n=== 1. BROWSE THE MENU ===');

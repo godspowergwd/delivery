@@ -28,7 +28,7 @@ export function notFoundHandler(req: Request, res: Response): void {
   const body: ErrorBody = {
     error: {
       code: 'NOT_FOUND',
-      message: `No API route matches ${req.method} ${req.originalUrl}`,
+      message: `No API route matches ${req.method} ${req.path}`,
     },
   };
   res.status(404).json(body);
@@ -45,6 +45,19 @@ export function errorHandler(
   };
 
   if (error instanceof AppError) {
+    // Authentication and authorization failures are security events: keep them
+    // in the server log (with the caller identity) without leaking anything back.
+    if (error.statusCode === 401 || error.statusCode === 403) {
+      logger.warn('[security] request denied', {
+        status: error.statusCode,
+        code: error.code,
+        method: req.method,
+        path: req.originalUrl.split('?')[0],
+        ip: clientIp(req),
+        userId: (req as { auth?: { user?: { id?: string; role?: string } } }).auth?.user?.id ?? null,
+        role: (req as { auth?: { user?: { id?: string; role?: string } } }).auth?.user?.role ?? null,
+      });
+    }
     send(error.statusCode, {
       error: { code: error.code, message: error.message, details: error.details },
     });
@@ -88,8 +101,8 @@ export function errorHandler(
       });
       return;
     }
-    logger.warn(`Prisma error ${error.code} on ${req.method} ${req.originalUrl}`, {
-      message: error.message,
+    logger.warn(`Prisma error ${error.code} on ${req.method} ${req.path}`, {
+      code: error.code,
     });
     send(400, {
       error: { code: 'DATABASE_ERROR', message: 'The database rejected that request.' },
@@ -98,7 +111,7 @@ export function errorHandler(
   }
 
   if (error instanceof Prisma.PrismaClientInitializationError) {
-    logger.error('Database connection failed', { message: error.message });
+    logger.error('Database connection failed', { errorType: error.name });
     send(503, {
       error: {
         code: 'DATABASE_UNAVAILABLE',
@@ -129,10 +142,12 @@ export function errorHandler(
   }
 
   const message = error instanceof Error ? error.message : 'Unexpected error';
-  logger.error(`Unhandled error on ${req.method} ${req.originalUrl}`, {
-    message,
+  logger.error(`Unhandled error on ${req.method} ${req.path}`, {
+    errorType: error instanceof Error ? error.name : 'UnknownError',
     ip: clientIp(req),
-    stack: error instanceof Error && !isProduction ? error.stack : undefined,
+    ...(!isProduction && error instanceof Error
+      ? { diagnostic: error.message, stack: error.stack }
+      : {}),
   });
   send(500, {
     error: {

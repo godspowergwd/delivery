@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { OrderDTO, SettingsDTO } from '@delivery/shared';
@@ -126,7 +126,7 @@ export default function DriverMap() {
     if (requestedOrderId) setSelectedId(requestedOrderId);
   }, [requestedOrderId]);
 
-  /** Delivery point: the REAL checkout GPS coordinate — never a fake pin. */
+  /** Delivery point: the REAL checkout GPS coordinate â€” never a fake pin. */
   const destination = useMemo(() => {
     if (!selected) return null;
     if (
@@ -162,11 +162,11 @@ export default function DriverMap() {
     !navigationActive ? null
       : headingStatus === 'denied' ? 'Compass permission was denied; the arrow will use GPS travel direction.'
         : headingStatus === 'unsupported' ? 'Compass heading is unavailable; the arrow will use GPS travel direction.'
-      : routeLoading ? 'Finding route…'
+      : routeLoading ? 'Finding routeâ€¦'
         : routeError ? 'Unable to calculate route. Check your location and try again.'
           : route ? 'Route ready'
-            : location.status === 'requesting' ? 'Finding your location…'
-              : location.message?.detail ?? 'Finding route…'
+            : location.status === 'requesting' ? 'Finding your locationâ€¦'
+              : location.message?.detail ?? 'Finding routeâ€¦'
   );
 
   // Publish the driver's own GPS whenever the device reports a new fix.
@@ -197,7 +197,7 @@ export default function DriverMap() {
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
       void queryClient.invalidateQueries({ queryKey: ['driver-summary'] });
-      toast(`Order ${order.orderNumber} → ${ORDER_STATUS_LABELS[order.status]}`, 'success');
+      toast(`Order ${order.orderNumber} updated to ${ORDER_STATUS_LABELS[order.status]}`, 'success');
     },
     onError: (err: Error) => toast(err.message, 'error'),
   });
@@ -347,7 +347,7 @@ export default function DriverMap() {
     <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
       {/* One real interactive map: the SDK canvas plus provider-built pins and
           controls only. Screens never render their own pin/marker layer above
-          it — children are limited to the top bar, the floating control rail
+          it â€” children are limited to the top bar, the floating control rail
           and the permission card, each small, corner-docked and touch-sized so
           nothing ever covers the map surface and gestures always reach it. */}
       <LiveMap mapRef={mapHostRef} ariaLabel="Live driver navigation map">
@@ -366,7 +366,7 @@ export default function DriverMap() {
               type="button"
               className="map-control-btn map-control-btn-green gap-1 px-3 text-sm font-bold"
               onClick={() => handleSnapChange('expanded')}
-              aria-label={`${orders.length} active deliveries — open the list`}
+              aria-label={`${orders.length} active deliveries, open the list`}
               title="Active deliveries"
             >
               <BikeIcon className="h-4 w-4" />
@@ -375,7 +375,7 @@ export default function DriverMap() {
           )}
         </div>
 
-        {/* Floating map controls — within one thumb, never eating screen space.
+        {/* Floating map controls â€” within one thumb, never eating screen space.
             Red = selected / primary controls, green = location + route progress. */}
         <div
           className="absolute right-3 z-20 flex flex-col gap-2"
@@ -470,7 +470,7 @@ export default function DriverMap() {
         </div>
       )}
 
-      {/* Delivery bottom sheet — draggable, Bolt-Food style: three snaps,
+      {/* Delivery bottom sheet â€” draggable, Bolt-Food style: three snaps,
           velocity-based spring, and the map grows when the driver drags down. */}
       <DragSheet
         snap={snap}
@@ -529,7 +529,7 @@ export default function DriverMap() {
                         ETA
                       </span>
                       <span className="text-sm font-extrabold text-green-700">
-                        {remainingDurationMin !== null ? durationText(remainingDurationMin) : '—'}
+                        {remainingDurationMin !== null ? durationText(remainingDurationMin) : '-'}
                       </span>
                     </span>
                     <span className="flex flex-col">
@@ -537,12 +537,12 @@ export default function DriverMap() {
                         To go
                       </span>
                       <span className="text-sm font-extrabold text-green-700">
-                        {remainingKm !== null ? formatDistance(remainingKm) : '—'}
+                        {remainingKm !== null ? formatDistance(remainingKm) : '-'}
                       </span>
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-slate-600">
-                      {selected.customerName} ·{' '}
-                      {delivering ? selected.deliveryAddress : 'Maame’s Waakye kitchen'}
+                      {selected.customerName} Â·{' '}
+                      {delivering ? selected.deliveryAddress : 'Maameâ€™s Waakye kitchen'}
                     </span>
                     <a
                       href={`tel:${selected.deliveryPhone}`}
@@ -608,10 +608,10 @@ function TrackingPill({
   const live = status === 'granted';
   const label = live
     ? accuracy && accuracy > 60
-      ? `Live · ±${Math.round(accuracy)} m`
+      ? `Live Â· Â±${Math.round(accuracy)} m`
       : 'Live location on'
     : status === 'requesting'
-      ? 'Finding your location…'
+      ? 'Finding your locationâ€¦'
       : 'Location off';
 
   return (
@@ -663,7 +663,7 @@ function LocationPermissionCard({
           </p>
           <p className="mt-2 text-[13px] font-semibold text-slate-500">
             {status === 'denied'
-              ? 'Browser menu → Site settings → Location → Allow.'
+              ? 'Browser menu, Site settings, Location, Allow.'
               : 'Only used while you are on duty.'}
           </p>
         </div>
@@ -725,7 +725,7 @@ function DeliveryDetails({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[13px] font-bold uppercase tracking-wide text-red-600">
-            {delivering ? 'Delivering now' : 'Next stop · restaurant'}
+            {delivering ? 'Delivering now' : 'Next stop Â· restaurant'}
           </p>
           <p className="truncate font-mono text-sm text-slate-700">{order.orderNumber}</p>
         </div>
@@ -739,7 +739,7 @@ function DeliveryDetails({
             Arriving in
           </p>
           <p className="text-xl font-extrabold leading-tight text-red-800">
-            {eta ?? (remainingKm !== null ? '—' : 'Waiting for GPS')}
+            {eta ?? (remainingKm !== null ? '-' : 'Waiting for GPS')}
           </p>
         </div>
         <div className="rounded-2xl border border-green-100 bg-green-50 px-3 py-2.5">
@@ -747,14 +747,14 @@ function DeliveryDetails({
             {delivering ? 'To customer' : 'To restaurant'}
           </p>
           <p className="text-xl font-extrabold leading-tight text-green-800">
-            {remainingKm !== null ? formatDistance(remainingKm) : '—'}
+            {remainingKm !== null ? formatDistance(remainingKm) : '-'}
           </p>
         </div>
       </div>
       {navigationActive && nextManeuver && nextManeuverDistanceKm !== null && (
         <div className="mt-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2">
           <p className="text-[10px] font-extrabold uppercase tracking-wide text-green-800">
-            Next · {formatDistance(nextManeuverDistanceKm)}
+            Next Â· {formatDistance(nextManeuverDistanceKm)}
           </p>
           <p className="text-sm font-bold text-slate-900">{nextManeuver}</p>
         </div>
@@ -776,11 +776,11 @@ function DeliveryDetails({
           <p className="text-[15px] font-bold text-slate-900">{order.customerName}</p>
           <p className="text-sm leading-snug text-slate-600">
             {order.deliveryAddress}
-            {order.deliveryArea ? ` · ${order.deliveryArea}` : ''}
+            {order.deliveryArea ? ` Â· ${order.deliveryArea}` : ''}
           </p>
           {!destinationExact && (
             <p className="mt-1 text-[12px] font-semibold text-amber-700">
-              No customer GPS on this order yet — call the customer for directions.
+              No customer GPS on this order yet - call the customer for directions.
             </p>
           )}
           {destinationExact && (
@@ -798,7 +798,7 @@ function DeliveryDetails({
 
       <div className="mt-2 flex items-center justify-between gap-2 text-[13px] font-semibold text-slate-500">
         <span>
-          {order.itemCount} item(s) · {formatMoney(order.total)} ·{' '}
+          {order.itemCount} item(s) Â· {formatMoney(order.total)} Â·{' '}
           {order.paymentMethod.replace('_', ' ')}
         </span>
         {deliveryCount > 1 && (
@@ -881,13 +881,13 @@ function IssueDialog({ order, onClose }: { order: OrderDTO; onClose: () => void 
   };
 
   return (
-    <Modal open title={`Report issue · ${order.orderNumber}`} onClose={onClose}>
+    <Modal open title={`Report issue Â· ${order.orderNumber}`} onClose={onClose}>
       <p className="text-sm text-slate-700">Describe what happened so the administrators can help.</p>
       <Textarea
         value={note}
         onChange={(event) => setNote(event.target.value)}
         rows={4}
-        placeholder="e.g. Customer is not answering the phone at the gate…"
+        placeholder="e.g. Customer is not answering the phone at the gateâ€¦"
         className="mt-3"
       />
       <div className="mt-4 flex justify-end gap-2">

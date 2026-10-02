@@ -171,8 +171,8 @@ export function RestaurantStatusCard({
       {interactive && (
         <p className="border-t border-slate-100 px-5 py-3 text-center text-[12px] font-medium text-slate-400">
           {open
-            ? 'Tap to close — new orders stop immediately.'
-            : 'Tap to open — customers can order again straight away.'}
+            ? 'Tap to close - new orders stop immediately.'
+            : 'Tap to open - customers can order again straight away.'}
         </p>
       )}
     </section>

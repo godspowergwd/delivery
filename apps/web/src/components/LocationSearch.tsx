@@ -11,7 +11,7 @@ import type { PlaceSuggestion } from '../lib/geocode';
 import { currentLocationPlace, suggestPlaces } from '../lib/geocode';
 import { toast } from '../lib/realtime';
 import { Field, Input } from './ui';
-import { CheckIcon, LocateIcon, MapPinIcon, SearchIcon, StoreIcon } from './icons';
+import { CheckIcon, LocateIcon, MapPinIcon, SearchIcon, StoreIcon, XIcon } from './icons';
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -36,7 +36,7 @@ export function LocationSearch({
   onSelect,
   selected = null,
   label = 'Delivery address',
-  placeholder = 'Start typing an address — e.g. Mallam…',
+  placeholder = 'Start typing an address, for example Mallam',
   required,
   disabled = false,
   id,
@@ -235,7 +235,7 @@ export function LocationSearch({
                 aria-label="Clear address"
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-sm font-bold text-red-600 transition hover:bg-red-100 active:scale-95"
               >
-                <span aria-hidden="true">✕</span>
+                <XIcon className="h-4 w-4" />
               </button>
             )}
           </div>

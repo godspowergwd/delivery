@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isLoopbackHostname } from '@delivery/shared';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -28,6 +29,16 @@ const HOST = process.env.PG_HOST || '127.0.0.1';
 const USER = process.env.PG_USER || 'postgres';
 const PASSWORD = process.env.PG_PASSWORD || 'postgres';
 const DATABASE = process.env.PG_DATABASE || 'delivery_system';
+
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('The local PostgreSQL helper is disabled when NODE_ENV=production.');
+}
+if (!isLoopbackHostname(HOST)) {
+  throw new Error('PG_HOST must be a loopback address; remote database hosts are refused.');
+}
+if (!/^[a-zA-Z_][a-zA-Z0-9_$]{0,62}$/.test(DATABASE)) {
+  throw new Error('PG_DATABASE must be a valid PostgreSQL identifier.');
+}
 
 const IS_WIN = process.platform === 'win32';
 const EXE = (name) => (IS_WIN ? `${name}.exe` : name);
@@ -225,7 +236,7 @@ function reset() {
 }
 
 function printUrl() {
-  console.log(`postgresql://${USER}:${PASSWORD}@${HOST}:${PORT}/${DATABASE}?schema=public`);
+  console.log(`postgresql://${USER}:<password>@${HOST}:${PORT}/${DATABASE}?schema=public`);
 }
 
 function main() {
@@ -246,9 +257,7 @@ function main() {
       break;
     }
     case 'reset':
-      reset();
-      printUrl();
-      break;
+      throw new Error('Destructive reset is disabled; use an explicitly disposable local cluster manager.');
     case 'url':
       printUrl();
       break;
@@ -261,6 +270,6 @@ function main() {
 try {
   main();
 } catch (error) {
-  console.error(`[db] ${error.message}`);
+  console.error(`[db] ${error instanceof Error ? error.name : 'UnknownError'}`);
   process.exit(1);
 }

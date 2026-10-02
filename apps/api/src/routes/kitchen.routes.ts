@@ -17,7 +17,7 @@ import {
   requireKitchenOrAdmin,
   type SessionUser,
 } from '../middleware/authenticate';
-import { writeLimiter } from '../middleware/rateLimit';
+import { writeLimiter, passwordLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest } from '../lib/errors';
 import {
@@ -348,7 +348,7 @@ kitchenRouter.post(
 
 /* ==========================================================================
    Restaurant status (Kitchen > Settings > Restaurant Status)
-   The Kitchen decides when the restaurant opens and closes — no opening hours
+   The Kitchen decides when the restaurant opens and closes: no opening hours
    are hardcoded anywhere. The state is stored in PostgreSQL and, the moment it
    changes, it is broadcast to every connected device (customers, drivers,
    kitchen screens and admins) so nothing needs a manual refresh.
@@ -386,7 +386,7 @@ kitchenRouter.post(
    Driver management (Kitchen > Settings > Driver Management)
    A kitchen operational feature: create driver accounts, hand over the login,
    issue a new password, disable or re-enable. Drivers are never deleted and
-   Administrator accounts are out of reach — order history, assignments and
+   Administrator accounts are out of reach: order history, assignments and
    earnings are preserved exactly as they are.
    ========================================================================== */
 
@@ -422,6 +422,7 @@ kitchenRouter.post(
   '/drivers/:id/reset-password',
   authenticate,
   requireKitchenOrAdmin,
+  passwordLimiter,
   writeLimiter,
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);

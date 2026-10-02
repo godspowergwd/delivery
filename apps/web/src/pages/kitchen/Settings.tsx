@@ -42,8 +42,8 @@ export function KitchenSettings() {
       await api.post('/kitchen/status', { open: next });
       toast(
         next
-          ? 'Restaurant is open — customers can order again.'
-          : 'Restaurant closed — new orders are blocked.',
+          ? 'Restaurant is open - customers can order again.'
+          : 'Restaurant closed - new orders are blocked.',
         next ? 'success' : 'warning',
       );
     } catch (error) {
@@ -92,7 +92,7 @@ export function KitchenSettings() {
               <p className="text-[15px] font-extrabold text-slate-900">Delivery drivers</p>
               <p className="truncate text-[13px] text-slate-500">
                 {drivers.length === 0
-                  ? 'No drivers yet — create the first account.'
+                  ? 'No drivers yet - create the first account.'
                   : `${drivers.length} driver${drivers.length === 1 ? '' : 's'} · ${active} active · ${online} online now`}
               </p>
             </div>
@@ -140,7 +140,7 @@ export function KitchenSettings() {
             </div>
           </div>
           <p className="rounded-xl bg-green-50 px-3 py-2 text-[12px] font-semibold text-green-800">
-            Nothing to configure yet — the kitchen keeps running exactly as it does today.
+            Nothing to configure yet - the kitchen keeps running exactly as it does today.
           </p>
         </Card>
       </section>

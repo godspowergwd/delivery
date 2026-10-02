@@ -1,140 +1,143 @@
 #!/usr/bin/env node
-/**
- * End-to-end smoke test against the running API (http://localhost:4000)
- * and the running web server (http://localhost:5173).
- *
- *   node scripts/smoke.mjs
- *
- * Exercises: health, auth (login/me/refresh), catalogue, cart -> checkout ->
- * order lifecycle, kitchen queue + status transitions, receipts, admin CRUD,
- * analytics, reports, settings, logs, notifications, favorites, realtime and
- * the PWA assets served by the web app.
- */
-const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:4000/api';
-const WEB = process.env.SMOKE_WEB_URL ?? 'http://localhost:5173';
+/** Read-focused smoke checks against an explicitly isolated local API. */
+import { requireIsolatedTestApi } from './test-safety.mjs';
 
-let pass = 0;
-let fail = 0;
-const failures = [];
+const API = process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:4100/api';
+const { accounts } = await requireIsolatedTestApi(API);
 
-function ok(name, detail = '') {
-  pass += 1;
-  console.log(`  + ${name}${detail ? ` -- ${detail}` : ''}`);
-}
+let passed = 0;
+let failed = 0;
 
-function bad(name, detail = '') {
-  fail += 1;
-  failures.push(`${name}${detail ? ` -- ${detail}` : ''}`);
-  console.log(`  x ${name}${detail ? ` -- ${detail}` : ''}`);
-}
-
-async function req(method, path, { token, body, raw } = {}) {
-  const headers = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${BASE}${path}`, {
+async function request(path, { token, method = 'GET', body } = {}) {
+  const response = await fetch(`${API}${path}`, {
     method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
   });
-  const text = await res.text();
-  let json = null;
+  let data = null;
   try {
-    json = text ? JSON.parse(text) : null;
+    data = await response.json();
   } catch {
-    json = null;
+    data = null;
   }
-  return { status: res.status, json, text, headers: res.headers, raw };
+  return { response, data };
 }
 
-async function check(name, fn) {
+async function check(label, work) {
   try {
-    const detail = await fn();
-    ok(name, typeof detail === 'string' ? detail : '');
-  } catch (err) {
-    bad(name, err.message);
+    const detail = await work();
+    passed += 1;
+    console.log(`[PASS] ${label}${detail ? `: ${detail}` : ''}`);
+  } catch (error) {
+    failed += 1;
+    console.error(`[FAIL] ${label}: ${error instanceof Error ? error.message : 'request failed'}`);
   }
 }
 
-function expectStatus(res, expected, label) {
-  const allowed = Array.isArray(expected) ? expected : [expected];
-  if (!allowed.includes(res.status)) {
-    throw new Error(
-      `${label}: expected ${allowed.join('/')} got ${res.status} :: ${String(res.text).slice(0, 220)}`,
-    );
-  }
-}
-
-function expect(cond, msg) {
-  if (!cond) throw new Error(msg);
-}
-
-const section = (t) => console.log(`\n=== ${t} ===`);
-
-function listOf(res) {
-  return res.json?.items ?? res.json?.data?.items ?? res.json?.data ?? res.json;
-}
-
-function entityOf(res) {
-  return res.json?.item ?? res.json?.data?.item ?? res.json?.data ?? res.json;
-}
-
-async function main() {
-  console.log(`Smoke testing API ${BASE}\nSmoke testing WEB ${WEB}\n`);
-
-  /* ------------------------------------------------------------------ */
-  section('health');
-  await check('GET /health', async () => {
-    const res = await req('GET', '/health');
-    expectStatus(res, 200, '/health');
-    expect(res.json?.status === 'ok', 'status not ok');
-    return `uptime ${res.json?.uptimeSeconds}s`;
+async function login(account) {
+  const { response, data } = await request('/auth/login', {
+    method: 'POST',
+    body: { email: account.email, password: account.password },
   });
+  if (!response.ok || !data?.accessToken || !data?.user?.id) {
+    throw new Error(`synthetic login returned HTTP ${response.status}`);
+  }
+  return data;
+}
 
-  /* ------------------------------------------------------------------ */
-  section('auth');
-  const accounts = [
-    { label: 'admin', email: 'admin@delivery.test', password: 'Admin123!' },
-    { label: 'customer', email: 'customer@delivery.test', password: 'Customer123!' },
-    { label: 'kitchen', email: 'kitchen@delivery.test', password: 'Kitchen123!' },
-  ];
-  const tokens = {};
+const health = await request('/health');
+if (!health.response.ok || health.data?.status !== 'ok') {
+  console.error(`[smoke] API liveness failed (HTTP ${health.response.status}); no other checks will run.`);
+  process.exit(1);
+}
 
-  for (const acct of accounts) {
-    await check(`POST /auth/login (${acct.label})`, async () => {
-      const res = await req('POST', '/auth/login', {
-        body: { email: acct.email, password: acct.password },
-      });
-      expectStatus(res, 200, 'login');
-      const token = res.json?.accessToken ?? res.json?.token ?? res.json?.data?.accessToken;
-      expect(token, `no access token: ${String(res.text).slice(0, 200)}`);
-      const user = res.json?.user ?? res.json?.data?.user;
-      tokens[acct.label] = token;
-      return `role=${user?.role ?? '?'}`;
+await check('API liveness', () => health.data.status === 'ok' ? 'healthy' : Promise.reject(new Error('unexpected status')));
+await check('API readiness', async () => {
+  const { response, data } = await request('/ready');
+  if (!response.ok || data?.status !== 'ready') throw new Error(`HTTP ${response.status}`);
+  return 'database probe ready';
+});
+
+const sessions = {};
+for (const role of ['CUSTOMER', 'DRIVER', 'KITCHEN', 'ADMIN']) {
+  await check(`${role} synthetic login`, async () => {
+    sessions[role] = await login(accounts[role]);
+    if (sessions[role].user.role !== role) throw new Error('role mismatch');
+    return 'authenticated';
+  });
+}
+
+if (sessions.CUSTOMER) {
+  await check('authenticated customer profile', async () => {
+    const { response, data } = await request('/auth/me', { token: sessions.CUSTOMER.accessToken });
+    if (!response.ok || data?.user?.id !== sessions.CUSTOMER.user.id) throw new Error(`HTTP ${response.status}`);
+    return 'own profile only';
+  });
+  await check('customer catalogue read', async () => {
+    const { response, data } = await request('/products?pageSize=5', { token: sessions.CUSTOMER.accessToken });
+    if (!response.ok || !Array.isArray(data?.items)) throw new Error(`HTTP ${response.status}`);
+    return `${data.items.length} products`;
+  });
+  await check('customer category read', async () => {
+    const { response, data } = await request('/categories?pageSize=10', { token: sessions.CUSTOMER.accessToken });
+    if (!response.ok || !Array.isArray(data?.items)) throw new Error(`HTTP ${response.status}`);
+    return `${data.items.length} categories`;
+  });
+  await check('anonymous protected-order rejection', async () => {
+    const { response, data } = await request('/orders?pageSize=1');
+    if (response.status !== 401 && response.status !== 403) throw new Error(`HTTP ${response.status}`);
+    return data?.error?.code ?? 'denied';
+  });
+  await check('customer order-history read', async () => {
+    const { response, data } = await request('/orders?pageSize=5', { token: sessions.CUSTOMER.accessToken });
+    if (!response.ok || !Array.isArray(data?.items)) throw new Error(`HTTP ${response.status}`);
+    return 'scoped order history';
+  });
+}
+
+if (sessions.DRIVER) {
+  await check('driver delivery-list read', async () => {
+    const { response, data } = await request('/driver/deliveries', { token: sessions.DRIVER.accessToken });
+    if (!response.ok || !Array.isArray(data?.data)) throw new Error(`HTTP ${response.status}`);
+    return 'assigned deliveries';
+  });
+}
+
+if (sessions.KITCHEN) {
+  await check('kitchen summary read', async () => {
+    const { response } = await request('/kitchen/summary', { token: sessions.KITCHEN.accessToken });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return 'summary available';
+  });
+  await check('kitchen order-queue read', async () => {
+    const { response, data } = await request('/kitchen/orders?pageSize=5', { token: sessions.KITCHEN.accessToken });
+    if (!response.ok || !Array.isArray(data?.items)) throw new Error(`HTTP ${response.status}`);
+    return 'queue available';
+  });
+}
+
+if (sessions.ADMIN) {
+  await check('admin analytics read', async () => {
+    const { response } = await request('/analytics/overview', { token: sessions.ADMIN.accessToken });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return 'overview available';
+  });
+}
+
+for (const [role, session] of Object.entries(sessions)) {
+  if (!session?.accessToken) continue;
+  await check(`${role} synthetic session logout`, async () => {
+    const { response } = await request('/auth/logout', {
+      method: 'POST',
+      token: session.accessToken,
     });
-  }
-
-  await check('POST /auth/refresh', async () => {
-    const res = await req('POST', '/auth/login', {
-      body: { email: accounts[0].email, password: accounts[0].password },
-    });
-    const refreshToken =
-      res.json?.refreshToken ?? res.json?.data?.refreshToken ?? res.json?.session?.refreshToken;
-    if (!refreshToken) return 'no refresh token issued (skipped)';
-    const r2 = await req('POST', '/auth/refresh', { body: { refreshToken } });
-    expectStatus(r2, 200, 'refresh');
-    return 'rotated';
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return 'isolated session revoked';
   });
+}
 
-  await check('GET /auth/me', async () => {
-    const res = await req('GET', '/auth/me', { token: tokens.admin });
-    expectStatus(res, 200, '/auth/me');
-    const u = entityOf(res);
-    return `email=${u?.email ?? '?'}`;
-  });
-
-  await check('GET /auth/me rejects anonymous', async () => {
-    const res = await req('GET', '/auth/me');
-    expect(res.status === 401 || res.status === 403, `expected 401/403 got ${res.status}`);
-    return `status ${res.status}`;
-  });
+console.log(`[smoke] ${passed} passed, ${failed} failed; only isolated synthetic sessions were created/revoked. No orders, customer accounts, uploads, or settings changed.`);
+process.exit(failed === 0 ? 0 : 1);

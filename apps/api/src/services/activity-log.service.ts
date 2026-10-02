@@ -39,7 +39,7 @@ export async function logActivity(input: ActivityInput): Promise<void> {
   } catch (error) {
     logger.warn('Could not write activity log entry', {
       action: input.action,
-      message: error instanceof Error ? error.message : String(error),
+      errorType: error instanceof Error ? error.name : 'UnknownError',
     });
   }
 }

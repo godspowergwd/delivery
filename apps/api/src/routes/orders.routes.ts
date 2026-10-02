@@ -5,7 +5,7 @@ import { PAYMENT_METHODS, type OrderStatus as OrderStatusType } from '@delivery/
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { csvSchema, idParamSchema, optionalBooleanQuery, paginationSchema } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
-import { writeLimiter } from '../middleware/rateLimit';
+import { orderCreateLimiter, writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import {
@@ -39,7 +39,7 @@ const createOrderSchema = z.object({
   notes: z.string().trim().max(300).optional(),
   paymentMethod: z.enum(PAYMENT_METHODS),
   // Real delivery coordinates are required: the frontend only sends the
-  // geocoded pin of a validated suggestion — free-typed text is rejected.
+  // geocoded pin of a validated suggestion: free-typed text is rejected.
   // 0/0 means "no pin" (saved addresses without GPS) and is refused.
   deliveryLatitude: z.coerce
     .number()
@@ -96,7 +96,7 @@ function parseDate(value: string | undefined, endOfDay = false): Date | undefine
 ordersRouter.post(
   '/',
   authenticate,
-  writeLimiter,
+  orderCreateLimiter,
   asyncHandler(async (req, res) => {
     const { user } = getAuth(req);
     if (user.role !== 'CUSTOMER') {
@@ -108,7 +108,13 @@ ordersRouter.post(
   }),
 );
 
-/** GET /api/orders - the signed-in customer's order history. */
+/**
+ * GET /api/orders - the signed-in customer's order history.
+ *
+ * Role-scoped on purpose: a customer only ever sees their own orders and a
+ * driver only the deliveries assigned to them. Kitchen and admin accounts keep
+ * the operations view they need.
+ */
 ordersRouter.get(
   '/',
   authenticate,
@@ -124,6 +130,9 @@ ordersRouter.get(
       from: parseDate(query.from),
       to: parseDate(query.to, true),
     });
+    if (user.role === 'DRIVER') {
+      where.driverId = user.id;
+    }
     if (query.activeOnly) {
       where.status = { in: ['RECEIVED', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'] };
     }
@@ -160,6 +169,7 @@ ordersRouter.get(
       status: { in: ['RECEIVED', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'] },
     };
     if (user.role === 'CUSTOMER') where.customerId = user.id;
+    if (user.role === 'DRIVER') where.driverId = user.id;
 
     const orders = await prisma.order.findMany({
       where,
@@ -233,10 +243,14 @@ ordersRouter.get(
   }),
 );
 
-/** POST /api/orders/:id/cancel - customer cancellation before preparation finishes. */
+/**
+ * POST /api/orders/:id/cancel - customer cancellation before preparation finishes.
+ * Rate limited with the other order writes so a script cannot churn the kitchen.
+ */
 ordersRouter.post(
   '/:id/cancel',
   authenticate,
+  writeLimiter,
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
     const body = z.object({ reason: z.string().trim().max(200).optional() }).parse(req.body ?? {});

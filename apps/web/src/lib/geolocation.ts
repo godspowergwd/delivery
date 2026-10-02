@@ -63,7 +63,7 @@ export function describeGeolocationError(
       message: {
         title: 'Location access is off',
         detail:
-          'Allow location for this app in your browser settings, then try again. You can still work without it — the map stays on Mallam, Accra.',
+          'Allow location for this app in your browser settings, then try again. You can still work without it. The map stays on Mallam, Accra.',
         actionable: true,
       },
     };

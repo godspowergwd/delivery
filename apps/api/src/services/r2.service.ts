@@ -78,7 +78,11 @@ export async function uploadToR2(file: Express.Multer.File): Promise<UploadResul
       }),
     );
   } catch (error) {
-    logger.error('Failed to upload file to Cloudflare R2', { error, key, bucket: bucketName });
+    logger.error('Failed to upload file to Cloudflare R2', {
+      errorType: error instanceof Error ? error.name : 'UnknownError',
+      key,
+      bucket: bucketName,
+    });
     throw badGateway('Failed to upload image to storage provider.');
   }
 

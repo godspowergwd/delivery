@@ -82,7 +82,7 @@ export default function CustomerHome() {
             </span>
             <span className="block truncate text-xs font-medium text-red-100">
               {active!.orders.length > 1
-                ? `${active!.orders.length} live orders — tap to track`
+                ? `${active!.orders.length} live orders - tap to track`
                 : `${active!.orders[0].itemCount} items · ${formatMoney(active!.orders[0].total)} · ${formatRelativeTime(active!.orders[0].createdAt)}`}
             </span>
           </span>

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useGuestGate } from '../lib/guest';
@@ -9,7 +9,7 @@ import { LeafIcon, LockIcon, UserIcon } from './icons';
  * Premium sign-in bottom sheet shown to guests on their first protected
  * action. Balanced red-and-green branding: a duo header band with green
  * ingredient accents, a red primary sign-in action and a green create-account
- * action. Signing in here runs the remembered action immediately — the guest
+ * action. Signing in here runs the remembered action immediately â€” the guest
  * never has to tap the original button twice.
  */
 export function AuthSheet() {
@@ -53,7 +53,7 @@ export function AuthSheet() {
                 Sign in to continue your order.
               </p>
               <p className="mt-0.5 text-sm text-slate-500">
-                Your cart is kept safe — you will land right back where you were.
+                Your cart is kept safe. You will land right back where you were.
               </p>
             </div>
           </div>
@@ -67,7 +67,7 @@ export function AuthSheet() {
           </div>
         </div>
 
-        {/* One real credential form: identifier first, password second — the
+        {/* One real credential form: identifier first, password second â€” the
             exact order and semantics every password manager expects. */}
         <form onSubmit={submit} className="space-y-3" autoComplete="on">
           <Field label="Email or username" htmlFor="auth-sheet-email">
@@ -95,7 +95,7 @@ export function AuthSheet() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
             />
           </Field>
           <ErrorText message={error} />

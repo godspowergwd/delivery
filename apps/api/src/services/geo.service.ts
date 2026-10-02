@@ -32,6 +32,6 @@ export function isWithinDeliveryZone(
   return {
     within: false,
     distanceKm: distance,
-    message: `This location is ${distance.toFixed(1)} km from our kitchen — outside our current delivery area (max ${maxRadiusKm} km).`,
+    message: `This location is ${distance.toFixed(1)} km from our kitchen, outside our current delivery area (max ${maxRadiusKm} km).`,
   };
 }

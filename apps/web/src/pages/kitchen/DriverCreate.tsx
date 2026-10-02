@@ -104,7 +104,7 @@ export function KitchenDriverCreate() {
       <div className="mx-auto max-w-lg space-y-4">
         <header>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Driver created</h1>
-          <p className="text-sm text-slate-500">Send these details over — no retyping needed.</p>
+          <p className="text-sm text-slate-500">Send these details over - no retyping needed.</p>
         </header>
 
         <DriverCredentialsCard
@@ -148,7 +148,7 @@ export function KitchenDriverCreate() {
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Create Driver</h1>
           <p className="text-sm text-slate-500">
-            The account is active immediately — sign the driver in with the details you set here.
+            The account is active immediately - sign the driver in with the details you set here.
           </p>
         </div>
       </header>

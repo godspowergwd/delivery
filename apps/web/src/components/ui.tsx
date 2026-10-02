@@ -1,4 +1,4 @@
-import { clsx } from 'clsx';
+﻿import { clsx } from 'clsx';
 import {
   useEffect,
   useRef,
@@ -28,7 +28,7 @@ import {
 } from './icons';
 
 /* ===========================================================================
-   ONYX UI kit — one design language for every screen.
+   ONYX UI kit â€” one design language for every screen.
 
    Rules: white surfaces, soft shadows, large radii, 44px+ touch targets, red
    primary actions, green confirmations, glossy highlights, ripple + lift
@@ -162,7 +162,7 @@ export function Card({
   );
 }
 
-/** Section heading with an optional action slot ("See all", filter chip…). */
+/** Section heading with an optional action slot ("See all", filter chipâ€¦). */
 export function SurfaceSection({
   title,
   action,
@@ -227,16 +227,16 @@ export function Badge({
  */
 const STATUS_TONE_CLASSES: Record<string, string> = {
   neutral: 'bg-slate-100 text-slate-600',
-  // Order placed — balanced white pill with a red edge and a green edge.
+  // Order placed â€” balanced white pill with a red edge and a green edge.
   placed:
     'bg-white text-red-800 ring-1 ring-inset ring-red-200 shadow-[inset_5px_0_0_0_#e30613,inset_-5px_0_0_0_#0a8058]',
-  // Order accepted — green active-service surface with a red supporting edge.
+  // Order accepted â€” green active-service surface with a red supporting edge.
   accepted: 'bg-green-600 text-white ring-1 ring-inset ring-green-700 shadow-[inset_5px_0_0_0_#e30613]',
-  // Serving — red food-preparation surface with a green freshness edge.
+  // Serving â€” red food-preparation surface with a green freshness edge.
   prep: 'bg-red-600 text-white ring-1 ring-inset ring-red-700 shadow-[inset_-5px_0_0_0_#0a8058]',
-  // Out for delivery — red delivery-action surface with a green route edge.
+  // Out for delivery â€” red delivery-action surface with a green route edge.
   route: 'bg-red-700 text-white ring-1 ring-inset ring-red-800 shadow-[inset_5px_0_0_0_#0a8058]',
-  // Delivered — green completion surface with a red confirmation edge.
+  // Delivered â€” green completion surface with a red confirmation edge.
   delivered:
     'bg-green-700 text-white ring-1 ring-inset ring-green-800 shadow-[inset_5px_0_0_0_#e30613]',
   danger: 'bg-white text-red-700 ring-1 ring-inset ring-red-300',

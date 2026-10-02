@@ -6,6 +6,7 @@ import { badRequest } from '../lib/errors';
 import { emitToOrder, emitToRole, emitToUser } from '../realtime/socket';
 import { getSettings } from './settings.service';
 import { assertCanViewOrder, getOrderById } from './order.service';
+import { activeDeliveryTargets } from './driver-delivery-cache';
 import type { OrderWithRelations } from './serializers';
 import type { SessionUser } from '../middleware/authenticate';
 
@@ -37,9 +38,11 @@ const ACTIVE_DELIVERY_STATUSES = ['ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DEL
  * persist when the fix moved meaningfully or enough time passed. Every accepted
  * fix is still broadcast instantly, so the customer map never feels laggy.
  */
-const MIN_WRITE_INTERVAL_MS = 5_000;
+const MIN_WRITE_INTERVAL_MS = 15_000;
 const MIN_MOVED_METRES = 12;
-const lastWrite = new Map<string, { at: number; lat: number; lng: number }>();
+const MAX_WRITE_SILENCE_MS = 60_000;
+const MAX_LOCATION_AGE_MS = 2 * 60_000;
+const MAX_LOCATION_FUTURE_MS = 30_000;
 
 type DriverLocationRow = {
   driverId: string;
@@ -52,6 +55,45 @@ type DriverLocationRow = {
   recordedAt: Date;
   updatedAt: Date;
 };
+
+type DriverLocationWriteState = {
+  at: number;
+  lat: number;
+  lng: number;
+  row: DriverLocationRow;
+};
+
+export function shouldPersistDriverLocation(
+  previous: DriverLocationWriteState | undefined,
+  input: z.infer<typeof driverLocationInputSchema>,
+  now: number,
+): boolean {
+  if (!previous || !previous.row.isOnline) return true;
+  const elapsedSinceWrite = now - previous.at;
+  const movedMetres = distanceKm(
+    { lat: previous.lat, lng: previous.lng },
+    { lat: input.latitude, lng: input.longitude },
+  ) * 1_000;
+  return elapsedSinceWrite >= MAX_WRITE_SILENCE_MS ||
+    (elapsedSinceWrite >= MIN_WRITE_INTERVAL_MS && movedMetres >= MIN_MOVED_METRES);
+}
+
+export function isFreshDriverLocation(recordedAt: Date, now = Date.now()): boolean {
+  const age = now - recordedAt.getTime();
+  return age <= MAX_LOCATION_AGE_MS && age >= -MAX_LOCATION_FUTURE_MS;
+}
+
+const lastWrite = new Map<string, DriverLocationWriteState>();
+const locationMetrics = {
+  updates: 0,
+  persisted: 0,
+  skipped: 0,
+  activeDeliveryQueries: 0,
+};
+
+export function getDriverLocationMetrics() {
+  return { ...locationMetrics };
+}
 
 export function serializeDriverLocation(row: DriverLocationRow, driverName: string): DriverLocationDTO {
   return {
@@ -113,12 +155,15 @@ export async function getRestaurantAnchor(): Promise<{
 
 /** Orders of this driver still in flight; formatted `orderId:customerId`. */
 async function activeDeliveries(driverId: string): Promise<string[]> {
-  const orders = await prisma.order.findMany({
-    where: { driverId, status: { in: ACTIVE_DELIVERY_STATUSES as never } },
-    select: { id: true, customerId: true },
-    take: 20,
+  return activeDeliveryTargets(driverId, async () => {
+    locationMetrics.activeDeliveryQueries += 1;
+    const orders = await prisma.order.findMany({
+      where: { driverId, status: { in: ACTIVE_DELIVERY_STATUSES as never } },
+      select: { id: true, customerId: true },
+      take: 20,
+    });
+    return orders.map((order) => `${order.id}:${order.customerId}`);
   });
-  return orders.map((order) => `${order.id}:${order.customerId}`);
 }
 
 /**
@@ -133,15 +178,15 @@ export async function publishDriverLocation(params: {
   if (!isValidLatitude(input.latitude) || !isValidLongitude(input.longitude)) {
     throw badRequest('That position is not a valid coordinate.');
   }
+  locationMetrics.updates += 1;
 
   const recordedAt = input.recordedAt ? new Date(input.recordedAt) : new Date();
   const now = Date.now();
+  if (!isFreshDriverLocation(recordedAt, now)) {
+    throw badRequest('That location update is stale. Please send a fresh GPS fix.');
+  }
   const previous = lastWrite.get(driver.id);
-  const movedMetres = previous
-    ? distanceKm({ lat: previous.lat, lng: previous.lng }, { lat: input.latitude, lng: input.longitude }) * 1000
-    : Number.POSITIVE_INFINITY;
-  const shouldPersist =
-    !previous || now - previous.at >= MIN_WRITE_INTERVAL_MS || movedMetres >= MIN_MOVED_METRES;
+  const shouldPersist = shouldPersistDriverLocation(previous, input, now);
 
   const data = {
     latitude: input.latitude,
@@ -160,12 +205,17 @@ export async function publishDriverLocation(params: {
       create: { driverId: driver.id, ...data },
       update: data,
     });
-    lastWrite.set(driver.id, { at: now, lat: input.latitude, lng: input.longitude });
+    locationMetrics.persisted += 1;
+    lastWrite.set(driver.id, {
+      at: now,
+      lat: input.latitude,
+      lng: input.longitude,
+      row,
+    });
   } else {
-    const existing = await prisma.driverLocation.findUnique({ where: { driverId: driver.id } });
-    row = existing
-      ? { ...existing, isOnline: true }
-      : await prisma.driverLocation.create({ data: { driverId: driver.id, ...data } });
+    if (!previous) throw new Error('Location persistence state is unavailable.');
+    locationMetrics.skipped += 1;
+    row = { ...previous.row, isOnline: true };
   }
 
   // Broadcast the live fix even when the write was skipped by the throttle.

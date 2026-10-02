@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useGuestGate } from '../lib/guest';
@@ -56,16 +56,16 @@ export function Login() {
         </p>
       )}
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-16 w-16 rounded-2xl" />
-        <h1 className="text-2xl font-extrabold text-slate-900">Maame’s Waakye App</h1>
+        <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maameâ€™s Waakye App" className="h-16 w-16 rounded-2xl" />
+        <h1 className="text-2xl font-extrabold text-slate-900">Maameâ€™s Waakye App</h1>
         <p className="text-xs font-extrabold uppercase tracking-[0.28em]">
           <span className="text-red-600">Onyx</span>
-          <span className="text-green-700"> · fresh daily</span>
+          <span className="text-green-700"> Â· fresh daily</span>
         </p>
-        <p className="text-sm text-slate-500">Hot waakye around Malam & Gbawe — sign in to order.</p>
+        <p className="text-sm text-slate-500">Hot waakye around Malam and Gbawe. Sign in to order.</p>
       </div>
       <Card className="duo-top">
-        {/* One real credential form: identifier first, password second — the
+        {/* One real credential form: identifier first, password second â€” the
             exact order and semantics every password manager expects. */}
         <form onSubmit={submit} className="space-y-4" autoComplete="on">
           <Field label="Email or username" htmlFor="login-email">
@@ -93,7 +93,7 @@ export function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
             />
           </Field>
           <ErrorText message={error} />

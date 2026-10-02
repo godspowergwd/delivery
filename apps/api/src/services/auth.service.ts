@@ -16,7 +16,7 @@ import {
 } from '../lib/tokens';
 import { logActivity } from './activity-log.service';
 import { notifyUser } from './notification.service';
-import { emitToRole } from '../realtime/socket';
+import { disconnectSessionSockets, disconnectUserSockets, emitToRole } from '../realtime/socket';
 import type { Request } from 'express';
 
 type UserRow = {
@@ -175,7 +175,7 @@ export async function registerCustomer(
   emitToRole('ADMIN', 'analytics:refresh', {});
 
   await notifyUser(user.id, {
-    title: 'Welcome aboard 🎉',
+    title: 'Welcome aboard',
     body: 'Your account is ready. Browse the menu and place your first order.',
     type: 'SYSTEM',
     audience: 'CUSTOMER',
@@ -221,7 +221,7 @@ function upgradeLegacyPasswordHash(userId: string, storedHash: string, plain: st
       logger.info('[auth] password hash upgraded to the configured bcrypt cost');
     } catch (error) {
       logger.warn('[auth] could not upgrade a legacy password hash', {
-        message: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof Error ? error.name : 'UnknownError',
       });
     }
   })();
@@ -362,10 +362,18 @@ export async function logout(options: {
       : null;
   if (!where) return;
 
+  const sessionId = options.sessionId ?? (options.refreshToken
+    ? (await prisma.session.findUnique({
+        where: { refreshTokenHash: hashToken(options.refreshToken) },
+        select: { id: true },
+      }))?.id
+    : undefined);
+
   await prisma.session.updateMany({
     where: { ...where, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+  if (sessionId) disconnectSessionSockets(sessionId);
 
   // Non-blocking: signing out finishes as soon as the session row is revoked.
   void logActivity({
@@ -385,6 +393,7 @@ export async function logoutAllSessions(userId: string, request?: Request): Prom
     where: { userId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+  disconnectUserSockets(userId);
   void logActivity({
     action: 'LOGOUT_ALL',
     entity: 'User',
@@ -432,6 +441,7 @@ export async function revokeSession(userId: string, sessionId: string): Promise<
     data: { revokedAt: new Date() },
   });
   if (result.count === 0) throw badRequest('That session is no longer active.');
+  disconnectSessionSockets(sessionId);
 }
 
 export async function changePassword(
@@ -454,15 +464,19 @@ export async function changePassword(
     data: { passwordHash: await hashPassword(newPassword) },
   });
 
-  // All other devices are signed out after a password change.
-  await prisma.session.updateMany({
-    where: {
+  // All other devices are signed out after a password change; keep the current
+  // valid socket connected so the active session can continue uninterrupted.
+  const revokedSessions = await prisma.$transaction(async (tx) => {
+    const where = {
       userId,
       revokedAt: null,
       ...(currentSessionId ? { id: { not: currentSessionId } } : {}),
-    },
-    data: { revokedAt: new Date() },
+    };
+    const sessions = await tx.session.findMany({ where, select: { id: true } });
+    await tx.session.updateMany({ where, data: { revokedAt: new Date() } });
+    return sessions;
   });
+  for (const session of revokedSessions) disconnectSessionSockets(session.id);
 
   await logActivity({
     action: 'PASSWORD_CHANGED',
@@ -496,6 +510,7 @@ export async function resetUserPassword(
     where: { userId: targetUserId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+  disconnectUserSockets(targetUserId);
 
   await notifyUser(targetUserId, {
     title: 'Password reset',

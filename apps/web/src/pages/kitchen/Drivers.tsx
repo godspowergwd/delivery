@@ -89,7 +89,7 @@ export function KitchenDrivers() {
     const remembered = recallDriverLogin(driver.id);
     if (remembered) {
       const ok = await copyText(driverLoginText(remembered));
-      toast(ok ? 'Username and password copied' : 'Could not copy — try again.', ok ? 'success' : 'error');
+      toast(ok ? 'Username and password copied' : 'Could not copy - try again.', ok ? 'success' : 'error');
       return;
     }
     setCopyTarget(driver);
@@ -108,7 +108,7 @@ export function KitchenDrivers() {
       await refresh();
       toast(
         ok
-          ? 'New password generated and copied — send it to the driver.'
+          ? 'New password generated and copied - send it to the driver.'
           : 'New password generated. Select it below to copy.',
         ok ? 'success' : 'warning',
       );
@@ -132,7 +132,7 @@ export function KitchenDrivers() {
       await refresh();
       setResetTarget(null);
       setIssued(result);
-      toast('New password issued — the driver must use it from now on.', 'success');
+      toast('New password issued - the driver must use it from now on.', 'success');
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not reset the password.', 'error');
     } finally {

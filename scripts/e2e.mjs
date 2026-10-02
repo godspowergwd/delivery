@@ -1,7 +1,11 @@
 // End-to-end verification of the running DELIVERY SYSTEM stack.
 // Usage: node scripts/e2e.mjs
+import { randomUUID } from 'node:crypto';
+import { requireIsolatedTestApi } from './test-safety.mjs';
+
 const API = process.env.API_URL || 'http://localhost:4000/api';
 const WEB = process.env.WEB_URL || 'http://localhost:5173';
+const { accounts: testAccounts } = await requireIsolatedTestApi(API, WEB);
 
 let pass = 0;
 let fail = 0;
@@ -76,10 +80,10 @@ function tokenOf(res) {
 const section = (t) => console.log(`\n=== ${t} ===`);
 
 const ACCOUNTS = {
-  admin: { email: 'admin@deliverysystem.app', password: 'Admin@12345' },
-  kitchen: { email: 'kitchen@deliverysystem.app', password: 'Kitchen@12345' },
-  customer: { email: 'customer@deliverysystem.app', password: 'Customer@12345' },
-  driver: { email: 'driver@deliverysystem.app', password: 'Driver@12345' },
+  admin: testAccounts.ADMIN,
+  kitchen: testAccounts.KITCHEN,
+  customer: testAccounts.CUSTOMER,
+  driver: testAccounts.DRIVER,
 };
 
 // ---------------------------------------------------------------------------
@@ -615,11 +619,13 @@ async function testAdmin(ctx) {
   check(users.status === 200, 'GET /users returns 200', `status=${users.status}`);
   check(listOf(users.data).length >= 3, 'seeded users listed', `count=${listOf(users.data).length}`);
 
-  const email = `e2e-${Date.now()}@deliverysystem.app`;
+  const unique = randomUUID();
+  const email = `e2e-${unique}@loadtest.invalid`;
+  const password = `E2e-${unique}-Synthetic!`;
   const cu = await req('/users', {
     method: 'POST',
     token: admin,
-    body: { name: 'E2E Staff', email, password: 'E2e@12345', role: 'KITCHEN' },
+    body: { name: 'E2E Staff', email, password, role: 'KITCHEN' },
   });
   check(
     cu.status === 200 || cu.status === 201,

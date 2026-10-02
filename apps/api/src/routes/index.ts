@@ -18,18 +18,31 @@ import { settingsRouter } from './settings.routes';
 import { uploadsRouter } from './uploads.routes';
 import { logsRouter } from './logs.routes';
 import { geoRouter } from './geo.routes';
+import { loadTestAccountCount, loadTestSafeConfiguration, mapboxMockEnabled } from '../config/env';
+import { getDriverLocationMetrics } from '../services/tracking.service';
 
 export const apiRouter = Router();
 
 apiRouter.get(
   '/health',
-  asyncHandler(async (_req, res) => {
-    await prisma.$queryRaw`SELECT 1`;
+  (_req, res) => {
     res.json({
       status: 'ok',
       time: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
+      loadTestSafe: loadTestSafeConfiguration,
+      loadTestAccountCount,
+      mapboxMock: mapboxMockEnabled,
+      ...(loadTestSafeConfiguration ? { driverLocationMetrics: getDriverLocationMetrics() } : {}),
     });
+  },
+);
+
+apiRouter.get(
+  '/ready',
+  asyncHandler(async (_req, res) => {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ready', time: new Date().toISOString() });
   }),
 );
 

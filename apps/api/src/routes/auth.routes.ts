@@ -10,7 +10,7 @@ import {
   phoneSchema,
 } from '../lib/validation';
 import { authenticate, getAuth } from '../middleware/authenticate';
-import { authLimiter } from '../middleware/rateLimit';
+import { authLimiter, passwordLimiter, refreshLimiter } from '../middleware/rateLimit';
 import {
   CSRF_COOKIE,
   REFRESH_COOKIE,
@@ -114,6 +114,7 @@ authRouter.get(
 /** POST /api/auth/refresh - rotates the refresh cookie into a fresh session. */
 authRouter.post(
   '/refresh',
+  refreshLimiter,
   csrfGuard,
   asyncHandler(async (req, res) => {
     const token = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
@@ -221,6 +222,7 @@ authRouter.post(
 authRouter.post(
   '/password',
   authenticate,
+  passwordLimiter,
   asyncHandler(async (req, res) => {
     const input = changePasswordSchema.parse(req.body);
     const { user, sessionId } = getAuth(req);

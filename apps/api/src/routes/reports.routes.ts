@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { paginationSchema } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
+import { adminLimiter, writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { notFound } from '../lib/errors';
 import {
@@ -15,6 +16,9 @@ import {
 } from '../services/report.service';
 
 export const reportsRouter = Router();
+
+/** Report previews, generation and downloads are the heaviest admin reads. */
+reportsRouter.use(adminLimiter);
 
 const reportTypeSchema = z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']);
 const reportFormatSchema = z.enum(['PDF', 'EXCEL']);
@@ -63,6 +67,7 @@ reportsRouter.post(
   '/generate',
   authenticate,
   requireAdmin,
+  writeLimiter,
   asyncHandler(async (req, res) => {
     const body = generateBodySchema.parse(req.body);
     const actor = getAuth(req).user;

@@ -30,7 +30,20 @@ vi.mock('../services/activity-log.service', () => ({
   logActivity: vi.fn(),
 }));
 
+const REAL_PNG = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.from('fake-png-content'),
+]);
+const REAL_WEBP = Buffer.concat([
+  Buffer.from('RIFF', 'latin1'),
+  Buffer.from([0x10, 0x00, 0x00, 0x00]),
+  Buffer.from('WEBP', 'latin1'),
+  Buffer.from('fake-webp-content'),
+]);
+const FORGED_PNG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+
 const app = express();
+
 app.use(express.json());
 app.use('/api/v1/uploads', uploadsRouter);
 app.use(errorHandler);
@@ -139,7 +152,7 @@ describe('Uploads Route (POST /api/v1/uploads)', () => {
     };
     vi.mocked(r2Service.uploadToR2).mockResolvedValue(mockUploadResult);
 
-    const fileContent = Buffer.from('fake-png-content');
+    const fileContent = REAL_PNG;
     const response = await request(app)
       .post('/api/v1/uploads')
       .set('Authorization', `Bearer ${token}`)
@@ -182,7 +195,7 @@ describe('Uploads Route (POST /api/v1/uploads)', () => {
     };
     vi.mocked(r2Service.uploadToR2).mockResolvedValue(mockUploadResult);
 
-    const fileContent = Buffer.from('fake-webp-content');
+    const fileContent = REAL_WEBP;
     const response = await request(app)
       .post('/api/v1/uploads')
       .set('Authorization', `Bearer ${token}`)
@@ -208,5 +221,19 @@ describe('Uploads Route (POST /api/v1/uploads)', () => {
         actorRole: 'KITCHEN',
       }),
     );
+  });
+
+  it('returns 400 when the bytes do not match the declared image type', async () => {
+    const token = mockAuthUser('ADMIN');
+
+    const response = await request(app)
+      .post('/api/v1/uploads')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', FORGED_PNG, 'food.png');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('BAD_REQUEST');
+    expect(response.body.error.message).toBe('That file is not a valid JPG, PNG, WEBP or AVIF image.');
+    expect(r2Service.uploadToR2).not.toHaveBeenCalled();
   });
 });

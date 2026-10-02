@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { useRealtimeSync } from '../../lib/realtime';
 import { Badge, Button, Card, EmptyState, Input, Select, Spinner } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ChevronLeftIcon, ChevronRightIcon } from '../../components/icons';
 import { toast } from '../../lib/realtime';
 
 export function AdminUsers() {
@@ -180,7 +181,8 @@ export function AdminUsers() {
       {data && data.pageCount > 1 && (
         <div className="flex items-center justify-center gap-3">
           <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
-            ← Prev
+            <ChevronLeftIcon className="h-4 w-4" />
+            Prev
           </Button>
           <span className="text-sm text-slate-500">
             Page {data.page} of {data.pageCount}
@@ -191,7 +193,8 @@ export function AdminUsers() {
             disabled={!data.hasMore}
             onClick={() => setPage((current) => current + 1)}
           >
-            Next →
+            Next
+            <ChevronRightIcon className="h-4 w-4" />
           </Button>
         </div>
       )}

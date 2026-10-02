@@ -11,13 +11,14 @@ import {
   usernameSchema,
 } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
+import { passwordLimiter, writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { hashPassword } from '../lib/password';
 import { resetUserPassword, toAuthUser } from '../services/auth.service';
 import { serializeAddress } from '../services/serializers';
 import { logActivity } from '../services/activity-log.service';
-import { emitToRole } from '../realtime/socket';
+import { disconnectUserSockets, emitToRole } from '../realtime/socket';
 import { notifyUser } from '../services/notification.service';
 
 export const usersRouter = Router();
@@ -198,6 +199,7 @@ usersRouter.post(
   '/',
   authenticate,
   requireAdmin,
+  writeLimiter,
   asyncHandler(async (req, res) => {
     const body = createUserSchema.parse(req.body);
 
@@ -301,18 +303,28 @@ usersRouter.patch(
       if (taken) throw conflict('Another account already uses that username.');
     }
 
-    const updated = await prisma.user.update({
-      where: { id },
-      data: {
-        ...(body.name !== undefined ? { name: body.name } : {}),
-        ...(body.email !== undefined ? { email: body.email } : {}),
-        ...(body.username !== undefined ? { username: body.username } : {}),
-        ...(body.phone !== undefined ? { phone: body.phone } : {}),
-        ...(body.role !== undefined ? { role: body.role } : {}),
-        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
-        ...(body.avatarUrl !== undefined ? { avatarUrl: body.avatarUrl } : {}),
-      },
+    const invalidateAccess = body.isActive === false || Boolean(body.role && body.role !== target.role);
+    const updated = await prisma.$transaction(async (tx) => {
+      if (invalidateAccess) {
+        await tx.session.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      return tx.user.update({
+        where: { id },
+        data: {
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.email !== undefined ? { email: body.email } : {}),
+          ...(body.username !== undefined ? { username: body.username } : {}),
+          ...(body.phone !== undefined ? { phone: body.phone } : {}),
+          ...(body.role !== undefined ? { role: body.role } : {}),
+          ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+          ...(body.avatarUrl !== undefined ? { avatarUrl: body.avatarUrl } : {}),
+        },
+      });
     });
+    if (invalidateAccess) disconnectUserSockets(id);
 
     emitToRole('ADMIN', 'user:changed', { action: 'updated', userId: updated.id });
 
@@ -351,6 +363,7 @@ usersRouter.post(
       data: { revokedAt: new Date() },
     });
     const updated = await prisma.user.update({ where: { id }, data: { isActive: false } });
+    disconnectUserSockets(id);
 
     await notifyUser(id, {
       title: 'Account disabled',
@@ -419,6 +432,7 @@ usersRouter.post(
   '/:id/reset-password',
   authenticate,
   requireAdmin,
+  passwordLimiter,
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
     const body = resetPasswordSchema.parse(req.body ?? {});

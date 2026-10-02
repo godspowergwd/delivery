@@ -4,6 +4,7 @@ export * from './money';
 export * from './format';
 export * from './geo';
 export * from './tracking';
+export * from './load-test-safety';
 export * from './restaurant';
 export * from './drivers';
 export * from './types';

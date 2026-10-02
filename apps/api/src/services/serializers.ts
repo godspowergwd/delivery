@@ -152,6 +152,30 @@ export function serializeOrder(order: OrderWithRelations): OrderDTO {
   };
 }
 
+/** An unassigned delivery offer exposes only the operational summary needed to accept it. */
+export function serializeDriverOffer(order: OrderWithRelations): OrderDTO {
+  return {
+    ...serializeOrder(order),
+    customerId: null,
+    customerName: 'Customer',
+    customerEmail: '',
+    deliveryAddress: order.deliveryArea ?? 'Delivery details shown after accepting',
+    deliveryPhone: '',
+    notes: null,
+    kitchenNote: null,
+    cancelReason: null,
+    items: [],
+    timeline: [],
+    deliveryLatitude: null,
+    deliveryLongitude: null,
+    deliveryOriginalLatitude: null,
+    deliveryOriginalLongitude: null,
+    deliveryLocationSource: null,
+    deliveryLocationConfirmedAt: null,
+    hasReceipt: false,
+  };
+}
+
 export function serializeAddress(
   address: Prisma.AddressGetPayload<Record<string, never>>,
 ): AddressDTO {

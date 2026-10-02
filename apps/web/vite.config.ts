@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => {
     name: process.env.VITE_APP_NAME || 'Maame’s Waakye App',
     short_name: 'Maame’s Waakye',
     description:
-      'Maame’s Waakye App — hot waakye and rice meals, live delivery tracking, and a faster kitchen.',
+      'Maame’s Waakye App - hot waakye and rice meals, live delivery tracking, and a faster kitchen.',
     start_url: `${base}?source=pwa`,
     scope: base,
     display: 'standalone',
@@ -154,9 +154,11 @@ export default defineConfig(({ mode }) => {
             },
           },
           {
-            // Live business data: always try the network first, fall back to cache when offline.
+            // Only cache public, non-personal bootstrap reads; authenticated API
+            // responses must never be shared across users by the service worker.
             urlPattern: ({ url, request }) =>
-              url.pathname.startsWith('/api/') && request.method === 'GET',
+              request.method === 'GET' &&
+              ['/api/auth/config', '/api/settings/support', '/api/settings/restaurant-status'].includes(url.pathname),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',

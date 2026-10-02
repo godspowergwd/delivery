@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+﻿import { Navigate, Route, Routes } from 'react-router-dom';
 import { LazyRoute } from './components/LazyRoute';
 import {
   AccountSettings,
@@ -80,7 +80,7 @@ export function App() {
         </Route>
       </Route>
 
-      {/* Account settings — guests get the sign-in sheet instead of a redirect. */}
+      {/* Account settings â€” guests get the sign-in sheet instead of a redirect. */}
       <Route element={<RequireAccount />}>
         <Route element={<AppShell />}>
           <Route path="/settings" element={<LazyRoute><AccountSettings /></LazyRoute>} />

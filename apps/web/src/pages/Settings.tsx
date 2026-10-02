@@ -24,7 +24,7 @@ export function AccountSettings() {
           <UserIcon className="h-6 w-6" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-base font-bold text-slate-900">{user?.name ?? '—'}</p>
+          <p className="truncate text-base font-bold text-slate-900">{user?.name ?? '-'}</p>
           <p className="truncate text-sm text-slate-500">{user?.email ?? ''}</p>
           <p className="mt-0.5 text-sm font-bold uppercase tracking-wide text-slate-400">
             {user ? ROLE_LABELS[user.role] : ''}

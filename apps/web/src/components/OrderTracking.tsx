@@ -96,7 +96,7 @@ export function OrderTracking({ order }: { order: OrderDTO }) {
           </div>
           <p className="map-status-pill">
             <span>Your courier is on the way</span>
-            <strong>{remainingKm !== null ? `${formatDistance(remainingKm)} away` : '—'}</strong>
+            <strong>{remainingKm !== null ? `${formatDistance(remainingKm)} away` : '-'}</strong>
           </p>
           {routeError && (
             <p className="px-4 py-2 text-xs font-medium text-red-700" role="status">

@@ -67,6 +67,8 @@ export interface InterServerEvents {
 
 export interface SocketData {
   userId: string;
+  sessionId: string;
+  authorizationExpiresAt: number;
   role: Role;
   name: string;
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { idParamSchema, optionalBooleanQuery, paginationSchema, slugify } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
+import { publicReadLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { CATEGORY_INCLUDE, serializeCategory } from '../services/serializers';
@@ -10,6 +11,8 @@ import { logActivity } from '../services/activity-log.service';
 import { emitToRole } from '../realtime/socket';
 
 export const categoriesRouter = Router();
+
+categoriesRouter.use(publicReadLimiter);
 
 export const categoryBodySchema = z.object({
   name: z.string().trim().min(2, 'Category name is too short').max(60),

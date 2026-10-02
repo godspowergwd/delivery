@@ -170,7 +170,7 @@ function printableRange(range: { from: Date; to: Date }): string {
       hour: '2-digit',
       minute: '2-digit',
     });
-  return `${format(range.from)} → ${format(range.to)}`;
+  return `${format(range.from)} to ${format(range.to)}`;
 }
 
 /** Renders the report as a multi-section PDF document. */
@@ -308,7 +308,7 @@ export async function renderReportPdf(summary: ReportSummary): Promise<Buffer> {
         .font('Helvetica')
         .fontSize(9)
         .text(
-          `${payment.method === 'CASH' ? 'Cash on delivery' : 'Mobile Money'} — ${payment.orders} orders • ${formatMoney(payment.amount, symbol)}`,
+          `${payment.method === 'CASH' ? 'Cash on delivery' : 'Mobile Money'}: ${payment.orders} orders • ${formatMoney(payment.amount, symbol)}`,
           left + 6,
           y,
           { width: width - 12 },

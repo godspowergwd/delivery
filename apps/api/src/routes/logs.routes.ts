@@ -3,9 +3,12 @@ import { z } from 'zod';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { paginationSchema } from '../lib/validation';
 import { authenticate, requireAdmin } from '../middleware/authenticate';
+import { adminLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 
 export const logsRouter = Router();
+
+logsRouter.use(adminLimiter);
 
 const logQuerySchema = paginationSchema.extend({
   action: z.string().trim().max(60).optional(),

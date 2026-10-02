@@ -3,7 +3,7 @@
  * production) a demo catalogue.
  *
  * Rules this file follows:
- *  1. Credentials live here, in source, and never in environment variables.
+ *  1. New-account credentials are supplied through ignored environment variables.
  *  2. Every write is create-if-missing. An existing account keeps its password,
  *     role, name and activation state; existing settings, categories and products
  *     are never overwritten. Re-running the seed against the live database is safe.
@@ -11,7 +11,7 @@
  *     reaches PostgreSQL.
  *
  *   npm run db:seed
- *   npm run db:seed -- --admin-password="..." --cashier-password="..." --inventory-password="..."
+ *   Set SEED_ADMIN_PASSWORD / SEED_CASHIER_PASSWORD / SEED_INVENTORY_PASSWORD in apps/api/.env
  *   npm run db:seed -- --link-usernames   # attach short usernames to existing default accounts
  *   npm run db:seed -- --with-demo-data   # also seed the demo catalogue + demo accounts
  */
@@ -19,10 +19,19 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
+import { isLoopbackDatabaseUrl } from '@delivery/shared';
 import { DEFAULT_SETTINGS } from '../src/config/defaults';
 import { hashPassword } from '../src/lib/password';
 
 loadEnv({ path: path.resolve(__dirname, '../.env') });
+
+if (
+  process.env.NODE_ENV === 'production' ||
+  !isLoopbackDatabaseUrl(process.env.DATABASE_URL) ||
+  (process.env.DIRECT_URL && !isLoopbackDatabaseUrl(process.env.DIRECT_URL))
+) {
+  throw new Error('Database seeding is restricted to non-production loopback databases.');
+}
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? '' });
 const prisma = new PrismaClient({ adapter });
@@ -371,18 +380,16 @@ const SETTING_SEEDS = Object.entries(DEFAULT_SETTINGS).map(([key, value]) => ({ 
 type SeedRole = 'CUSTOMER' | 'KITCHEN' | 'DRIVER' | 'ADMIN';
 
 interface SeedAccount {
-  /** Also the CLI flag name for the password, for example `--admin-password`. */
   key: string;
   username: string;
   email: string;
   name: string;
   role: SeedRole;
-  password: string;
   /** Protected accounts cannot be deleted or demoted from the admin UI. */
   isProtected: boolean;
 }
 
-/** Default staff accounts. Override a password with `--<key>-password="..."`. */
+/** Existing account identities; passwords are never stored in source. */
 const STAFF_ACCOUNTS: SeedAccount[] = [
   {
     key: 'admin',
@@ -390,7 +397,6 @@ const STAFF_ACCOUNTS: SeedAccount[] = [
     email: 'admin@deliverysystem.app',
     name: 'Business Owner',
     role: 'ADMIN',
-    password: 'Admin@12345',
     isProtected: true,
   },
   {
@@ -399,7 +405,6 @@ const STAFF_ACCOUNTS: SeedAccount[] = [
     email: 'cashier@deliverysystem.app',
     name: 'Front Counter',
     role: 'KITCHEN',
-    password: 'Cashier@12345',
     isProtected: false,
   },
   {
@@ -411,7 +416,6 @@ const STAFF_ACCOUNTS: SeedAccount[] = [
     // inventory desk gets the operations role. Switch this to 'ADMIN' if that
     // person must also manage the catalogue, stock levels and prices.
     role: 'KITCHEN',
-    password: 'Inventory@12345',
     isProtected: false,
   },
 ];
@@ -424,7 +428,6 @@ const DEMO_ACCOUNTS: SeedAccount[] = [
     email: 'kitchen@deliverysystem.app',
     name: 'Kitchen Station',
     role: 'KITCHEN',
-    password: 'Kitchen@12345',
     isProtected: false,
   },
   {
@@ -433,7 +436,6 @@ const DEMO_ACCOUNTS: SeedAccount[] = [
     email: 'driver@deliverysystem.app',
     name: 'Kwame Rider',
     role: 'DRIVER',
-    password: 'Driver@12345',
     isProtected: false,
   },
   {
@@ -442,12 +444,11 @@ const DEMO_ACCOUNTS: SeedAccount[] = [
     email: 'customer@deliverysystem.app',
     name: 'Ama Mensah',
     role: 'CUSTOMER',
-    password: 'Customer@12345',
     isProtected: false,
   },
 ];
 
-/** `--flag`, `--key=value` command line parsing (no environment variables needed). */
+/** `--flag`, `--key=value` parsing for non-secret seed options. */
 function parseFlags(argv: string[]): Map<string, string> {
   const flags = new Map<string, string>();
   for (const arg of argv) {
@@ -467,7 +468,7 @@ function isUniqueViolation(error: unknown): boolean {
  * Creates the account only when neither its email nor its username exists yet.
  * Existing rows are never modified - not even to reset a forgotten password.
  */
-async function seedAccount(account: SeedAccount, password: string): Promise<'created' | 'kept'> {
+async function seedAccount(account: SeedAccount, password: string | undefined): Promise<'created' | 'kept'> {
   const existing = await prisma.user.findFirst({
     where: { OR: [{ email: account.email }, { username: account.username }] },
     select: { email: true },
@@ -475,6 +476,9 @@ async function seedAccount(account: SeedAccount, password: string): Promise<'cre
   if (existing) {
     console.log(`[seed] kept existing ${account.role} account: ${existing.email}`);
     return 'kept';
+  }
+  if (!password || password.length < 12) {
+    throw new Error(`Set ${`SEED_${account.key.toUpperCase()}_PASSWORD`} to a unique password of at least 12 characters to create this account.`);
   }
 
   const data = {
@@ -626,7 +630,7 @@ async function main(): Promise<void> {
   let created = 0;
   const accounts = withDemo ? [...STAFF_ACCOUNTS, ...DEMO_ACCOUNTS] : STAFF_ACCOUNTS;
   for (const account of accounts) {
-    const password = flags.get(`${account.key}-password`) ?? account.password;
+    const password = process.env[`SEED_${account.key.toUpperCase()}_PASSWORD`];
     if ((await seedAccount(account, password)) === 'created') created += 1;
   }
 

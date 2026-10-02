@@ -4,6 +4,7 @@ import type { SettingsDTO } from '@delivery/shared';
 import { asyncHandler } from '../lib/http';
 import { emailSchema, percentSchema, phoneSchema } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
+import { publicReadLimiter, writeLimiter } from '../middleware/rateLimit';
 import { getPublicSettings, getSettings, updateSettings } from '../services/settings.service';
 import { applyRestaurantStatus, getRestaurantStatus } from '../services/restaurant.service';
 import { logActivity } from '../services/activity-log.service';
@@ -43,6 +44,7 @@ function broadcastSettingsChange(): void {
  */
 settingsRouter.get(
   '/',
+  publicReadLimiter,
   asyncHandler(async (_req, res) => {
     const settings = await getSettings();
     res.json({ settings });
@@ -97,6 +99,7 @@ settingsRouter.patch(
   '/',
   authenticate,
   requireAdmin,
+  writeLimiter,
   asyncHandler(async (req, res) => {
     const patch = updateSettingsSchema.parse(req.body) as Partial<
       Omit<SettingsDTO, 'updatedAt'>

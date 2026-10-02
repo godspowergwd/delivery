@@ -215,7 +215,7 @@ export async function renderReceiptPdf(input: {
         .fillColor('#0f172a')
         .font('Helvetica-Bold')
         .fontSize(10)
-        .text(row[1] || '—', x, metaY + 10, { width: width / 2 - 12 });
+        .text(row[1] || '-', x, metaY + 10, { width: width / 2 - 12 });
     });
 
     // Items table

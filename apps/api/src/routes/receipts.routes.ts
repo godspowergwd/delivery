@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { paginationSchema } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
+import { adminLimiter } from '../middleware/rateLimit';
+import { RECEIPT_HTML_CSP } from '../middleware/security';
 import { prisma } from '../lib/prisma';
 import { notFound } from '../lib/errors';
 import { assertCanViewOrder, getOrderById } from '../services/order.service';
@@ -93,6 +95,9 @@ receiptsRouter.get(
     });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    // The API-wide policy is `default-src 'none'`; this self-contained document
+    // declares exactly the two exceptions it needs (inline style + print button).
+    res.setHeader('Content-Security-Policy', RECEIPT_HTML_CSP);
     res.send(html);
   }),
 );
@@ -145,6 +150,7 @@ receiptsRouter.get(
   '/',
   authenticate,
   requireAdmin,
+  adminLimiter,
   asyncHandler(async (req, res) => {
     const query = paginationSchema.parse(req.query);
     const { skip, take } = paginateQuery(query);

@@ -31,6 +31,10 @@
     "verify:backend": "node scripts/verify-backend.mjs",
     "verify:lifecycle": "node scripts/verify-lifecycle.mjs",
     "perf:login": "node scripts/perf-login.mjs",
+    "load:preflight": "node scripts/loadtest.mjs --preflight=true",
+    "load:test": "node scripts/loadtest.mjs",
+    "load:500": "node scripts/loadtest.mjs --users 500 --duration 60",
+    "test:load-safety": "node --test scripts/loadtest-safety.test.mjs",
     "db:inspect": "node scripts/db-tables.mjs",
     "setup": "npm install && npm run db:up && npm run db:migrate && npm run db:seed",
     "verify": "npm run build:all && npm run db:up && npm run db:migrate && npm run test"

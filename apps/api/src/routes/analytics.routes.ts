@@ -2,10 +2,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../lib/http';
 import { authenticate, requireAdmin } from '../middleware/authenticate';
+import { adminLimiter } from '../middleware/rateLimit';
 import { getAnalyticsCharts, getAnalyticsOverview } from '../services/analytics.service';
 import { prisma } from '../lib/prisma';
 
 export const analyticsRouter = Router();
+
+/** Administrative dashboards are heavy reads, so they carry their own budget. */
+analyticsRouter.use(adminLimiter);
 
 const chartQuerySchema = z.object({
   period: z.enum(['daily', 'weekly', 'monthly', 'yearly']).default('weekly'),

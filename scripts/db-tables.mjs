@@ -4,9 +4,12 @@
  * named by DATABASE_URL (defaults to the project local cluster on port 5433).
  */
 import { Client } from 'pg';
+import { loadApiEnvironment } from './loadtest-safety.mjs';
+import { requireLocalReadOnlyDatabase } from './test-safety.mjs';
 
-const connectionString =
-  process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5433/delivery_system';
+const environment = loadApiEnvironment();
+const connectionString = environment.DATABASE_URL;
+requireLocalReadOnlyDatabase(connectionString, environment.NODE_ENV);
 const { hostname, port, pathname } = new URL(connectionString);
 console.log(`[db] host=${hostname} port=${port} database=${pathname.slice(1)}`);
 

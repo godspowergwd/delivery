@@ -15,7 +15,10 @@ import { getSettings } from './settings.service';
 import { isWithinDeliveryZone } from './geo.service';
 import { notifyAdmins, notifyCustomer, notifyDrivers, notifyKitchen, notifyUser } from './notification.service';
 import { emitToRole, emitToUser } from '../realtime/socket';
-import { ORDER_INCLUDE, serializeOrder, type OrderWithRelations } from './serializers';
+import { ORDER_INCLUDE, serializeDriverOffer, serializeOrder, type OrderWithRelations } from './serializers';
+import { canViewOrder } from './order-access.service';
+import { decrementOrderStock } from './order-stock';
+import { invalidateActiveDeliveryTargets } from './driver-delivery-cache';
 import type { SessionUser } from '../middleware/authenticate';
 import type { Request } from 'express';
 
@@ -117,8 +120,7 @@ export async function getOrderByNumber(orderNumber: string): Promise<OrderWithRe
 
 /** Central read-permission check for a single order. */
 export function assertCanViewOrder(order: OrderWithRelations, user: SessionUser): void {
-  if (user.role === 'ADMIN' || user.role === 'KITCHEN') return;
-  if (order.customerId !== user.id) {
+  if (!canViewOrder(order, user)) {
     throw forbidden('You can only view your own orders.');
   }
 }
@@ -233,10 +235,7 @@ async function persistOrder(params: {
         });
 
         for (const line of draft.lineDrafts) {
-          await tx.product.update({
-            where: { id: line.productId },
-            data: { stock: { decrement: line.quantity } },
-          });
+          await decrementOrderStock(tx, line);
         }
 
         return order.id;
@@ -724,10 +723,13 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
     return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE });
   }, { maxWait: 10_000, timeout: 30_000 });
 
+  invalidateActiveDeliveryTargets(order.driverId);
+
   const dto = serializeOrder(updated);
+  const driverOffer = serializeDriverOffer(updated);
   emitToRole('KITCHEN', 'order:updated', { order: dto, previousStatus: order.status });
   emitToRole('ADMIN', 'order:updated', { order: dto, previousStatus: order.status });
-  emitToRole('DRIVER', 'order:updated', { order: dto, previousStatus: order.status });
+  emitToRole('DRIVER', 'order:updated', { order: driverOffer, previousStatus: order.status });
   if (order.customerId) {
     emitToUser(order.customerId, 'order:updated', { order: dto, previousStatus: order.status });
   }
@@ -746,7 +748,7 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
     }
     await notifyAdmins({
       title: `Order ${order.orderNumber} cancelled`,
-      body: `${statusLabel(order.status)} → Cancelled by ${actor.name}.`,
+      body: `${statusLabel(order.status)} to Cancelled by ${actor.name}.`,
       type: 'BUSINESS_ALERT',
       audience: 'ADMIN',
       orderId: order.id,
@@ -805,7 +807,7 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
     action: `ORDER_${to}`,
     entity: 'Order',
     entityId: order.id,
-    description: `Order ${order.orderNumber}: ${statusLabel(order.status)} → ${statusLabel(to)}`,
+    description: `Order ${order.orderNumber}: ${statusLabel(order.status)} to ${statusLabel(to)}`,
     metadata: { note: note ?? null, actorRole: actor.role },
     userId: actor.id,
     actorEmail: actor.email,
@@ -864,10 +866,14 @@ export async function assignDriver(params: {
     return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE });
   }, { maxWait: 10_000, timeout: 30_000 });
 
+  invalidateActiveDeliveryTargets(previousDriverId);
+  invalidateActiveDeliveryTargets(driverId);
+
   const dto = serializeOrder(updated);
+  const driverOffer = serializeDriverOffer(updated);
   emitToRole('KITCHEN', 'order:updated', { order: dto, previousStatus: order.status });
   emitToRole('ADMIN', 'order:updated', { order: dto, previousStatus: order.status });
-  emitToRole('DRIVER', 'order:updated', { order: dto, previousStatus: order.status });
+  emitToRole('DRIVER', 'order:updated', { order: driverOffer, previousStatus: order.status });
   if (order.customerId) {
     emitToUser(order.customerId, 'order:updated', { order: dto, previousStatus: order.status });
   }

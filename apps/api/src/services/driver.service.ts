@@ -8,7 +8,7 @@ import { hashPassword } from '../lib/password';
 import { resetUserPassword } from './auth.service';
 import { logActivity } from './activity-log.service';
 import { notifyUser } from './notification.service';
-import { emitToRole } from '../realtime/socket';
+import { disconnectUserSockets, emitToRole } from '../realtime/socket';
 import type { SessionUser } from '../middleware/authenticate';
 
 /**
@@ -274,6 +274,7 @@ export async function setDriverActive(params: {
       where: { userId: driverId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    disconnectUserSockets(driverId);
     await prisma.driverLocation
       .updateMany({ where: { driverId }, data: { isOnline: false } })
       .catch(() => undefined);
