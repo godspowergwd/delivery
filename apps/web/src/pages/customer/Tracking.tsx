@@ -146,7 +146,7 @@ export default function CustomerTracking() {
     return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
       {/* The map container is always mounted so useLiveMap can construct the Mapbox
-          instance on the first render â€” the hook builds the map once, on mount, and
+          instance on the first render — the hook builds the map once, on mount, and
           never re-runs for the same ref object. Rendering the container here (instead
           of inside the `!orderData` branch) is what makes the map actually appear;
           the loading spinner below simply overlays it while the order resolves. */}

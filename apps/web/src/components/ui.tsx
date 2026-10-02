@@ -1,4 +1,5 @@
 ﻿import { clsx } from 'clsx';
+import { Eye, EyeOff } from 'lucide-react';
 import {
   useEffect,
   useRef,
@@ -28,7 +29,7 @@ import {
 } from './icons';
 
 /* ===========================================================================
-   ONYX UI kit â€” one design language for every screen.
+   ONYX UI kit — one design language for every screen.
 
    Rules: white surfaces, soft shadows, large radii, 44px+ touch targets, red
    primary actions, green confirmations, glossy highlights, ripple + lift
@@ -162,7 +163,7 @@ export function Card({
   );
 }
 
-/** Section heading with an optional action slot ("See all", filter chipâ€¦). */
+/** Section heading with an optional action slot ("See all", filter chip…). */
 export function SurfaceSection({
   title,
   action,
@@ -227,16 +228,16 @@ export function Badge({
  */
 const STATUS_TONE_CLASSES: Record<string, string> = {
   neutral: 'bg-slate-100 text-slate-600',
-  // Order placed â€” balanced white pill with a red edge and a green edge.
+  // Order placed — balanced white pill with a red edge and a green edge.
   placed:
     'bg-white text-red-800 ring-1 ring-inset ring-red-200 shadow-[inset_5px_0_0_0_#e30613,inset_-5px_0_0_0_#0a8058]',
-  // Order accepted â€” green active-service surface with a red supporting edge.
+  // Order accepted — green active-service surface with a red supporting edge.
   accepted: 'bg-green-600 text-white ring-1 ring-inset ring-green-700 shadow-[inset_5px_0_0_0_#e30613]',
-  // Serving â€” red food-preparation surface with a green freshness edge.
+  // Serving — red food-preparation surface with a green freshness edge.
   prep: 'bg-red-600 text-white ring-1 ring-inset ring-red-700 shadow-[inset_-5px_0_0_0_#0a8058]',
-  // Out for delivery â€” red delivery-action surface with a green route edge.
+  // Out for delivery — red delivery-action surface with a green route edge.
   route: 'bg-red-700 text-white ring-1 ring-inset ring-red-800 shadow-[inset_5px_0_0_0_#0a8058]',
-  // Delivered â€” green completion surface with a red confirmation edge.
+  // Delivered — green completion surface with a red confirmation edge.
   delivered:
     'bg-green-700 text-white ring-1 ring-inset ring-green-800 shadow-[inset_5px_0_0_0_#e30613]',
   danger: 'bg-white text-red-700 ring-1 ring-inset ring-red-300',
@@ -441,6 +442,37 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   return <input ref={ref} {...rest} className={clsx(FIELD, className)} />;
 });
 
+export function PasswordInput({
+  className,
+  disabled,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  const [visible, setVisible] = useState(false);
+  const label = visible ? 'Hide password' : 'Show password';
+
+  return (
+    <span className="relative block">
+      <Input
+        {...rest}
+        disabled={disabled}
+        type={visible ? 'text' : 'password'}
+        className={clsx('pr-12', className)}
+      />
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={visible}
+        title={label}
+        disabled={disabled}
+        onClick={() => setVisible((current) => !current)}
+        className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {visible ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+      </button>
+    </span>
+  );
+}
+
 export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...rest} className={clsx(FIELD, 'min-h-24 resize-y', className)} />;
 }
@@ -468,11 +500,13 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label htmlFor={htmlFor} className="block space-y-1.5">
-      <span className="text-sm font-semibold text-slate-600">{label}</span>
+    <div className="block space-y-1.5">
+      <label htmlFor={htmlFor} className="block text-sm font-semibold text-slate-600">
+        {label}
+      </label>
       {children}
       {hint && <span className="block text-sm text-slate-500">{hint}</span>}
-    </label>
+    </div>
   );
 }
 

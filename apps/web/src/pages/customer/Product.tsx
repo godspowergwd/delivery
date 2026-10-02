@@ -53,7 +53,7 @@ export function ProductPage() {
     requireAuth(
       () => {
         add(data, quantity, notes.trim() || null);
-        toast(`Added ${quantity} Ã- ${data.name}`, 'success');
+        toast(`Added ${quantity} × ${data.name}`, 'success');
         navigate('/app/cart');
       },
       {
@@ -146,7 +146,7 @@ export function ProductPage() {
               className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-lg font-bold text-slate-800 transition hover:bg-slate-200 active:scale-95"
               aria-label="Decrease quantity"
             >
-              âˆ’
+              −
             </button>
             <span className="w-8 text-center text-lg font-extrabold text-slate-900">{quantity}</span>
             <button
@@ -167,7 +167,7 @@ export function ProductPage() {
         />
       </Card>
 
-      {/* Sticky purchase bar â€” always within thumb reach, like Bolt Food. */}
+      {/* Sticky purchase bar — always within thumb reach, like Bolt Food. */}
       <div className="pb-safe sticky bottom-0 z-30 -mx-4 mt-2 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(19,26,38,0.08)] backdrop-blur lg:-mx-8 lg:px-8">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-2xl bg-slate-100 p-1">
@@ -176,7 +176,7 @@ export function ProductPage() {
               className="flex h-10 w-10 items-center justify-center rounded-xl text-lg font-bold text-slate-700 transition hover:bg-white active:scale-95"
               aria-label="Decrease quantity"
             >
-              âˆ’
+              −
             </button>
             <span className="w-7 text-center font-extrabold text-slate-900">{quantity}</span>
             <button
@@ -188,7 +188,7 @@ export function ProductPage() {
             </button>
           </div>
           <Button size="lg" className="flex-1" disabled={soldOut} onClick={addToCart}>
-            {soldOut ? 'Sold out' : `Add Â· ${formatMoney(data.price * quantity)}`}
+            {soldOut ? 'Sold out' : `Add · ${formatMoney(data.price * quantity)}`}
           </Button>
         </div>
       </div>

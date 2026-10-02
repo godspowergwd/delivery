@@ -1,5 +1,5 @@
 ﻿/**
- * Draggable bottom sheet with three snap points â€” the Bolt Food driver
+ * Draggable bottom sheet with three snap points — the Bolt Food driver
  * pattern: expanded (full order details), collapsed (summary) and peek
  * (handle only, map nearly full-screen).
  *
@@ -174,7 +174,7 @@ export function DragSheet({
       style={style}
       aria-label={ariaLabel}
     >
-      {/* Red-and-green status edge â€” both colours present on every snap. */}
+      {/* Red-and-green status edge — both colours present on every snap. */}
       <div className="duo-progress h-1 w-full flex-none" aria-hidden="true" />
 
       <div

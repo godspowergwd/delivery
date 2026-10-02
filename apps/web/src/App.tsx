@@ -80,7 +80,7 @@ export function App() {
         </Route>
       </Route>
 
-      {/* Account settings â€” guests get the sign-in sheet instead of a redirect. */}
+      {/* Account settings — guests get the sign-in sheet instead of a redirect. */}
       <Route element={<RequireAccount />}>
         <Route element={<AppShell />}>
           <Route path="/settings" element={<LazyRoute><AccountSettings /></LazyRoute>} />

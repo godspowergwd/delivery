@@ -7,14 +7,14 @@
  *
  * The basemap itself is keyless by default (OpenFreeMap vector tiles, see
  * `map-config.ts`). A public `VITE_MAPBOX_TOKEN` is only needed when the app
- * is configured to use the Mapbox-hosted style â€” it authenticates the
+ * is configured to use the Mapbox-hosted style — it authenticates the
  * `mapbox://` URLs inside that style (tiles, glyphs, sprites), nothing else.
  */
 
 import { mapboxAccessToken, mapStyleUrl } from './map-config';
 
 export type MapModule = typeof import('mapbox-gl');
-/** The bundle's default export carries every runtime member (Map, Marker, â€¦). */
+/** The bundle's default export carries every runtime member (Map, Marker, …). */
 export type MapboxGL = MapModule['default'];
 /** Instance types for the lazily-imported engine (type-only, fully erased). */
 export type GLMap = InstanceType<MapboxGL['Map']>;
@@ -28,13 +28,13 @@ let enginePromise: Promise<MapboxGL> | null = null;
  * then finds its style already cached on the first frame it renders.
  *
  * Best effort by design: any failure (offline, blocked host, no fetch) is
- * ignored â€” the map still requests the style itself.
+ * ignored — the map still requests the style itself.
  */
 function prefetchStyle(): void {
   try {
     void fetch(mapStyleUrl(), { credentials: 'omit' }).catch(() => undefined);
   } catch {
-    /* no fetch on this browser â€” the map loads the style on its own */
+    /* no fetch on this browser — the map loads the style on its own */
   }
 }
 
@@ -66,13 +66,13 @@ export function loadMapGL(): Promise<MapboxGL> {
  * tolerant expression evaluation, while Mapbox GL JS v3 type-checks strictly. Two concrete
  * mismatches surface as a console error per tile, per feature:
  *
- *   1. `["<=", ["get","ref_length"], 6]` â€” the compiler asserts the property is a number,
+ *   1. `["<=", ["get","ref_length"], 6]` — the compiler asserts the property is a number,
  *      so every feature that lacks `ref_length` throws
  *      `The expression ["get","ref_length"] evaluated to null but was expected to be of type number`
  *      (three highway-shield layers do this on every tile).
  *   2. The styles' sprite omits several icon names their own POI layers request
  *      (`recycling`, `office`, `gate`, `swimming_pool`, `sports_centre`), so every tile logs
- *      `Image "â€¦" could not be loaded`.
+ *      `Image "…" could not be loaded`.
  *
  * Both are neutralised below without changing what renders.
  * ---------------------------------------------------------------------------------------- */
@@ -88,7 +88,7 @@ function sentinelFor(op: string): number {
   return op === '>' || op === '>=' ? MISSING_LOWER : MISSING_HIGHER;
 }
 
-/** `["get", K]` â€” or the asserted `["number", ["get", K]]` the compiler hands back. */
+/** `["get", K]` — or the asserted `["number", ["get", K]]` the compiler hands back. */
 function propertyRead(node: unknown): string | null {
   if (!Array.isArray(node) || node.length !== 2) return null;
   if (node[0] === 'get' && typeof node[1] === 'string') return node[1];
@@ -159,8 +159,8 @@ export function relaxStyleFilters(map: GLMap): number {
 }
 
 /**
- * `styleimagemissing` listener: registers a fully transparent 1Ã-1 pixel under
- * the missing id. Nothing was drawn for these icons before either â€” but without
+ * `styleimagemissing` listener: registers a fully transparent 1×1 pixel under
+ * the missing id. Nothing was drawn for these icons before either — but without
  * a listener Mapbox logs an error for every tile that references one.
  */
 export function handleMissingStyleImage(map: GLMap, event: unknown): void {
@@ -176,12 +176,12 @@ export function handleMissingStyleImage(map: GLMap, event: unknown): void {
  * `mapbox.mapbox-incidents-v1`) with coverage over only a few regions: every
  * tile over Ghana answers **404**, so the console fills with alarming
  * "Failed to load resource" errors on a screen that renders perfectly. The
- * layers it feeds are motorway closures and their endpoints â€” no value in this
- * delivery map â€” and removing them stops the tile requests entirely.
+ * layers it feeds are motorway closures and their endpoints — no value in this
+ * delivery map — and removing them stops the tile requests entirely.
  *
  * Idempotent (no-op once removed, or when a style has no such source), safe to
  * call from every style event, and fully swallowed if a style rejects the edit
- * mid-swap â€” the next `style.load` retries.
+ * mid-swap — the next `style.load` retries.
  */
 export function dropUncoveredIncidentLayers(map: GLMap): void {
   let spec: { layers?: unknown[] };
@@ -189,7 +189,7 @@ export function dropUncoveredIncidentLayers(map: GLMap): void {
     if (!map.getSource('mapbox-incidents')) return;
     spec = map.getStyle() as unknown as { layers?: unknown[] };
   } catch {
-    return; // style not queryable yet â€” the next style event retries
+    return; // style not queryable yet — the next style event retries
   }
   try {
     for (const entry of spec.layers ?? []) {
@@ -204,7 +204,7 @@ export function dropUncoveredIncidentLayers(map: GLMap): void {
 }
 
 /* -------------------------------------------------------------------------------------------
- * Development instrumentation â€” never called by the app itself.
+ * Development instrumentation — never called by the app itself.
  *
  * `instrumentGL` wraps the engine's constructor, teardown, style swaps and the paint
  * entry point so the navigation-audit page (`src/map-audit.tsx`, served by Vite at
