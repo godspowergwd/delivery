@@ -83,7 +83,7 @@ export function AuthSheet() {
               spellCheck={false}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
+              placeholder="Email"
             />
           </Field>
           <Field label="Password" htmlFor="auth-sheet-password">
