@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { CategoryDTO, OrderDTO, Paginated, ProductDTO, SettingsDTO } from '@delivery/shared';
+import type { CategoryDTO, OrderDTO, Paginated, ProductDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useCart } from '../../lib/cart';
 import { Reveal } from '../../components/motion';
 import { FoodCard } from '../../components/FoodCard';
-import { MapPreview } from '../../components/MapPreview';
 import { CategoryRail, DeliveryStatusBar, PromoCapture, TrustRow } from '../../components/home';
 import { SearchIcon, SparkleIcon, TruckIcon } from '../../components/icons';
 import { Card, Spinner, StatusPill } from '../../components/ui';
@@ -48,12 +47,6 @@ export default function CustomerHome() {
     enabled: Boolean(user),
     refetchInterval: 15_000,
     staleTime: 10_000,
-  });
-
-  const { data: settingsData } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
-    staleTime: 300_000,
   });
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
@@ -156,44 +149,6 @@ export default function CustomerHome() {
             Order today and taste the difference.
           </p>
         </Link>
-      </Reveal>
-
-      {/* ---------- Delivery area map preview (browseable by guests) ---------- */}
-      <Reveal>
-        <section
-          aria-label="Delivery area"
-          className="duo-top overflow-hidden rounded-card bg-white shadow-card ring-1 ring-inset ring-slate-200/60"
-        >
-          <div className="flex items-start justify-between gap-3 p-4 pb-3">
-            <div className="min-w-0">
-              <h2 className="text-base font-extrabold tracking-tight text-red-700">
-                We deliver across Mallam & Gbawe
-              </h2>
-              <p className="mt-0.5 truncate text-[13px] text-slate-500">
-                {settingsData?.settings.businessAddress ?? 'Mallam, Greater Accra'}
-              </p>
-            </div>
-            <Link
-              to="/app/track"
-              className="flex-none rounded-full bg-green-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-green transition hover:bg-green-700 active:scale-95"
-            >
-              Live map
-            </Link>
-          </div>
-          <MapPreview
-            lat={settingsData?.settings.businessLatitude ?? 5.571264}
-            lng={settingsData?.settings.businessLongitude ?? -0.284093}
-            address={settingsData?.settings.businessAddress ?? 'Mallam Junction, Accra'}
-            className="h-40 !rounded-none border-0"
-            label="Maame’s Waakye delivery area"
-          />
-          <div className="flex flex-wrap gap-1.5 p-3">
-            <span className="food-chip">mallam</span>
-            <span className="food-chip">gbawe</span>
-            <span className="food-chip">weija</span>
-            <span className="food-chip food-chip-red">25 min avg</span>
-          </div>
-        </section>
       </Reveal>
 
       {/* ---------- Popular now ---------- */}
