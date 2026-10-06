@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth';
 import { useCart } from '../../lib/cart';
 import type { PlaceSuggestion } from '../../lib/geocode';
 import {
+  isValidDeliveryCoordinates,
   clearConfirmedDeliveryLocation,
   readConfirmedDeliveryLocation,
   saveConfirmedDeliveryLocation,
@@ -69,6 +70,7 @@ export function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'MOBILE_MONEY'>('CASH');
   const [pendingOrder, setPendingOrder] = useState<OrderSubmissionPayload | null>(() => readPendingOrder(user?.id));
   const pendingOrderRef = useRef(pendingOrder);
+  const addressTouchedRef = useRef(false);
 
   const { data: settingsData } = useQuery({
     queryKey: ['settings'],
@@ -96,13 +98,14 @@ export function Checkout() {
   );
 
   const selectLocation = (place: PlaceSuggestion | null): void => {
+    addressTouchedRef.current = true;
     setSelected(place);
     setConfirmedLocation(null);
     clearConfirmedDeliveryLocation(user?.id);
   };
 
   const confirmLocation = (): void => {
-    if (!selected || !confirmedSource || !Number.isFinite(selected.lat) || !Number.isFinite(selected.lng)) {
+    if (!selected || !confirmedSource || !isValidDeliveryCoordinates(selected.lat, selected.lng)) {
       toast('Choose a valid map location before confirming it.', 'error');
       return;
     }
@@ -136,7 +139,7 @@ export function Checkout() {
 
   // Preselect the saved default address once, before the guest touches the field.
   useEffect(() => {
-    if (selected || confirmedLocation || !addressData) return;
+    if (selected || confirmedLocation || !addressData || addressTouchedRef.current) return;
     const saved = addressData.addresses.find((a) => a.isDefault) ?? addressData.addresses[0];
     if (!saved) return;
     const label = [saved.line1, saved.area, saved.city].filter(Boolean).join(', ');
@@ -304,6 +307,11 @@ export function Checkout() {
           required
           disabled={Boolean(pendingOrder)}
         />
+        {addressText.trim() && !selected && (
+          <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+            Choose a matching address suggestion to confirm the location and save its delivery coordinates.
+          </p>
+        )}
         {zoneCheck.data && (
           <p
             role="status"
@@ -459,4 +467,3 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

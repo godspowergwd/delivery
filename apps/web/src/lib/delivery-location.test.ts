@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  isValidDeliveryCoordinates,
   isConfirmedDeliveryLocation,
   readConfirmedDeliveryLocation,
   saveConfirmedDeliveryLocation,
@@ -20,6 +21,15 @@ const gpsLocation: ConfirmedDeliveryLocation = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('confirmed delivery location', () => {
+  it('requires finite, in-range, non-zero coordinates for delivery', () => {
+    expect(isValidDeliveryCoordinates(5.57741, -0.31041)).toBe(true);
+    expect(isValidDeliveryCoordinates(91, -0.31041)).toBe(false);
+    expect(isValidDeliveryCoordinates(5.57741, 181)).toBe(false);
+    expect(isValidDeliveryCoordinates(0, -0.31041)).toBe(false);
+    expect(isValidDeliveryCoordinates(5.57741, 0)).toBe(false);
+    expect(isValidDeliveryCoordinates(null, -0.31041)).toBe(false);
+  });
+
   it('keeps GPS capture coordinates separate from the navigation destination', () => {
     expect(isConfirmedDeliveryLocation({
       ...gpsLocation,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { serializeDriverOffer, type OrderWithRelations } from './serializers';
+import { serializeDriverOffer, serializeOrder, type OrderWithRelations } from './serializers';
 
 const privateOrder = {
   id: 'order-1',
@@ -63,5 +63,13 @@ describe('unassigned driver offer serialization', () => {
     expect(offer.notes).toBeNull();
     expect(offer.items).toEqual([]);
     expect(offer.hasReceipt).toBe(false);
+  });
+
+  it('preserves the full customer destination for an assigned driver order', () => {
+    const order = serializeOrder(privateOrder);
+    expect(order.deliveryAddress).toBe('24 Private Street, Mallam');
+    expect(order.deliveryLatitude).toBe(5.5774);
+    expect(order.deliveryLongitude).toBe(-0.3104);
+    expect(order.deliveryLocationSource).toBe('gps');
   });
 });

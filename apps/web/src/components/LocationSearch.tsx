@@ -2,11 +2,13 @@ import { clsx } from 'clsx';
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import type { PlaceSuggestion } from '../lib/geocode';
 import { currentLocationPlace, suggestPlaces } from '../lib/geocode';
 import { toast } from '../lib/realtime';
@@ -14,6 +16,15 @@ import { Field, Input } from './ui';
 import { CheckIcon, LocateIcon, MapPinIcon, SearchIcon, StoreIcon, XIcon } from './icons';
 
 const SEARCH_DEBOUNCE_MS = 250;
+const SUGGESTION_LIST_MAX_HEIGHT = 288;
+const VIEWPORT_GUTTER = 8;
+
+interface SuggestionPosition {
+  top: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+}
 
 const KIND_ICON: Record<PlaceSuggestion['kind'], (className?: string) => ReactNode> = {
   landmark: (className) => <StoreIcon className={className} />,
@@ -58,10 +69,12 @@ export function LocationSearch({
   const listId = `${inputId}-listbox`;
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [popupPosition, setPopupPosition] = useState<SuggestionPosition | null>(null);
   const requestRef = useRef<{ controller: AbortController; timer: number } | null>(null);
 
   /* Debounced fetch with abort of the previous keystroke's request. */
@@ -70,6 +83,13 @@ export function LocationSearch({
       window.clearTimeout(requestRef.current.timer);
       requestRef.current.controller.abort();
       requestRef.current = null;
+    }
+    if (selected && value === selected.label) {
+      setSuggestions([]);
+      setSearching(false);
+      setActiveIndex(-1);
+      setOpen(false);
+      return;
     }
     const query = value.trim();
     if (query.length < 3) {
@@ -101,18 +121,22 @@ export function LocationSearch({
       controller.abort();
       if (requestRef.current === request) requestRef.current = null;
     };
-  }, [value]);
+  }, [value, selected]);
 
   /* Close when tapping outside (mouse + touch). */
   useEffect(() => {
     const onOutside = (event: Event) => {
-      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (
+        !wrapRef.current?.contains(target) &&
+        !popupRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
     };
-    document.addEventListener('mousedown', onOutside);
-    document.addEventListener('touchstart', onOutside);
+    document.addEventListener('pointerdown', onOutside);
     return () => {
-      document.removeEventListener('mousedown', onOutside);
-      document.removeEventListener('touchstart', onOutside);
+      document.removeEventListener('pointerdown', onOutside);
     };
   }, []);
 
@@ -185,6 +209,55 @@ export function LocationSearch({
   };
 
   const showList = open && (suggestions.length > 0 || searching);
+  const showNoMatches = open && !searching && value.trim().length >= 3 && suggestions.length === 0;
+  const showPopup = showList || showNoMatches;
+
+  useLayoutEffect(() => {
+    if (!showPopup) {
+      setPopupPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const input = inputRef.current;
+      if (!input) return;
+
+      const rect = input.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportWidth = viewport?.width ?? window.innerWidth;
+      const width = Math.min(rect.width, Math.max(0, viewportWidth - VIEWPORT_GUTTER * 2));
+      const left = Math.max(
+        viewportLeft + VIEWPORT_GUTTER,
+        Math.min(rect.left, viewportLeft + viewportWidth - width - VIEWPORT_GUTTER),
+      );
+      const below = Math.max(0, viewportTop + viewportHeight - rect.bottom - VIEWPORT_GUTTER);
+      const above = Math.max(0, rect.top - viewportTop - VIEWPORT_GUTTER);
+      const openAbove = below < Math.min(160, SUGGESTION_LIST_MAX_HEIGHT) && above > below;
+      const maxHeight = Math.min(SUGGESTION_LIST_MAX_HEIGHT, openAbove ? above : below);
+
+      setPopupPosition({
+        top: openAbove ? rect.top - maxHeight - 4 : rect.bottom + 4,
+        left,
+        width,
+        maxHeight,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    window.visualViewport?.addEventListener('resize', updatePosition);
+    window.visualViewport?.addEventListener('scroll', updatePosition);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.visualViewport?.removeEventListener('resize', updatePosition);
+      window.visualViewport?.removeEventListener('scroll', updatePosition);
+    };
+  }, [showPopup, suggestions.length, searching]);
 
   return (
     <div className={clsx('relative', className)} ref={wrapRef}>
@@ -253,68 +326,84 @@ export function LocationSearch({
         My Location
       </button>
 
-      {showList && (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-label="Address suggestions"
-          className="absolute z-30 mt-1 max-h-72 w-full divide-y divide-green-50 overflow-y-auto rounded-2xl border border-green-200 bg-white shadow-lift"
+      {showPopup && popupPosition && createPortal(
+        <div
+          ref={popupRef}
+          className="rounded-2xl bg-white shadow-lift"
+          style={{
+            position: 'fixed',
+            top: popupPosition.top,
+            left: popupPosition.left,
+            width: popupPosition.width,
+            maxHeight: popupPosition.maxHeight,
+            zIndex: 10000,
+          }}
         >
-          {searching && suggestions.length === 0 && (
-            <li className="px-4 py-3 text-sm text-slate-500">Searching real places…</li>
+          {showList ? (
+            <ul
+              id={listId}
+              role="listbox"
+              aria-label="Address suggestions"
+              className="divide-y divide-green-50 overflow-y-auto rounded-2xl border border-green-200 bg-white"
+              style={{ maxHeight: popupPosition.maxHeight }}
+            >
+              {searching && suggestions.length === 0 && (
+                <li className="px-4 py-3 text-sm text-slate-500">Searching real places…</li>
+              )}
+              {suggestions.map((place, index) => {
+                const active = index === activeIndex;
+                const isSelected = selected?.id === place.id;
+                return (
+                  <li key={place.id} role="none">
+                    <button
+                      type="button"
+                      id={`${listId}-${index}`}
+                      role="option"
+                      aria-selected={isSelected}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => pick(place)}
+                      className={clsx(
+                        'flex w-full items-center gap-3 px-3 py-3 text-left transition',
+                        isSelected
+                          ? 'bg-green-50 ring-1 ring-inset ring-green-600'
+                          : active
+                            ? 'bg-red-50'
+                            : 'bg-white hover:bg-green-50',
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          'flex h-9 w-9 flex-none items-center justify-center rounded-xl',
+                          isSelected || place.kind === 'gps'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-green-50 text-green-700',
+                        )}
+                        aria-hidden="true"
+                      >
+                        {KIND_ICON[place.kind]('h-4 w-4')}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold text-slate-900">
+                          {place.label}
+                        </span>
+                        <span className="block truncate text-xs text-slate-500">{place.address}</span>
+                      </span>
+                      {isSelected && (
+                        <CheckIcon className="h-4 w-4 flex-none text-green-700" aria-hidden="true" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm text-slate-600">
+              No real place matches “{value.trim()}”. Try a landmark like{' '}
+              <span className="font-semibold text-green-700">Mallam Junction</span>.
+            </div>
           )}
-          {suggestions.map((place, index) => {
-            const active = index === activeIndex;
-            const isSelected = selected?.id === place.id;
-            return (
-              <li key={place.id} role="none">
-                <button
-                  type="button"
-                  id={`${listId}-${index}`}
-                  role="option"
-                  aria-selected={isSelected}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => pick(place)}
-                  className={clsx(
-                    'flex w-full items-center gap-3 px-3 py-3 text-left transition',
-                    isSelected
-                      ? 'bg-green-50 ring-1 ring-inset ring-green-600'
-                      : active
-                        ? 'bg-red-50'
-                        : 'bg-white hover:bg-green-50',
-                  )}
-                >
-                  <span
-                    className={clsx(
-                      'flex h-9 w-9 flex-none items-center justify-center rounded-xl',
-                      isSelected || place.kind === 'gps'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-green-50 text-green-700',
-                    )}
-                    aria-hidden="true"
-                  >
-                    {KIND_ICON[place.kind]('h-4 w-4')}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-slate-900">
-                      {place.label}
-                    </span>
-                    <span className="block truncate text-xs text-slate-500">{place.address}</span>
-                  </span>
-                  {isSelected && (
-                    <CheckIcon className="h-4 w-4 flex-none text-green-700" aria-hidden="true" />
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {open && !searching && value.trim().length >= 3 && suggestions.length === 0 && (
-        <div className="absolute z-30 mt-1 w-full rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-lift">
-          No real place matches “{value.trim()}”. Try a landmark like{' '}
-          <span className="font-semibold text-green-700">Mallam Junction</span>.
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

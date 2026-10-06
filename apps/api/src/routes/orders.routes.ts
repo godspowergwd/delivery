@@ -23,7 +23,7 @@ import { buildTrackingSnapshot, listLiveDrivers } from '../services/tracking.ser
 
 export const ordersRouter = Router();
 
-const createOrderSchema = z.object({
+export const createOrderSchema = z.object({
   items: z
     .array(
       z.object({

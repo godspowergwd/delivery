@@ -10,6 +10,7 @@ import { useRealtimeSync, toast } from '../../lib/realtime';
 import { useDeviceLocation } from '../../lib/geolocation';
 import { useDeviceHeading } from '../../lib/device-heading';
 import { useLocationPublisher } from '../../lib/tracking';
+import { isValidDeliveryCoordinates } from '../../lib/delivery-location';
 import { MALAM_CENTER } from '../../lib/live-map';
 import { calculateRouteProgress, useDeliveryRoute } from '../../lib/route';
 import { LiveMap, useLiveMap } from '../../components/LiveMap';
@@ -129,14 +130,13 @@ export default function DriverMap() {
   /** Delivery point: the REAL checkout GPS coordinate — never a fake pin. */
   const destination = useMemo(() => {
     if (!selected) return null;
+    const { deliveryLatitude, deliveryLongitude } = selected;
     if (
-      typeof selected.deliveryLatitude === 'number' &&
-      typeof selected.deliveryLongitude === 'number' &&
-      Number.isFinite(selected.deliveryLatitude) &&
-      Number.isFinite(selected.deliveryLongitude) &&
-      (selected.deliveryLatitude !== 0 || selected.deliveryLongitude !== 0)
+      typeof deliveryLatitude === 'number' &&
+      typeof deliveryLongitude === 'number' &&
+      isValidDeliveryCoordinates(deliveryLatitude, deliveryLongitude)
     ) {
-      return { lat: selected.deliveryLatitude, lng: selected.deliveryLongitude, exact: true };
+      return { lat: deliveryLatitude, lng: deliveryLongitude, exact: true };
     }
     return null;
   }, [selected]);
@@ -901,5 +901,3 @@ function IssueDialog({ order, onClose }: { order: OrderDTO; onClose: () => void 
     </Modal>
   );
 }
-
-

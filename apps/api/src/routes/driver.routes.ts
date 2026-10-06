@@ -97,7 +97,7 @@ driverRouter.get(
       take: 100,
     });
 
-    res.json({ data: orders.map(serializeDriverOffer) });
+    res.json({ data: orders.map(serializeOrder) });
   }),
 );
 
@@ -278,4 +278,3 @@ driverRouter.post(
     res.json({ data: serializeOrder(order), message: 'The issue was reported to the administrators.' });
   }),
 );
-

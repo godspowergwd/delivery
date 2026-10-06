@@ -11,16 +11,21 @@ export interface ConfirmedDeliveryLocation {
   confirmedAt: string;
 }
 
-const STORAGE_PREFIX = 'ds_confirmed_delivery_location_v1:';
-
-function isCoordinatePair(latitude: unknown, longitude: unknown): boolean {
+export function isValidDeliveryCoordinates(latitude: unknown, longitude: unknown): boolean {
   return typeof latitude === 'number' &&
     typeof longitude === 'number' &&
     Number.isFinite(latitude) &&
     Number.isFinite(longitude) &&
     latitude >= -90 && latitude <= 90 &&
     longitude >= -180 && longitude <= 180 &&
-    (latitude !== 0 || longitude !== 0);
+    latitude !== 0 &&
+    longitude !== 0;
+}
+
+const STORAGE_PREFIX = 'ds_confirmed_delivery_location_v1:';
+
+function isCoordinatePair(latitude: unknown, longitude: unknown): boolean {
+  return isValidDeliveryCoordinates(latitude, longitude);
 }
 
 export function isConfirmedDeliveryLocation(value: unknown): value is ConfirmedDeliveryLocation {
