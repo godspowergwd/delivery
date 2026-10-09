@@ -322,7 +322,7 @@ export function AppShell() {
   };
 
   return (
-    <div className="min-h-dvh bg-slate-50 lg:flex">
+    <div className="min-h-dvh bg-white lg:flex">
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh w-64 flex-none flex-col border-r border-slate-200 bg-white lg:flex xl:w-72">
         <div className="flex items-center gap-3 px-5 pb-5 pt-6">

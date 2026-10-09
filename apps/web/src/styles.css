@@ -80,8 +80,8 @@
   --shadow-soft: 0 2px 8px -2px rgb(19 26 38 / 0.06), 0 8px 24px -12px rgb(19 26 38 / 0.10);
   --shadow-card: 0 1px 2px rgb(19 26 38 / 0.04), 0 12px 32px -16px rgb(19 26 38 / 0.14);
   --shadow-lift: 0 2px 4px rgb(19 26 38 / 0.05), 0 24px 48px -20px rgb(19 26 38 / 0.22);
-  --shadow-brand: 0 8px 24px -8px rgb(23 61 43 / 0.26);
-  --shadow-brand-soft: 0 6px 18px -10px rgb(23 61 43 / 0.24);
+  --shadow-brand: 0 8px 24px -8px rgb(227 6 19 / 0.45);
+  --shadow-brand-soft: 0 6px 18px -10px rgb(227 6 19 / 0.35);
   --shadow-red: 0 8px 24px -8px rgb(227 6 19 / 0.27);
   --shadow-green: 0 8px 24px -8px rgb(23 61 43 / 0.22);
   --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
@@ -103,11 +103,11 @@
   --success-deep: #173d2b;
   --success-highlight: #739b70;
   --success-soft: #f2f6f1;
-  --brand-gradient: linear-gradient(135deg, #173d2b 0%, #28553b 100%);
+  --brand-gradient: linear-gradient(135deg, #e30613 0%, #bf0511 52%, #99040d 100%);
   --success-gradient: linear-gradient(135deg, #28553b 0%, #173d2b 100%);
   --duo-gradient: linear-gradient(120deg, #173d2b 0%, #28553b 82%, #c5a15a 100%);
   --duo-bar: linear-gradient(90deg, #173d2b 0%, #173d2b 82%, #c5a15a 82%, #c5a15a 94%, #e30613 94%, #e30613 100%);
-  --surface: #fffdf7;
+  --surface: #ffffff;
   --surface-muted: #f6f1e5;
   --line: #e7e1d4;
   --error: #b42318;
@@ -143,7 +143,7 @@
   width: 8rem;
   height: 8rem;
   border-radius: 999px;
-  background: radial-gradient(circle, rgb(197 161 90 / 0.10), transparent 70%);
+  background: radial-gradient(circle, rgb(227 6 19 / 0.07), transparent 70%);
   pointer-events: none;
 }
 

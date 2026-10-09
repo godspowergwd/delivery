@@ -63,7 +63,7 @@ export default defineConfig(({ mode }) => {
     display_override: ['fullscreen', 'standalone', 'minimal-ui'],
     orientation: 'any',
     theme_color: '#173d2b',
-    background_color: '#fffdf7',
+    background_color: '#ffffff',
     lang: 'en',
     dir: 'ltr',
     categories: ['food', 'shopping', 'business'],

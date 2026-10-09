@@ -45,13 +45,13 @@
     <link rel="apple-touch-startup-image" href="/apple-splash-750-1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
 
     <style>
-      /* Paint the branded warm-white splash before React starts. */
+      /* Paint the white splash before React starts. */
       html,
       body,
       #root {
         height: 100%;
         margin: 0;
-        background-color: #fffdf7;
+        background-color: #ffffff;
       }
       #boot-splash {
         position: fixed;
@@ -61,7 +61,7 @@
         justify-content: center;
         flex-direction: column;
         gap: 22px;
-        background: #fffdf7;
+        background: #ffffff;
         color: #252820;
         font-family: "Inter var", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         z-index: 9999;
@@ -79,7 +79,7 @@
         position: absolute;
         inset: 0;
         border-radius: 999px;
-        background: radial-gradient(circle, rgba(197, 161, 90, 0.15) 0%, rgba(197, 161, 90, 0) 68%);
+        background: radial-gradient(circle, rgba(227, 6, 19, 0.22) 0%, rgba(227, 6, 19, 0) 68%);
         animation: boot-breathe 2.6s ease-in-out infinite;
       }
       #boot-splash img {
@@ -110,7 +110,7 @@
         inset-block: 0;
         width: 42%;
         border-radius: 999px;
-        background: linear-gradient(90deg, #173d2b, #c5a15a);
+        background: linear-gradient(90deg, #e30613, #f5253a);
         animation: boot-progress 1.25s ease-in-out infinite;
       }
       @keyframes boot-in {
