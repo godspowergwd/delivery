@@ -9,8 +9,8 @@ import { toast } from '../lib/realtime';
 import { ClockIcon, ImageIcon, LeafIcon, PlusIcon } from './icons';
 
 /**
- * Food card uses the shared forest-green ordering actions, calm food details,
- * and a restrained green popularity badge.
+ * Food card keeps photography prominent, surfaces the price and purchase
+ * action clearly, and preserves the guest-to-authenticated ordering flow.
  *
  * Guests can browse every card; the add action routes through the guest gate
  * so the sign-in sheet appears and the item is added automatically afterwards.
@@ -46,7 +46,7 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
 
   return (
     <article
-      className="food-card group rg-corners flex animate-fade-up flex-col overflow-hidden rounded-card bg-white shadow-card ring-1 ring-inset ring-slate-200/60 transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-lift"
+      className="food-card group flex animate-fade-up flex-col overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-card transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:border-red-200 hover:shadow-lift"
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
       <Link
@@ -94,18 +94,18 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
           </span>
         )}
       </Link>
-      <div className="flex flex-1 flex-col gap-1 p-3">
+      <div className="flex flex-1 flex-col gap-1.5 p-3 sm:p-3.5">
         <Link
           to={`/app/product/${product.id}`}
-          className="line-clamp-1 text-[15px] font-bold text-red-700 transition group-hover:text-red-800"
+        className="line-clamp-2 min-h-10 text-[14px] font-extrabold leading-5 text-slate-900 transition group-hover:text-red-700 sm:text-[15px]"
         >
           {product.name}
         </Link>
-        <p className="line-clamp-1 text-[13px] font-semibold text-green-700">
+      <p className="line-clamp-1 min-h-[1.2rem] text-[12px] font-semibold text-green-700 sm:text-[13px]">
           {product.categoryName}
         </p>
         {chips.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1" aria-label="Ingredients">
+        <div className="flex min-h-6 flex-wrap items-center gap-1" aria-label="Ingredients">
             {chips.map((ingredient) => (
               <span key={ingredient} className="food-chip">
                 {ingredient.toLowerCase()}
@@ -116,23 +116,24 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
             )}
           </div>
         )}
-        <p className="flex items-center gap-1 text-[13px] font-semibold text-slate-500">
+        <p className="flex items-center gap-1 text-[12px] font-semibold text-slate-500 sm:text-[13px]">
           <ClockIcon className="h-3.5 w-3.5 text-green-600" aria-hidden="true" />
           {product.prepTimeMinutes} min
         </p>
-        <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-          <span className="text-[15px] font-extrabold text-red-600">{formatMoney(product.price)}</span>
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+          <span className="whitespace-nowrap text-[14px] font-extrabold tabular-nums text-red-700 sm:text-base">{formatMoney(product.price)}</span>
           <button
             type="button"
             disabled={soldOut}
             onClick={onAdd}
             aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
             className={clsx(
-              'btn-ripple flex h-11 w-11 items-center justify-center rounded-full text-white transition active:scale-95 disabled:opacity-40',
-              soldOut ? 'bg-slate-300' : 'bg-red-600 shadow-brand hover:bg-red-700',
+              'btn-ripple flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-xl px-2.5 text-sm font-bold text-white transition active:scale-95 disabled:opacity-40 sm:min-w-[5rem]',
+              soldOut ? 'bg-slate-300' : 'bg-red-600 shadow-brand-soft hover:bg-red-700',
             )}
           >
-            <PlusIcon className="h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            <span>Add</span>
           </button>
         </div>
       </div>

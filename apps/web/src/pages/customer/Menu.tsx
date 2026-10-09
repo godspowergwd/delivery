@@ -197,7 +197,7 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
   const soldOut = !product.isAvailable || product.stock <= 0;
 
   return (
-    <div className="rg-corners relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white transition hover:shadow-card">
+    <div className="group relative flex flex-col overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-card">
       <button
         onClick={onFavorite}
         aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -205,9 +205,9 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
       >
         <HeartIcon className="h-5 w-5" filled={favorite} />
       </button>
-      <Link to={`/app/product/${product.id}`} className="block aspect-square bg-slate-100/60">
+      <Link to={`/app/product/${product.id}`} className="relative block aspect-[4/3] overflow-hidden bg-slate-100">
         {image ? (
-          <img src={image} alt={product.name} loading="lazy" className="h-full w-full object-cover" />
+          <img src={image} alt={product.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-slate-300">
             <ImageIcon className="h-10 w-10" />
@@ -223,29 +223,33 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
           )}
         </div>
         {!soldOut && !product.isNew && (
-          <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-green-700">
+          <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-green-700 shadow-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden="true" />
             Available
           </span>
         )}
       </Link>
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <Link to={`/app/product/${product.id}`} className="line-clamp-2 text-sm font-bold leading-snug text-red-700 transition hover:text-red-800">
+      <div className="flex flex-1 flex-col gap-1.5 p-3 sm:p-3.5">
+        <Link to={`/app/product/${product.id}`} className="line-clamp-2 min-h-10 text-[14px] font-extrabold leading-5 text-slate-900 transition hover:text-red-700 sm:text-[15px]">
           {product.name}
         </Link>
-        <p className="flex items-center gap-1 text-sm text-green-700">
-          <LeafIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        <p className="line-clamp-1 min-h-[1.2rem] text-xs font-semibold text-slate-500">
+          {product.categoryName}
+        </p>
+        <p className="flex min-h-5 items-center gap-1 text-xs font-semibold text-green-700 sm:text-[13px]">
+          <LeafIcon className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
           {product.prepTimeMinutes} min prep
         </p>
-        <div className="mt-auto flex items-center justify-between gap-2">
-          <span className="text-sm font-extrabold text-red-600">{formatMoney(product.price)}</span>
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+          <span className="whitespace-nowrap text-[14px] font-extrabold tabular-nums text-red-700 sm:text-base">{formatMoney(product.price)}</span>
           <button
             onClick={onAdd}
             disabled={soldOut}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-700 text-lg font-bold text-white shadow-brand-soft transition hover:bg-red-800 disabled:opacity-40"
+            className="btn-ripple flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-xl bg-red-600 px-2.5 text-sm font-bold text-white shadow-brand-soft transition hover:bg-red-700 active:scale-95 disabled:opacity-40 sm:min-w-[5rem]"
             aria-label={soldOut ? 'Sold out' : `Add ${product.name} to cart`}
           >
-            +
+            <span aria-hidden="true" className="text-base leading-none">+</span>
+            <span>Add</span>
           </button>
         </div>
         {soldOut && <p className="text-sm font-semibold text-slate-500">Sold out</p>}

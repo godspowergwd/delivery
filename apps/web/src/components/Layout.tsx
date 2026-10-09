@@ -282,15 +282,17 @@ export function AppShell() {
     <div className="min-h-dvh bg-white lg:flex">
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh w-64 flex-none flex-col border-r border-slate-200 bg-white lg:flex xl:w-72">
-        <div className="flex items-center gap-3 px-5 pb-5 pt-6">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 pb-5 pt-5">
           <img
             src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
-            alt="Maame’s Waakye"
-            className="h-auto w-32 shrink-0 object-contain"
+            alt=""
+            className="h-14 w-16 shrink-0 object-contain"
           />
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-slate-600">{roleLabel}</p>
-            {user && <p className="truncate text-xs text-slate-500">{user.name}</p>}
+            <p className="truncate text-[17px] font-extrabold tracking-tight text-red-700">Maame’s Waakye</p>
+            <p className="truncate text-xs font-semibold text-slate-500">
+              {user ? `${roleLabel} · ${user.name}` : 'Fresh Ghanaian meals'}
+            </p>
           </div>
         </div>
 
@@ -327,19 +329,26 @@ export function AppShell() {
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
         <header className="pt-safe sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:hidden">
-          <div className="flex items-center justify-between gap-3 pb-3 pt-2">
-            <Link to="/" className="flex min-w-0 items-center gap-2.5">
+          <div className="flex min-h-[4.25rem] items-center justify-between gap-2.5 py-2">
+            <Link to="/" className="flex min-w-0 flex-1 items-center gap-2">
               <img
                 src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
-                alt="Maame’s Waakye"
-                className="h-auto w-[92px] shrink-0 object-contain"
+                alt=""
+                className="h-10 w-12 shrink-0 object-contain"
               />
-              <div className="min-w-0">
-                <p className="truncate text-[11px] font-semibold text-slate-500">Fresh Ghanaian meals</p>
+              <div className="min-w-0 leading-tight">
+                <p className="truncate text-[15px] font-extrabold tracking-tight text-red-700 min-[380px]:text-base">
+                  Maame’s Waakye
+                </p>
+                <p className="truncate pt-0.5 text-[10px] font-semibold text-slate-500 min-[380px]:text-[11px]">
+                  Fresh Ghanaian meals
+                </p>
               </div>
             </Link>
-            <div className="flex flex-none items-center gap-2">
-              <RestaurantStatusPill status={status} />
+            <div className="flex flex-none items-center gap-1.5">
+              <span className="hidden min-[380px]:inline-flex">
+                <RestaurantStatusPill status={status} />
+              </span>
               {user && <NotificationBell />}
               {user ? (
                 <button
@@ -350,11 +359,14 @@ export function AppShell() {
                   <LogOutIcon className="h-5 w-5" />
                 </button>
               ) : (
-                <Button size="sm" onClick={openSheet}>
+                <Button size="sm" className="!min-h-9 !rounded-xl !px-3" onClick={openSheet}>
                   Sign in
                 </Button>
               )}
             </div>
+          </div>
+          <div className="flex justify-end pb-2 min-[380px]:hidden">
+            <RestaurantStatusPill status={status} />
           </div>
         </header>
 
