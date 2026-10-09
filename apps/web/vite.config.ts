@@ -49,10 +49,10 @@ export default defineConfig(({ mode }) => {
   }
 
   const useHttps = mode === 'https' || process.env.VITE_HTTPS === 'true';
-  const base = process.env.GITHUB_ACTIONS === 'true' ? '/delivery/' : '/';
+  const base = '/';
 
   const manifest = {
-    id: base,
+    id: 'https://waakyeapp.online/',
     name: process.env.VITE_APP_NAME || 'Maame’s Waakye',
     short_name: 'Maame’s Waakye',
     description:

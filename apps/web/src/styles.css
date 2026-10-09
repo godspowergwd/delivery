@@ -3,17 +3,29 @@
 /* Maame's Waakye design system, combining the official gold crest with
    forest-green and warm-red accents. Utility names stay stable for screens. */
 @theme {
-  --color-red-50: #fff5f2;
-  --color-red-100: #ffe6df;
-  --color-red-200: #ffcec1;
-  --color-red-300: #f4a18d;
-  --color-red-400: #e87862;
-  --color-red-500: #d65340;
-  --color-red-600: #bd3c2d;
-  --color-red-700: #9f3027;
-  --color-red-800: #812820;
-  --color-red-900: #67221c;
-  --color-red-950: #3b100d;
+  --color-red-50: #fff1f2;
+  --color-red-100: #ffe2e4;
+  --color-red-200: #ffc7cb;
+  --color-red-300: #ff9aa2;
+  --color-red-400: #ff5c66;
+  --color-red-500: #f5253a;
+  --color-red-600: #e30613;
+  --color-red-700: #bf0511;
+  --color-red-800: #99040d;
+  --color-red-900: #7c0410;
+  --color-red-950: #450109;
+
+  --color-rose-50: #fff1f2;
+  --color-rose-100: #ffe2e4;
+  --color-rose-200: #ffc7cb;
+  --color-rose-300: #ff9aa2;
+  --color-rose-400: #ff5c66;
+  --color-rose-500: #f5253a;
+  --color-rose-600: #e30613;
+  --color-rose-700: #bf0511;
+  --color-rose-800: #99040d;
+  --color-rose-900: #7c0410;
+  --color-rose-950: #450109;
 
   --color-green-50: #f2f6f1;
   --color-green-100: #e1eadf;
@@ -70,7 +82,7 @@
   --shadow-lift: 0 2px 4px rgb(19 26 38 / 0.05), 0 24px 48px -20px rgb(19 26 38 / 0.22);
   --shadow-brand: 0 8px 24px -8px rgb(23 61 43 / 0.26);
   --shadow-brand-soft: 0 6px 18px -10px rgb(23 61 43 / 0.24);
-  --shadow-red: 0 8px 24px -8px rgb(189 60 45 / 0.27);
+  --shadow-red: 0 8px 24px -8px rgb(227 6 19 / 0.27);
   --shadow-green: 0 8px 24px -8px rgb(23 61 43 / 0.22);
   --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
   /* Spring used by the driver bottom sheet and modal sheets. */
@@ -94,7 +106,7 @@
   --brand-gradient: linear-gradient(135deg, #173d2b 0%, #28553b 100%);
   --success-gradient: linear-gradient(135deg, #28553b 0%, #173d2b 100%);
   --duo-gradient: linear-gradient(120deg, #173d2b 0%, #28553b 82%, #c5a15a 100%);
-  --duo-bar: linear-gradient(90deg, #173d2b 0%, #173d2b 82%, #c5a15a 82%, #c5a15a 94%, #bd3c2d 94%, #bd3c2d 100%);
+  --duo-bar: linear-gradient(90deg, #173d2b 0%, #173d2b 82%, #c5a15a 82%, #c5a15a 94%, #e30613 94%, #e30613 100%);
   --surface: #fffdf7;
   --surface-muted: #f6f1e5;
   --line: #e7e1d4;
