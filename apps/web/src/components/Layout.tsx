@@ -7,7 +7,6 @@ import { useAuth } from '../lib/auth';
 import { useCart } from '../lib/cart';
 import { useGuestGate } from '../lib/guest';
 import { applyPwaUpdate } from '../lib/pwa';
-import { isInstalledDisplay } from '../lib/pwa-display';
 import { useRestaurantStatus } from '../lib/restaurant-status';
 import { Button } from './ui';
 import { NotificationBell } from './NotificationBell';
@@ -30,45 +29,6 @@ import {
   WalletIcon,
   StoreIcon,
 } from './icons';
-
-/** Shows the native install button once the browser fires beforeinstallprompt. */
-export function InstallButton() {
-  const [deferred, setDeferred] = useState<Event | null>(null);
-  const [installed, setInstalled] = useState(() => isInstalledDisplay());
-
-  useEffect(() => {
-    const onPrompt = (event: Event) => {
-      event.preventDefault();
-      setDeferred(event);
-    };
-    const onInstalled = () => {
-      setInstalled(true);
-      setDeferred(null);
-    };
-    window.addEventListener('beforeinstallprompt', onPrompt);
-    window.addEventListener('appinstalled', onInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
-  }, []);
-
-  if (installed || !deferred) return null;
-  const prompt = deferred as unknown as { prompt: () => Promise<void> };
-
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={() => {
-        void prompt.prompt();
-        setDeferred(null);
-      }}
-    >
-      Install app
-    </Button>
-  );
-}
 
 /** Reloads the app the moment a new service worker version is ready. */
 export function UpdateToast() {
@@ -347,7 +307,6 @@ export function AppShell() {
               <p className="mt-0.5 text-xs text-green-700">Sign in to order and track live.</p>
             </div>
           )}
-          <InstallButton />
           {user ? (
             <button
               onClick={signOut}
@@ -409,7 +368,6 @@ export function AppShell() {
                 : 'Delivering across Mallam & Gbawe'}
             </span>
           </span>
-          <InstallButton />
           {user ? (
             <NotificationBell />
           ) : (

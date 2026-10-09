@@ -1,13 +1,12 @@
 import { ROLE_LABELS } from '@delivery/shared';
 import { useAuth } from '../lib/auth';
 import { Card } from '../components/ui';
-import { InstallButton } from '../components/Layout';
 import { LogOutIcon, UserIcon } from '../components/icons';
 
 /**
  * Lightweight account surface for staff roles (Kitchen and other operators).
- * Shows existing session data, device installation and sign-out; admins have
- * the full business settings under /admin/settings.
+ * Shows existing session data and sign-out; installation is handled globally,
+ * and admins have the full business settings under /admin/settings.
  */
 export function AccountSettings() {
   const { user, logout } = useAuth();
@@ -30,14 +29,6 @@ export function AccountSettings() {
             {user ? ROLE_LABELS[user.role] : ''}
           </p>
         </div>
-      </Card>
-
-      <Card className="space-y-3">
-        <h2 className="text-base font-bold text-slate-900">This device</h2>
-        <p className="text-sm text-slate-500">
-          Install the app on this device for fullscreen POS use and faster access.
-        </p>
-        <InstallButton />
       </Card>
 
       <Card className="!p-3">

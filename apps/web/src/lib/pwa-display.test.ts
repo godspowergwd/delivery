@@ -7,6 +7,8 @@ describe('isInstalledDisplay', () => {
     ['iOS browser tab', 'browser', false, false],
     ['standalone PWA', 'standalone', undefined, true],
     ['fullscreen PWA', 'fullscreen', undefined, true],
+    ['minimal UI PWA', 'minimal-ui', undefined, true],
+    ['window controls overlay PWA', 'window-controls-overlay', undefined, true],
     ['iOS home-screen app', 'browser', true, true],
   ] as const)('detects %s correctly', (_label, mode, standalone, expected) => {
     const browser = {

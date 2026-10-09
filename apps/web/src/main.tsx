@@ -13,6 +13,7 @@ import { Toaster } from './components/ui';
 import { AuthSheet } from './components/AuthSheet';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OfflineOrderSync } from './components/OfflineOrderSync';
+import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import './styles.css';
 
 setupPwa();
@@ -84,6 +85,7 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <CartProvider>
+            <PwaInstallPrompt />
             <BrowserRouter basename={import.meta.env.BASE_URL}>
               <GuestGateProvider>
                 <Chrome />

@@ -6,5 +6,7 @@ export function isInstalledDisplay(
 ): boolean {
   return device?.standalone === true ||
     Boolean(browser?.matchMedia('(display-mode: standalone)').matches) ||
-    Boolean(browser?.matchMedia('(display-mode: fullscreen)').matches);
+    Boolean(browser?.matchMedia('(display-mode: fullscreen)').matches) ||
+    Boolean(browser?.matchMedia('(display-mode: minimal-ui)').matches) ||
+    Boolean(browser?.matchMedia('(display-mode: window-controls-overlay)').matches);
 }
