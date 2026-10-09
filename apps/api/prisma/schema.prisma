@@ -222,6 +222,7 @@ model Order {
   deliveryOriginalLongitude Float?
   deliveryLocationSource DeliveryLocationSource?
   deliveryLocationConfirmedAt DateTime? @db.Timestamp(3)
+  deliveryPricingSnapshot      Json?
   clientRequestId String? @unique
 
   createdAt DateTime @default(now())

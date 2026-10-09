@@ -6,13 +6,14 @@ import {
   isValidLongitude,
   type OrderStatus as OrderStatusType,
   type PaymentMethod,
+  type DeliveryPricingSnapshotDTO,
 } from '@delivery/shared';
 import { prisma, decimalToNumber } from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { logActivity } from './activity-log.service';
 import { getSettings } from './settings.service';
-import { isWithinDeliveryZone } from './geo.service';
+import { assertQuotedDeliveryFee, createDeliveryPricing } from './delivery-pricing.service';
 import { notifyAdmins, notifyCustomer, notifyDrivers, notifyKitchen, notifyUser } from './notification.service';
 import { emitToRole, emitToUser } from '../realtime/socket';
 import { ORDER_INCLUDE, serializeDriverOffer, serializeOrder, type OrderWithRelations } from './serializers';
@@ -42,6 +43,7 @@ export interface CreateOrderInput {
   deliveryOriginalLongitude?: number | null;
   deliveryLocationSource?: 'gps' | 'search';
   deliveryLocationConfirmedAt?: Date;
+  quotedDeliveryFee: number;
   idempotencyKey?: string;
 }
 
@@ -55,6 +57,7 @@ export interface CreateWalkInOrderInput {
   deliveryLongitude?: number;
   deliveryLocationSource?: 'gps' | 'search';
   deliveryLocationConfirmedAt?: Date;
+  quotedDeliveryFee?: number;
   deliveryOriginalLatitude?: number | null;
   deliveryOriginalLongitude?: number | null;
   paymentMethod: PaymentMethod;
@@ -103,6 +106,29 @@ export function statusLabel(status: OrderStatusType): string {
   return ORDER_STATUS_LABELS[status] ?? status;
 }
 
+function pricingSnapshotJson(snapshot: DeliveryPricingSnapshotDTO): Prisma.InputJsonObject {
+  return {
+    provider: snapshot.provider,
+    model: snapshot.model,
+    origin: {
+      latitude: snapshot.origin.latitude,
+      longitude: snapshot.origin.longitude,
+      address: snapshot.origin.address,
+    },
+    destination: {
+      latitude: snapshot.destination.latitude,
+      longitude: snapshot.destination.longitude,
+    },
+    drivingDistanceKm: snapshot.drivingDistanceKm,
+    estimatedDurationMinutes: snapshot.estimatedDurationMinutes,
+    baseFee: snapshot.baseFee,
+    minimumFee: snapshot.minimumFee,
+    perKilometerRate: snapshot.perKilometerRate,
+    acceptedFee: snapshot.acceptedFee,
+    quotedAt: snapshot.quotedAt,
+  };
+}
+
 export async function getOrderById(orderId: string): Promise<OrderWithRelations> {
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: ORDER_INCLUDE });
   if (!order) throw notFound('That order could not be found.');
@@ -125,7 +151,7 @@ export function assertCanViewOrder(order: OrderWithRelations, user: SessionUser)
   }
 }
 /** Validates the cart, prices it server-side and creates the order + kitchen alerts. */
-export async function buildOrderDraft(input: CreateOrderInput): Promise<{
+export async function buildOrderDraft(input: CreateOrderInput, deliveryFee: number): Promise<{
   lineDrafts: LineDraft[];
   totals: ReturnType<typeof computeTotals>;
   maxPrepMinutes: number;
@@ -173,7 +199,7 @@ export async function buildOrderDraft(input: CreateOrderInput): Promise<{
 
   const totals = computeTotals({
     items: pricedItems,
-    deliveryFee: settings.deliveryFee,
+    deliveryFee,
     taxRate: settings.taxRate,
   });
 
@@ -190,9 +216,10 @@ export async function buildOrderDraft(input: CreateOrderInput): Promise<{
 async function persistOrder(params: {
   user: SessionUser;
   input: CreateOrderInput;
+  deliveryPricingSnapshot: DeliveryPricingSnapshotDTO;
   draft: Awaited<ReturnType<typeof buildOrderDraft>>;
 }): Promise<string> {
-  const { user, input, draft } = params;
+  const { user, input, draft, deliveryPricingSnapshot } = params;
   let orderId: string | null = null;
   let attempt = 0;
 
@@ -217,6 +244,7 @@ async function persistOrder(params: {
             deliveryOriginalLongitude: input.deliveryOriginalLongitude ?? null,
             deliveryLocationSource: input.deliveryLocationSource ?? null,
             deliveryLocationConfirmedAt: input.deliveryLocationConfirmedAt ?? new Date(),
+            deliveryPricingSnapshot: pricingSnapshotJson(deliveryPricingSnapshot),
             clientRequestId: input.idempotencyKey ?? null,
             subtotal: new Prisma.Decimal(draft.totals.subtotal),
             deliveryFee: new Prisma.Decimal(draft.totals.deliveryFee),
@@ -253,35 +281,6 @@ async function persistOrder(params: {
   if (!orderId) throw conflict('Could not allocate an order number. Please try again.');
   return orderId;
 }
-/**
- * Service-area gate for checkout.
- *
- * The validated geocoded pin is authoritative, so an order from outside the
- * configured delivery radius is refused here as well as in the browser.
- */
-async function assertDeliverableTo(latitude: number, longitude: number): Promise<void> {
-  const settings = await getSettings();
-  const zone = isWithinDeliveryZone(
-    latitude,
-    longitude,
-    settings.businessLatitude,
-    settings.businessLongitude,
-    settings.deliveryRadiusKm,
-  );
-  if (zone.within) return;
-
-  logger.warn('Order rejected: delivery location outside the service area', {
-    latitude,
-    longitude,
-    distanceKm: Number(zone.distanceKm.toFixed(2)),
-    radiusKm: settings.deliveryRadiusKm,
-  });
-  throw badRequest(
-    zone.message ??
-      `We only deliver within ${settings.deliveryRadiusKm} km of ${settings.businessName}.`,
-  );
-}
-
 export async function createOrder(params: {
   user: SessionUser;
   input: CreateOrderInput;
@@ -299,11 +298,26 @@ export async function createOrder(params: {
     }
   }
 
-  await assertDeliverableTo(input.deliveryLatitude, input.deliveryLongitude);
-  const draft = await buildOrderDraft(input);
+  const settings = await getSettings();
+  const deliveryPricing = await createDeliveryPricing(
+    input.deliveryLatitude,
+    input.deliveryLongitude,
+    settings,
+  );
+  assertQuotedDeliveryFee(
+    input.quotedDeliveryFee,
+    deliveryPricing.quote.deliveryFee,
+    settings.currencySymbol,
+  );
+  const draft = await buildOrderDraft(input, deliveryPricing.quote.deliveryFee);
   let orderId: string;
   try {
-    orderId = await persistOrder({ user, input, draft });
+    orderId = await persistOrder({
+      user,
+      input,
+      draft,
+      deliveryPricingSnapshot: deliveryPricing.snapshot,
+    });
   } catch (error) {
     if (!input.idempotencyKey || !isRequestIdConflict(error)) throw error;
     const existing = await prisma.order.findUnique({
@@ -352,7 +366,6 @@ export async function createOrder(params: {
     link: `/app/orders/${fullOrder.id}`,
   });
 
-  const settings = await getSettings();
   const touchedIds = draft.lineDrafts.map((line) => line.productId);
   const lowStock = await prisma.product.findMany({
     where: { id: { in: touchedIds }, stock: { lte: settings.lowStockThreshold } },
@@ -407,6 +420,7 @@ export async function createWalkInOrder(params: {
   }
 
   const isDelivery = input.fulfillmentType === 'DELIVERY';
+  let deliveryPricing: Awaited<ReturnType<typeof createDeliveryPricing>> | null = null;
   if (isDelivery) {
     if (!input.customerName?.trim() || !input.deliveryPhone?.trim() || !input.deliveryAddress?.trim()) {
       throw badRequest('Customer name, phone number and delivery location are required for delivery.');
@@ -414,7 +428,20 @@ export async function createWalkInOrder(params: {
     if (!isValidLatitude(input.deliveryLatitude) || !isValidLongitude(input.deliveryLongitude)) {
       throw badRequest('Choose a confirmed delivery location from the suggestions.');
     }
-    await assertDeliverableTo(input.deliveryLatitude!, input.deliveryLongitude!);
+    const pricingSettings = await getSettings();
+    deliveryPricing = await createDeliveryPricing(
+      input.deliveryLatitude!,
+      input.deliveryLongitude!,
+      pricingSettings,
+    );
+    if (input.quotedDeliveryFee === undefined) {
+      throw conflict('Calculate and review the delivery fee before processing this delivery.');
+    }
+    assertQuotedDeliveryFee(
+      input.quotedDeliveryFee,
+      deliveryPricing.quote.deliveryFee,
+      pricingSettings.currencySymbol,
+    );
   }
 
   const settings = await getSettings();
@@ -456,7 +483,7 @@ export async function createWalkInOrder(params: {
 
   const totals = computeTotals({
     items: lineDrafts.map(({ unitPrice, quantity }) => ({ unitPrice, quantity })),
-    deliveryFee: isDelivery ? settings.deliveryFee : 0,
+    deliveryFee: deliveryPricing?.quote.deliveryFee ?? 0,
     taxRate: settings.taxRate,
   });
   const status = isDelivery ? OrderStatus.RECEIVED : OrderStatus.DELIVERED;
@@ -482,6 +509,9 @@ export async function createWalkInOrder(params: {
             deliveryOriginalLongitude: isDelivery ? input.deliveryOriginalLongitude ?? null : null,
             deliveryLocationSource: isDelivery ? input.deliveryLocationSource ?? null : null,
             deliveryLocationConfirmedAt: isDelivery ? input.deliveryLocationConfirmedAt ?? now : null,
+            deliveryPricingSnapshot: deliveryPricing
+              ? pricingSnapshotJson(deliveryPricing.snapshot)
+              : Prisma.JsonNull,
             createdById: user.id,
             clientRequestId: input.idempotencyKey,
             subtotal: new Prisma.Decimal(totals.subtotal),

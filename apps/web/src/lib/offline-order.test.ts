@@ -18,6 +18,7 @@ const payload: OrderSubmissionPayload = {
   deliveryOriginalLongitude: -0.3104,
   deliveryLocationSource: 'gps',
   deliveryLocationConfirmedAt: '2026-09-27T12:00:00.000Z',
+  quotedDeliveryFee: 12.5,
 };
 
 afterEach(() => vi.unstubAllGlobals());

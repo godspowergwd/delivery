@@ -21,7 +21,7 @@ export interface RecentSearch {
   at: number;
 }
 
-/** Default centre of the delivery zone (Mallam / Gbawe, Accra). */
+/** Fallback map focus for Accra when the customer has no saved location. */
 export const ACCRA_CENTER = { lat: 5.6037, lng: -0.187 };
 
 export function loadDeliveryLocation(): SavedLocation | null {

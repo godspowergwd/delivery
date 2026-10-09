@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { asyncHandler } from '../lib/http';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
 import { geoLimiter } from '../middleware/rateLimit';
-import { haversineDistance, isWithinDeliveryZone } from '../services/geo.service';
 import { getMapboxRoadRoute, reverseMapboxAddress, searchMapboxAddresses } from '../services/mapbox.service';
 import { getSettings } from '../services/settings.service';
+import { createDeliveryPricing } from '../services/delivery-pricing.service';
 
 export const geoRouter = Router();
 
@@ -27,8 +27,29 @@ geoRouter.get(
   '/search',
   asyncHandler(async (req, res) => {
     const { q } = searchQuerySchema.parse(req.query);
-    const suggestions = await searchMapboxAddresses(q);
+    const settings = await getSettings();
+    const suggestions = await searchMapboxAddresses(q, {
+      latitude: settings.businessLatitude,
+      longitude: settings.businessLongitude,
+    });
     res.json({ suggestions });
+  }),
+);
+
+const deliveryQuoteQuerySchema = z.object({
+  latitude: z.coerce.number().finite().min(-90).max(90),
+  longitude: z.coerce.number().finite().min(-180).max(180),
+});
+
+/** POST /api/geo/delivery-quote: prices a verified Mapbox driving route server-side. */
+geoRouter.post(
+  '/delivery-quote',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const { latitude, longitude } = deliveryQuoteQuerySchema.parse(req.body);
+    const settings = await getSettings();
+    const { quote } = await createDeliveryPricing(latitude, longitude, settings);
+    res.json({ quote });
   }),
 );
 
@@ -70,8 +91,8 @@ geoRouter.get(
 
 /**
  * GET /api/geo/check-zone?latitude=...&longitude=...
- * Public-ish: checks if coordinates are within delivery area.
- * Requires auth to prevent abuse.
+ * Compatibility endpoint: all valid destinations can be attempted; the radius
+ * is only a long-distance warning threshold, never a delivery restriction.
  */
 geoRouter.get(
   '/check-zone',
@@ -83,19 +104,13 @@ geoRouter.get(
     }).parse(req.query);
 
     const settings = await getSettings();
-    const result = isWithinDeliveryZone(
-      latitude,
-      longitude,
-      settings.businessLatitude,
-      settings.businessLongitude,
-      settings.deliveryRadiusKm,
-    );
+    const pricing = await createDeliveryPricing(latitude, longitude, settings);
 
     res.json({
-      within: result.within,
-      distanceKm: Math.round(result.distanceKm * 100) / 100,
+      within: true,
+      distanceKm: pricing.quote.drivingDistanceKm,
       radiusKm: settings.deliveryRadiusKm,
-      message: result.message,
+      message: pricing.quote.warning,
     });
   }),
 );

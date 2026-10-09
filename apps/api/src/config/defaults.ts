@@ -11,13 +11,18 @@ import type { SettingsDTO } from '@delivery/shared';
  */
 export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
   businessName: 'Waakye App',
-  businessAddress: 'Malam Junction, Gbawe Road, Accra',
+  businessAddress: 'Onyx Lounge, Gbawe, Accra, Ghana',
   businessPhone: '+233000000000',
   businessEmail: 'support@waakyeapp.com',
   currencyCode: 'GHS',
   // Escaped so the symbol survives any file encoding (GH + cedis sign).
   currencySymbol: 'GH\u20b5',
-  deliveryFee: 8,
+  // Adjustable starting rates, not a claim to reproduce Bolt's private fare model.
+  deliveryBaseFee: 4,
+  deliveryMinimumFee: 9,
+  deliveryPerKmRate: 2,
+  longDistanceWarningText:
+    'This is a long-distance delivery route. The delivery charge may be significantly higher because of the road distance. Please review the quoted fee before confirming.',
   taxRate: 2.5,
   minOrderTotal: 10,
   acceptingOrders: true,
@@ -28,12 +33,11 @@ export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
   supportPhone: '+233000000000',
   supportEmail: 'support@waakyeapp.com',
   lowStockThreshold: 10,
-  // Kitchen / pickup anchor: Mallam Interchange, Greater Accra. Admins can move
-  // it from Admin > Settings; it is the map focus and the route origin.
-  businessLatitude: 5.571264,
-  businessLongitude: -0.284093,
-  // Local delivery only: everything inside this radius of the kitchen is
-  // served (Malam, Gbawe, Weija, McCarthy Hill and the neighbouring streets).
+  // Verified Onyx Lounge origin supplied by the business; admins can update it
+  // from Admin > Settings. Used for routing and driver navigation.
+  businessLatitude: 5.5789596,
+  businessLongitude: -0.295258,
+  // Long-distance warning threshold only; all valid routes remain orderable.
   deliveryRadiusKm: 12,
 };
 
@@ -43,7 +47,9 @@ export const PUBLIC_SETTING_KEYS = [
   'businessPhone',
   'currencyCode',
   'currencySymbol',
-  'deliveryFee',
+  'deliveryBaseFee',
+  'deliveryMinimumFee',
+  'deliveryPerKmRate',
   'taxRate',
   'minOrderTotal',
   'acceptingOrders',

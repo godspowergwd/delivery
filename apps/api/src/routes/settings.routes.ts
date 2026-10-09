@@ -19,7 +19,11 @@ const updateSettingsSchema = z.object({
   businessEmail: emailSchema.optional(),
   currencyCode: z.string().trim().min(2).max(6).optional(),
   currencySymbol: z.string().trim().min(1).max(6).optional(),
-  deliveryFee: z.coerce.number().min(0).max(1000).optional(),
+  deliveryBaseFee: z.coerce.number().finite().min(0).max(1000).optional(),
+  deliveryMinimumFee: z.coerce.number().finite().min(0).max(1000).optional(),
+  deliveryPerKmRate: z.coerce.number().finite().min(0).max(1000).optional(),
+  longDistanceWarningText: z.string().trim().min(10).max(500).optional(),
+  deliveryRadiusKm: z.coerce.number().finite().min(0).max(1000).optional(),
   taxRate: percentSchema.optional(),
   minOrderTotal: z.coerce.number().min(0).max(10_000).optional(),
   acceptingOrders: z.boolean().optional(),
@@ -27,9 +31,17 @@ const updateSettingsSchema = z.object({
   supportPhone: phoneSchema.optional(),
   supportEmail: emailSchema.optional(),
   lowStockThreshold: z.coerce.number().int().min(0).max(10_000).optional(),
-  // Kitchen / pickup anchor used by the live maps (Mallam, Accra by default).
-  businessLatitude: z.coerce.number().min(-90).max(90).optional(),
-  businessLongitude: z.coerce.number().min(-180).max(180).optional(),
+  // Kitchen / pickup anchor used as the trusted route origin and map location.
+  businessLatitude: z.coerce.number().finite().min(4.4).max(11.3).optional(),
+  businessLongitude: z.coerce.number().finite().min(-3.5).max(1.5).optional(),
+}).superRefine((settings, context) => {
+  if ((settings.businessLatitude === undefined) !== (settings.businessLongitude === undefined)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['businessLongitude'],
+      message: 'Update the origin latitude and longitude together.',
+    });
+  }
 });
 
 function broadcastSettingsChange(): void {

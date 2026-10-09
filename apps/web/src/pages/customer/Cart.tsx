@@ -26,7 +26,7 @@ export function Cart() {
 
   const totals = computeTotals({
     items: lines.map((line) => ({ unitPrice: line.unitPrice, quantity: line.quantity })),
-    deliveryFee: settings?.deliveryFee ?? 0,
+    deliveryFee: 0,
     taxRate: settings?.taxRate ?? 0,
   });
   const minimumOrderTotal = settings?.minOrderTotal ?? 0;
@@ -108,7 +108,7 @@ export function Cart() {
 
       <Card className="duo-top space-y-2 text-sm">
         <TotalRow label="Subtotal" value={formatMoney(totals.subtotal)} />
-        <TotalRow label="Delivery fee" value={formatMoney(totals.deliveryFee)} />
+        <TotalRow label="Delivery fee" value="Calculated at checkout" />
         <TotalRow label={`Tax (${settings?.taxRate ?? 0}%)`} value={formatMoney(totals.tax)} />
         <div className="flex items-center justify-between border-t border-slate-200 pt-2">
           <span className="font-bold text-slate-800">Total</span>
@@ -116,7 +116,10 @@ export function Cart() {
         </div>
         <p className="flex items-center gap-1.5 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
           <LeafIcon className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
-          Cooked fresh today in our Mallam kitchen.
+          Cooked fresh today in our kitchen.
+        </p>
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          Your delivery fee is calculated from the driving route after you choose an address in checkout.
         </p>
         {belowMinimum && (
           <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">

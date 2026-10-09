@@ -57,6 +57,7 @@ export const createOrderSchema = z.object({
   deliveryLocationConfirmedAt: z.string().datetime({ offset: true }).optional().transform((value) =>
     value ? new Date(value) : undefined,
   ),
+  quotedDeliveryFee: z.coerce.number().finite().min(0).max(100_000),
   idempotencyKey: z.string().uuid().optional(),
 }).superRefine((input, context) => {
   if (input.deliveryLocationSource === 'gps' &&

@@ -1,9 +1,8 @@
 /**
  * Geographic primitives shared by the API and the web app.
  *
- * Waakye App delivers inside Malam / Gbawe, Accra, Ghana. MALAM_CENTER is the
- * warehouse focus for every map before a device has reported its position —
- * it is an *initial view*, never a substitute for real GPS data.
+ * The shared initial map focus uses the verified Onyx Lounge origin in Gbawe.
+ * It is an initial view only, never a substitute for real GPS data.
  */
 
 export interface LatLng {
@@ -11,13 +10,13 @@ export interface LatLng {
   lng: number;
 }
 
-/** Mallam (Mallam Interchange), Greater Accra — the business home area. */
-export const MALAM_CENTER: LatLng = { lat: 5.571264, lng: -0.284093 };
+/** Verified Onyx Lounge origin, Gbawe, Accra. */
+export const MALAM_CENTER: LatLng = { lat: 5.5789596, lng: -0.295258 };
 
 /** Central Accra, used as the fallback focus for the wider city. */
 export const ACCRA_CENTER: LatLng = { lat: 5.6037, lng: -0.187 };
 
-/** Neighbourhoods we deliver to, used for map framing and copy only. */
+/** Local service area reference; never used to block a delivery destination. */
 export const DELIVERY_ZONE = 'Malam / Gbawe, Accra';
 
 /** Local delivery zoom: streets and landmarks visible, no continent. */

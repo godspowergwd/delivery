@@ -140,7 +140,7 @@ export function estimateCoordinates(
   };
 }
 
-/** Kitchen / pickup anchor: configured in Admin > Settings, Malam by default. */
+/** Restaurant / pickup anchor: configured in Admin > Settings. */
 export async function getRestaurantAnchor(): Promise<{
   lat: number;
   lng: number;
@@ -356,5 +356,4 @@ export async function listLiveDrivers(): Promise<DriverLocationDTO[]> {
   });
   return rows.map((row) => serializeDriverLocation(row, row.driver?.name ?? 'Driver'));
 }
-
 

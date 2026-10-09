@@ -13,7 +13,9 @@ type SettingKey = keyof Omit<SettingsDTO, 'updatedAt'>;
 const DEFAULTS: Omit<SettingsDTO, 'updatedAt'> = { ...DEFAULT_SETTINGS };
 
 const NUMERIC_KEYS: SettingKey[] = [
-  'deliveryFee',
+  'deliveryBaseFee',
+  'deliveryMinimumFee',
+  'deliveryPerKmRate',
   'taxRate',
   'minOrderTotal',
   'lowStockThreshold',

@@ -151,7 +151,32 @@ export interface OrderDTO {
   deliveryOriginalLongitude: number | null;
   deliveryLocationSource: 'gps' | 'search' | null;
   deliveryLocationConfirmedAt: string | null;
+  deliveryPricingSnapshot: DeliveryPricingSnapshotDTO | null;
   hasReceipt?: boolean;
+}
+
+export interface DeliveryPricingSnapshotDTO {
+  provider: 'mapbox';
+  model: 'distance-v1';
+  origin: { latitude: number; longitude: number; address: string };
+  destination: { latitude: number; longitude: number };
+  drivingDistanceKm: number;
+  estimatedDurationMinutes: number;
+  baseFee: number;
+  minimumFee: number;
+  perKilometerRate: number;
+  acceptedFee: number;
+  quotedAt: string;
+}
+
+export interface DeliveryQuoteDTO {
+  origin: { latitude: number; longitude: number; address: string };
+  destination: { latitude: number; longitude: number };
+  drivingDistanceKm: number;
+  estimatedDurationMinutes: number;
+  deliveryFee: number;
+  isLongDistance: boolean;
+  warning: string | null;
 }
 
 export interface NotificationDTO {
@@ -201,7 +226,6 @@ export interface SettingsDTO {
   businessEmail: string;
   currencyCode: string;
   currencySymbol: string;
-  deliveryFee: number;
   taxRate: number;
   minOrderTotal: number;
   /**
@@ -217,12 +241,16 @@ export interface SettingsDTO {
   supportPhone: string;
   supportEmail: string;
   lowStockThreshold: number;
+  deliveryBaseFee: number;
+  deliveryMinimumFee: number;
+  deliveryPerKmRate: number;
+  longDistanceWarningText: string;
   /** Kitchen / pickup coordinates used as the map anchor and route origin. */
   businessLatitude: number;
   businessLongitude: number;
   /**
-   * Radius (km) around the kitchen that we deliver to. Orders whose captured
-   * GPS falls outside this boundary are refused by the API.
+   * Distance threshold (km) for showing a long-distance warning. Does not
+   * block deliveries.
    */
   deliveryRadiusKm: number;
   updatedAt: string | null;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AddressDTO, OrderDTO, SettingsDTO } from '@delivery/shared';
+import type { AddressDTO, DeliveryQuoteDTO, OrderDTO, SettingsDTO } from '@delivery/shared';
 import { PAYMENT_METHOD_LABELS, computeTotals, formatMoney } from '@delivery/shared';
 import { ApiError, api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -48,9 +48,8 @@ function isTransientOrderFailure(error: unknown): boolean {
 
 /**
  * Checkout — account-only (gated by <RequireAccount>), so everyone here is
- * signed in. The address field is the intelligent Mallam-first autocomplete,
- * the service-zone verdict is a live green/red status, and the submit action
- * is the screen's single red primary button.
+ * signed in. The customer confirms a geocoded address, sees a server-priced
+ * driving route, and cannot submit until that quote is available.
  */
 export function Checkout() {
   const { lines, clear } = useCart();
@@ -79,17 +78,17 @@ export function Checkout() {
   });
   const settings = settingsData?.settings;
 
-  // Live service-area feedback for the chosen point. The API re-checks on submit.
-  const zoneCheck = useQuery({
-    queryKey: ['delivery-zone', selected?.lat, selected?.lng],
-    enabled: Boolean(selected && (selected.lat !== 0 || selected.lng !== 0)),
-    staleTime: 120_000,
-    queryFn: () =>
-      api.get<{ within: boolean; distanceKm: number; radiusKm: number; message: string | null }>(
-        `/geo/check-zone?latitude=${selected!.lat}&longitude=${selected!.lng}`,
-      ),
+  const deliveryQuoteQuery = useQuery({
+    queryKey: ['delivery-quote', selected?.lat, selected?.lng],
+    enabled: Boolean(selected && isValidDeliveryCoordinates(selected.lat, selected.lng)),
+    staleTime: 15_000,
+    retry: 1,
+    queryFn: () => api.post<{ quote: DeliveryQuoteDTO }>('/geo/delivery-quote', {
+      latitude: selected!.lat,
+      longitude: selected!.lng,
+    }),
   });
-  const outOfZone = zoneCheck.data ? !zoneCheck.data.within : false;
+  const deliveryQuote = deliveryQuoteQuery.data?.quote;
   const confirmedSource = selected?.source === 'gps' ? 'gps' : selected?.source === 'mapbox' ? 'search' : null;
   const confirmedMatchesSelection = Boolean(
     confirmedLocation && selected && confirmedSource === confirmedLocation.source &&
@@ -145,7 +144,7 @@ export function Checkout() {
     const label = [saved.line1, saved.area, saved.city].filter(Boolean).join(', ');
     setAddressText(label);
     // Saved addresses have no GPS pin yet (0/0) — the guest can refine it by
-    // picking a suggestion, which turns on the live zone check + map pin.
+    // picking a suggestion, which enables route pricing and saves its map pin.
     setSelected({
       id: `saved:${saved.id}`,
       label: saved.line1,
@@ -159,7 +158,7 @@ export function Checkout() {
 
   const totals = computeTotals({
     items: lines.map((line) => ({ unitPrice: line.unitPrice, quantity: line.quantity })),
-    deliveryFee: settings?.deliveryFee ?? 0,
+    deliveryFee: deliveryQuote?.deliveryFee ?? 0,
     taxRate: settings?.taxRate ?? 0,
   });
 
@@ -243,12 +242,12 @@ export function Checkout() {
       toast('Choose a location and confirm it as your delivery destination.', 'error');
       return;
     }
-    if (outOfZone) {
-      toast(zoneCheck.data?.message ?? 'We do not deliver to that location yet.', 'error');
-      return;
-    }
     if (pendingOrderRef.current) {
       sendOrderRef.current(pendingOrderRef.current);
+      return;
+    }
+    if (!deliveryQuote || deliveryQuoteQuery.isError) {
+      toast('We could not calculate a driving route. Correct the address or contact the restaurant before placing your order.', 'error');
       return;
     }
     const payload: OrderSubmissionPayload = {
@@ -268,6 +267,7 @@ export function Checkout() {
       deliveryOriginalLongitude: confirmedLocation.originalLongitude,
       deliveryLocationSource: confirmedLocation.source,
       deliveryLocationConfirmedAt: confirmedLocation.confirmedAt,
+      quotedDeliveryFee: deliveryQuote.deliveryFee,
     };
     if (!navigator.onLine) {
       if (!savePendingOrder(user?.id, payload)) {
@@ -312,28 +312,28 @@ export function Checkout() {
             Choose a matching address suggestion to confirm the location and save its delivery coordinates.
           </p>
         )}
-        {zoneCheck.data && (
-          <p
-            role="status"
-            className={
-              zoneCheck.data.within
-                ? 'flex items-center gap-1.5 rounded-xl bg-green-50 px-3 py-2 text-xs font-bold text-green-800'
-                : 'flex items-center gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700'
-            }
-          >
-            {zoneCheck.data.within ? (
-              <>
-                <CheckIcon className="h-4 w-4" aria-hidden="true" />
-                Inside the delivery zone · {zoneCheck.data.distanceKm} km from the kitchen (radius{' '}
-                {zoneCheck.data.radiusKm} km)
-              </>
-            ) : (
-              <>
-                <span aria-hidden="true">!</span>
-                {zoneCheck.data.message ?? 'Outside the current delivery zone.'}
-              </>
-            )}
+        {selected && isValidDeliveryCoordinates(selected.lat, selected.lng) && deliveryQuoteQuery.isFetching && (
+          <p role="status" className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
+            Calculating the driving route and delivery fee…
           </p>
+        )}
+        {deliveryQuote && (
+          <div role="status" className="space-y-1 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-green-900">
+            <p>Driving route: {deliveryQuote.drivingDistanceKm.toFixed(2)} km · about {deliveryQuote.estimatedDurationMinutes} min from {deliveryQuote.origin.address}.</p>
+            <p>Delivery fee: {formatMoney(deliveryQuote.deliveryFee)}</p>
+          </div>
+        )}
+        {deliveryQuote?.warning && (
+          <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-xs font-semibold leading-relaxed text-amber-900">
+            {deliveryQuote.warning}
+          </p>
+        )}
+        {deliveryQuoteQuery.isError && selected && isValidDeliveryCoordinates(selected.lat, selected.lng) && (
+          <div role="alert" className="space-y-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-xs font-semibold text-rose-800">
+            <p>We couldn’t verify a driving route or delivery fee for this location. Please correct the address and try again, or contact the restaurant.</p>
+            {settings?.businessPhone && <a className="inline-block underline" href={`tel:${settings.businessPhone}`}>Call {settings.businessPhone}</a>}
+            <Button type="button" size="sm" variant="outline" onClick={() => void deliveryQuoteQuery.refetch()}>Try route again</Button>
+          </div>
         )}
         {selected && (selected.lat !== 0 || selected.lng !== 0) && (
           <div className="pt-2">
@@ -349,7 +349,7 @@ export function Checkout() {
                 Delivery location confirmed and saved on this device. It will stay fixed if you move.
               </p>
             ) : (
-              <Button type="button" className="mt-2 w-full" onClick={confirmLocation} disabled={outOfZone || Boolean(pendingOrder)}>
+              <Button type="button" className="mt-2 w-full" onClick={confirmLocation} disabled={Boolean(pendingOrder)}>
                 Confirm delivery location
               </Button>
             )}
@@ -425,7 +425,11 @@ export function Checkout() {
       {/* ---------- Totals + submit ---------- */}
       <Card className="duo-top space-y-2 text-sm">
         <Row label="Subtotal" value={formatMoney(totals.subtotal)} />
-        <Row label="Delivery fee" value={formatMoney(totals.deliveryFee)} />
+        <Row
+          label="Delivery fee"
+          value={deliveryQuote ? formatMoney(deliveryQuote.deliveryFee) : deliveryQuoteQuery.isFetching ? 'Calculating…' : 'Select a location'}
+        />
+        {deliveryQuote && <Row label="Driving distance" value={`${deliveryQuote.drivingDistanceKm.toFixed(2)} km`} />}
         <Row label={`Tax (${settings?.taxRate ?? 0}%)`} value={formatMoney(totals.tax)} />
         <div className="flex items-center justify-between border-t border-slate-200 pt-2">
           <span className="font-bold text-slate-800">Total</span>
@@ -433,7 +437,7 @@ export function Checkout() {
         </div>
         <p className="flex items-center gap-1.5 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
           <LeafIcon className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
-          Prepared fresh in the Mallam kitchen the moment you order.
+          Prepared fresh in our kitchen the moment you order.
         </p>
         {!accepting && (
           <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] font-bold leading-relaxed text-red-700">
@@ -446,7 +450,7 @@ export function Checkout() {
           size="lg"
           block
           loading={busy}
-          disabled={!accepting || !confirmedMatchesSelection || Boolean(pendingOrder)}
+          disabled={!accepting || !confirmedMatchesSelection || !deliveryQuote || deliveryQuoteQuery.isError || Boolean(pendingOrder)}
         >
           {busy
             ? 'Sending…'

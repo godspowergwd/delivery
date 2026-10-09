@@ -83,6 +83,7 @@ export const walkInOrderSchema = z.object({
   deliveryLocationConfirmedAt: z.string().datetime({ offset: true }).optional().transform((value) =>
     value ? new Date(value) : undefined,
   ),
+  quotedDeliveryFee: z.coerce.number().finite().min(0).max(100_000).optional(),
   deliveryOriginalLatitude: z.number().finite().min(-90).max(90).nullable().optional(),
   deliveryOriginalLongitude: z.number().finite().min(-180).max(180).nullable().optional(),
   paymentMethod: z.enum(PAYMENT_METHODS),
@@ -90,7 +91,7 @@ export const walkInOrderSchema = z.object({
   idempotencyKey: z.string().uuid(),
 }).superRefine((input, context) => {
   if (input.fulfillmentType === 'DELIVERY') {
-    for (const key of ['customerName', 'deliveryPhone', 'deliveryAddress', 'deliveryLatitude', 'deliveryLongitude', 'deliveryLocationSource'] as const) {
+    for (const key of ['customerName', 'deliveryPhone', 'deliveryAddress', 'deliveryLatitude', 'deliveryLongitude', 'deliveryLocationSource', 'quotedDeliveryFee'] as const) {
       if (input[key] == null || input[key] === '') {
         context.addIssue({ code: 'custom', path: [key], message: 'Required for delivery orders.' });
       }

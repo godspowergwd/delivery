@@ -201,7 +201,10 @@ async function readMapboxJson<T>(response: Response, operation: string): Promise
   }
 }
 
-export async function searchMapboxAddresses(query: string): Promise<MapboxAddressSuggestion[]> {
+export async function searchMapboxAddresses(
+  query: string,
+  proximity?: { latitude: number; longitude: number },
+): Promise<MapboxAddressSuggestion[]> {
   const clean = query.trim();
   if (clean.length < 3) return [];
 
@@ -224,7 +227,10 @@ export async function searchMapboxAddresses(query: string): Promise<MapboxAddres
   url.searchParams.set('autocomplete', 'true');
   url.searchParams.set('country', 'GH');
   url.searchParams.set('limit', '6');
-  url.searchParams.set('proximity', '-0.284093,5.571264');
+  url.searchParams.set(
+    'proximity',
+    `${proximity?.longitude ?? -0.295258},${proximity?.latitude ?? 5.5789596}`,
+  );
   url.searchParams.set('types', 'address,poi,place,neighborhood,locality');
 
   const response = await fetchMapbox(url, 'geocoding search');

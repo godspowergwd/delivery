@@ -8,6 +8,7 @@ const selectedAddressOrder = {
   paymentMethod: 'CASH',
   deliveryLatitude: 5.57741,
   deliveryLongitude: -0.31041,
+  quotedDeliveryFee: 12.5,
   deliveryLocationSource: 'search',
   deliveryLocationConfirmedAt: '2026-10-05T12:00:00.000Z',
 };

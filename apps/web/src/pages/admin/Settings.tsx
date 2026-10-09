@@ -95,6 +95,11 @@ export function AdminSettings() {
 
       <Card className="space-y-3">
         <h2 className="text-sm font-bold text-slate-600">Pricing & delivery</h2>
+        <p className="text-xs leading-relaxed text-slate-500">
+          Delivery quotes use the configured base fee plus the driving-kilometre rate, with the minimum applied.
+          Current starting values are GH₵4 base, GH₵2 per road kilometre, and a GH₵9 minimum; there is no distance cap.
+          Review and adjust these rates using real delivery routes.
+        </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Field label="Currency code">
             <Input value={form.currencyCode ?? ''} onChange={(event) => update({ currencyCode: event.target.value })} />
@@ -102,13 +107,31 @@ export function AdminSettings() {
           <Field label="Symbol">
             <Input value={form.currencySymbol ?? ''} onChange={(event) => update({ currencySymbol: event.target.value })} />
           </Field>
-          <Field label="Delivery fee">
+          <Field label="Base delivery fee (GH₵)">
             <Input
               type="number"
               min="0"
               step="0.01"
-              value={form.deliveryFee ?? 0}
-              onChange={(event) => update({ deliveryFee: Number(event.target.value) })}
+              value={form.deliveryBaseFee ?? 0}
+              onChange={(event) => update({ deliveryBaseFee: Number(event.target.value) })}
+            />
+          </Field>
+          <Field label="Minimum delivery fee (GH₵)">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.deliveryMinimumFee ?? 0}
+              onChange={(event) => update({ deliveryMinimumFee: Number(event.target.value) })}
+            />
+          </Field>
+          <Field label="Per driving km (GH₵)">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.deliveryPerKmRate ?? 0}
+              onChange={(event) => update({ deliveryPerKmRate: Number(event.target.value) })}
             />
           </Field>
           <Field label="Tax rate (%)">
@@ -130,14 +153,41 @@ export function AdminSettings() {
               onChange={(event) => update({ minOrderTotal: Number(event.target.value) })}
             />
           </Field>
-          <Field label="Delivery radius (km)" hint="Orders outside this radius of the kitchen are refused.">
+          <Field label="Long-distance warning after (road km)" hint="Warning only; this never blocks an order.">
             <Input
               type="number"
-              min="1"
-              max="50"
+              min="0"
+              max="1000"
               step="0.5"
               value={form.deliveryRadiusKm ?? 0}
               onChange={(event) => update({ deliveryRadiusKm: Number(event.target.value) })}
+            />
+          </Field>
+          <Field label="Restaurant origin latitude">
+            <Input
+              type="number"
+              min="4.4"
+              max="11.3"
+              step="0.0000001"
+              value={form.businessLatitude ?? 0}
+              onChange={(event) => update({ businessLatitude: Number(event.target.value) })}
+            />
+          </Field>
+          <Field label="Restaurant origin longitude">
+            <Input
+              type="number"
+              min="-3.5"
+              max="1.5"
+              step="0.0000001"
+              value={form.businessLongitude ?? 0}
+              onChange={(event) => update({ businessLongitude: Number(event.target.value) })}
+            />
+          </Field>
+          <Field label="Long-distance warning text">
+            <Textarea
+              rows={3}
+              value={form.longDistanceWarningText ?? ''}
+              onChange={(event) => update({ longDistanceWarningText: event.target.value })}
             />
           </Field>
           <Field label="Low stock alert at">

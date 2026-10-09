@@ -14,6 +14,7 @@ export interface OrderSubmissionPayload {
   deliveryOriginalLongitude: number | null;
   deliveryLocationSource: ConfirmedDeliveryLocation['source'];
   deliveryLocationConfirmedAt: string;
+  quotedDeliveryFee: number;
 }
 
 const STORAGE_PREFIX = 'ds_pending_order_v1:';
@@ -35,6 +36,8 @@ function isOrderSubmissionPayload(value: unknown): value is OrderSubmissionPaylo
     (payload.paymentMethod === 'CASH' || payload.paymentMethod === 'MOBILE_MONEY') &&
     typeof payload.deliveryLatitude === 'number' && Number.isFinite(payload.deliveryLatitude) &&
     typeof payload.deliveryLongitude === 'number' && Number.isFinite(payload.deliveryLongitude) &&
+    typeof payload.quotedDeliveryFee === 'number' && Number.isFinite(payload.quotedDeliveryFee) &&
+    payload.quotedDeliveryFee >= 0 &&
     hasOriginalLatitude === hasOriginalLongitude &&
     (!hasOriginalLatitude || (
       typeof payload.deliveryOriginalLatitude === 'number' && Number.isFinite(payload.deliveryOriginalLatitude) &&

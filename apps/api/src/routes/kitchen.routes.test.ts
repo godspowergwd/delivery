@@ -17,6 +17,7 @@ const deliveryOrder = {
   deliveryLatitude: 5.566,
   deliveryLongitude: -0.31,
   deliveryLocationSource: 'search',
+  quotedDeliveryFee: 12.5,
 };
 
 describe('walk-in order validation', () => {

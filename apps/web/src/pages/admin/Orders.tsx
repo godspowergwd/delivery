@@ -207,6 +207,11 @@ function OrderDialog({
               <span className="truncate">{order.deliveryAddress}</span>
             </p>
           )}
+          {order.deliveryPricingSnapshot && (
+            <p className="mt-1 text-xs font-semibold text-green-800">
+              {order.deliveryPricingSnapshot.drivingDistanceKm.toFixed(2)} km road route · quoted {new Date(order.deliveryPricingSnapshot.quotedAt).toLocaleString()}
+            </p>
+          )}
           {order.notes && <p className="mt-1 text-xs text-red-700">Note: {order.notes}</p>}
         </div>
 

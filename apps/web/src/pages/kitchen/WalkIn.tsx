@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OrderDTO, Paginated, ProductDTO, ReceiptDTO, SettingsDTO } from '@delivery/shared';
+import type { DeliveryQuoteDTO, OrderDTO, Paginated, ProductDTO, ReceiptDTO, SettingsDTO } from '@delivery/shared';
 import { computeTotals, formatMoney } from '@delivery/shared';
 import { ApiError, api, mediaUrl, qs } from '../../lib/api';
 import type { PlaceSuggestion } from '../../lib/geocode';
@@ -32,6 +32,7 @@ interface WalkInPayload {
   deliveryLongitude?: number;
   deliveryLocationSource?: 'gps' | 'search';
   deliveryLocationConfirmedAt?: string;
+  quotedDeliveryFee?: number;
   deliveryOriginalLatitude?: number;
   deliveryOriginalLongitude?: number;
   paymentMethod: PaymentMethod;
@@ -91,16 +92,20 @@ export function KitchenWalkIn() {
     staleTime: 60_000,
   });
   const settings = settingsQuery.data?.settings;
-  const zoneQuery = useQuery({
-    queryKey: ['walk-in-delivery-zone', location?.lat, location?.lng],
-    enabled: delivery && Boolean(location),
-    queryFn: () => api.get<{ within: boolean; message: string | null }>(
-      `/geo/check-zone?latitude=${location!.lat}&longitude=${location!.lng}`,
-    ),
+  const deliveryQuoteQuery = useQuery({
+    queryKey: ['walk-in-delivery-quote', location?.lat, location?.lng],
+    enabled: delivery && Boolean(location && (location.lat !== 0 || location.lng !== 0)),
+    staleTime: 15_000,
+    retry: 1,
+    queryFn: () => api.post<{ quote: DeliveryQuoteDTO }>('/geo/delivery-quote', {
+      latitude: location!.lat,
+      longitude: location!.lng,
+    }),
   });
+  const deliveryQuote = deliveryQuoteQuery.data?.quote;
   const totals = computeTotals({
     items: cartLines.map(({ product, quantity }) => ({ unitPrice: product.price, quantity })),
-    deliveryFee: delivery ? settings?.deliveryFee ?? 0 : 0,
+    deliveryFee: delivery ? deliveryQuote?.deliveryFee ?? 0 : 0,
     taxRate: settings?.taxRate ?? 0,
   });
   const itemCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
@@ -152,8 +157,8 @@ export function KitchenWalkIn() {
         setErrorMessage('Choose a delivery location from the suggestions.');
         return;
       }
-      if (zoneQuery.data && !zoneQuery.data.within) {
-        setErrorMessage(zoneQuery.data.message ?? 'This address is outside the delivery area.');
+      if (!deliveryQuote) {
+        setErrorMessage('Calculate a valid driving route and fee before processing this delivery.');
         return;
       }
     }
@@ -163,7 +168,7 @@ export function KitchenWalkIn() {
       paymentMethod,
       paymentStatus,
       idempotencyKey: requestKey.current,
-      ...(delivery && location ? {
+      ...(delivery && location && deliveryQuote ? {
         customerName: customerName.trim(),
         deliveryPhone: customerPhone.trim(),
         deliveryAddress: location.address,
@@ -171,6 +176,7 @@ export function KitchenWalkIn() {
         deliveryLongitude: location.lng,
         deliveryLocationSource: location.source === 'gps' ? 'gps' as const : 'search' as const,
         deliveryLocationConfirmedAt: new Date().toISOString(),
+        quotedDeliveryFee: deliveryQuote.deliveryFee,
         ...(location.source === 'gps' ? {
           deliveryOriginalLatitude: location.lat,
           deliveryOriginalLongitude: location.lng,
@@ -389,12 +395,15 @@ export function KitchenWalkIn() {
               disabled={locked}
               label="Delivery location / address"
             />
-            {location && zoneQuery.isFetching && <p className="text-xs font-semibold text-slate-500">Checking delivery area…</p>}
-            {location && zoneQuery.data && (
-              <p className={`text-xs font-bold ${zoneQuery.data.within ? 'text-green-800' : 'text-red-700'}`}>
-                {zoneQuery.data.within ? 'Inside delivery area' : zoneQuery.data.message ?? 'Outside delivery area'}
-              </p>
+            {location && deliveryQuoteQuery.isFetching && <p role="status" className="text-xs font-semibold text-slate-600">Calculating the driving route and fee…</p>}
+            {deliveryQuote && (
+              <div className="space-y-1 rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-900">
+                <p>{deliveryQuote.drivingDistanceKm.toFixed(2)} km · about {deliveryQuote.estimatedDurationMinutes} min</p>
+                <p>Delivery fee: {formatMoney(deliveryQuote.deliveryFee)}</p>
+              </div>
             )}
+            {deliveryQuote?.warning && <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">{deliveryQuote.warning}</p>}
+            {deliveryQuoteQuery.isError && <p role="alert" className="text-xs font-semibold text-rose-700">No driving route could be verified. Correct the address or contact the restaurant.</p>}
           </div>
         )}
 
@@ -415,7 +424,7 @@ export function KitchenWalkIn() {
 
         <div className="space-y-2 border-t border-slate-200 pt-3 text-sm">
           <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{formatMoney(totals.subtotal)}</span></div>
-          {delivery && <div className="flex justify-between text-slate-600"><span>Delivery</span><span>{formatMoney(totals.deliveryFee)}</span></div>}
+          {delivery && <div className="flex justify-between text-slate-600"><span>Delivery</span><span>{deliveryQuote ? formatMoney(deliveryQuote.deliveryFee) : deliveryQuoteQuery.isFetching ? 'Calculating…' : 'Not quoted'}</span></div>}
           {totals.tax > 0 && <div className="flex justify-between text-slate-600"><span>Tax</span><span>{formatMoney(totals.tax)}</span></div>}
           <div className="flex justify-between border-t border-slate-100 pt-2 text-lg font-extrabold text-slate-900"><span>Total</span><span>{formatMoney(totals.total)}</span></div>
         </div>
@@ -426,7 +435,7 @@ export function KitchenWalkIn() {
             {isSubmitting ? 'Retrying…' : 'Retry the same order'}
           </Button>
         ) : (
-          <Button type="submit" block size="lg" disabled={locked || cartLines.length === 0 || (delivery && Boolean(location && zoneQuery.data && !zoneQuery.data.within))}>
+          <Button type="submit" block size="lg" disabled={locked || cartLines.length === 0 || (delivery && (!deliveryQuote || deliveryQuoteQuery.isError || deliveryQuoteQuery.isFetching))}>
             {isSubmitting ? 'Processing…' : delivery ? 'Process Delivery Order' : 'Process Order'}
           </Button>
         )}

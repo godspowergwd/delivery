@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import type {
   AddressDTO,
   CategoryDTO,
+  DeliveryPricingSnapshotDTO,
   NotificationDTO,
   OrderDTO,
   OrderItemDTO,
@@ -31,6 +32,62 @@ export type ProductWithCategory = Prisma.ProductGetPayload<{
 export type CategoryWithCount = Prisma.CategoryGetPayload<{
   include: { _count: { select: { products: true } } };
 }>;
+
+function jsonObject(value: Prisma.JsonValue | null): Prisma.JsonObject | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null;
+}
+
+function jsonNumber(value: Prisma.JsonValue | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function jsonString(value: Prisma.JsonValue | undefined): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function serializeDeliveryPricingSnapshot(
+  value: Prisma.JsonValue | null,
+): DeliveryPricingSnapshotDTO | null {
+  const snapshot = jsonObject(value);
+  const origin = jsonObject(snapshot?.origin ?? null);
+  const destination = jsonObject(snapshot?.destination ?? null);
+  const latitude = jsonNumber(origin?.latitude);
+  const longitude = jsonNumber(origin?.longitude);
+  const address = jsonString(origin?.address);
+  const destinationLatitude = jsonNumber(destination?.latitude);
+  const destinationLongitude = jsonNumber(destination?.longitude);
+  const drivingDistanceKm = jsonNumber(snapshot?.drivingDistanceKm);
+  const estimatedDurationMinutes = jsonNumber(snapshot?.estimatedDurationMinutes);
+  const baseFee = jsonNumber(snapshot?.baseFee);
+  const minimumFee = jsonNumber(snapshot?.minimumFee);
+  const perKilometerRate = jsonNumber(snapshot?.perKilometerRate);
+  const acceptedFee = jsonNumber(snapshot?.acceptedFee);
+  const quotedAt = jsonString(snapshot?.quotedAt);
+
+  if (
+    snapshot?.provider !== 'mapbox' ||
+    snapshot.model !== 'distance-v1' ||
+    latitude === null || longitude === null || !address ||
+    destinationLatitude === null || destinationLongitude === null ||
+    drivingDistanceKm === null || estimatedDurationMinutes === null ||
+    baseFee === null || minimumFee === null || perKilometerRate === null ||
+    acceptedFee === null || !quotedAt
+  ) return null;
+
+  return {
+    provider: 'mapbox',
+    model: 'distance-v1',
+    origin: { latitude, longitude, address },
+    destination: { latitude: destinationLatitude, longitude: destinationLongitude },
+    drivingDistanceKm,
+    estimatedDurationMinutes,
+    baseFee,
+    minimumFee,
+    perKilometerRate,
+    acceptedFee,
+    quotedAt,
+  };
+}
 
 export const PRODUCT_INCLUDE = {
   category: { select: { id: true, name: true, slug: true } },
@@ -148,6 +205,7 @@ export function serializeOrder(order: OrderWithRelations): OrderDTO {
     deliveryOriginalLongitude: order.deliveryOriginalLongitude,
     deliveryLocationSource: order.deliveryLocationSource,
     deliveryLocationConfirmedAt: order.deliveryLocationConfirmedAt?.toISOString() ?? null,
+    deliveryPricingSnapshot: serializeDeliveryPricingSnapshot(order.deliveryPricingSnapshot),
     hasReceipt: Boolean(order.receipt),
   };
 }
@@ -172,6 +230,7 @@ export function serializeDriverOffer(order: OrderWithRelations): OrderDTO {
     deliveryOriginalLongitude: null,
     deliveryLocationSource: null,
     deliveryLocationConfirmedAt: null,
+    deliveryPricingSnapshot: null,
     hasReceipt: false,
   };
 }
@@ -194,4 +253,3 @@ export function serializeAddress(
 export function serializeNotifications(rows: Parameters<typeof serializeNotification>[0][]): NotificationDTO[] {
   return rows.map(serializeNotification);
 }
-

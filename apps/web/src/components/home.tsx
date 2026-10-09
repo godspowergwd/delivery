@@ -1,9 +1,5 @@
 import type { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import type { SettingsDTO } from '@delivery/shared';
-import { formatMoney } from '@delivery/shared';
-import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useGuestGate } from '../lib/guest';
 import { loadDeliveryLocation } from '../lib/prefs';
@@ -14,14 +10,8 @@ import { RestaurantStatusPill } from './restaurant-status';
 /** Compact location + ETA strip shown under the customer header. */
 export function DeliveryStatusBar({ etaMinutes = 25 }: { etaMinutes?: number }) {
   const location = loadDeliveryLocation();
-  const { data } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
-    staleTime: 300_000,
-  });
   // Live open/closed chip: updates the moment the Kitchen flips the switch.
   const { status } = useRestaurantStatus();
-  const fee = data?.settings.deliveryFee;
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] font-medium text-slate-500">
       <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -33,12 +23,10 @@ export function DeliveryStatusBar({ etaMinutes = 25 }: { etaMinutes?: number }) 
         <ClockIcon className="h-4 w-4 flex-none text-red-600" aria-hidden="true" />
         {etaMinutes} min
       </span>
-      {fee !== undefined && (
-        <span className="inline-flex items-center gap-1.5">
-          <BikeIcon className="h-4 w-4 flex-none text-slate-400" aria-hidden="true" />
-          Delivery {formatMoney(fee)}
-        </span>
-      )}
+      <span className="inline-flex items-center gap-1.5">
+        <BikeIcon className="h-4 w-4 flex-none text-slate-400" aria-hidden="true" />
+        Delivery fee based on road distance
+      </span>
       <RestaurantStatusPill status={status} />
     </div>
   );

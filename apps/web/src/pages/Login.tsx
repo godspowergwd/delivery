@@ -62,7 +62,7 @@ export function Login() {
           className="h-auto w-44 max-w-full object-contain"
         />
         <h1 className="text-2xl font-extrabold text-slate-900">Welcome back</h1>
-        <p className="text-sm text-slate-500">Hot waakye around Malam and Gbawe. Sign in to order.</p>
+        <p className="text-sm text-slate-500">Hot waakye delivered with clear, distance-based pricing. Sign in to order.</p>
       </div>
       <Card className="duo-top">
         {/* One real credential form: identifier first, password second — the

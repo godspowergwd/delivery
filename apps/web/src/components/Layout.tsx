@@ -377,7 +377,7 @@ export function AppShell() {
             <span className="hidden text-sm font-semibold text-slate-500 xl:inline">
               {status && !status.open
                 ? 'Orders paused until the kitchen comes online'
-                : 'Delivering across Mallam & Gbawe'}
+                : 'Delivery fees based on road distance'}
             </span>
           </span>
           {user ? (
