@@ -92,7 +92,7 @@ export default function CustomerHome() {
             <p className="text-sm font-bold text-slate-500">Hungry, {firstName}?</p>
             <RestaurantStatusPill status={status} />
           </div>
-          <h1 className="mt-1 text-[26px] font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">
+          <h1 className="editorial-heading mt-1 text-[28px] font-bold leading-tight text-slate-900 sm:text-4xl">
             <span className="text-green-700">Fresh food</span>, delivered{' '}
             <span className="text-red-600">fast</span>.
           </h1>
@@ -142,11 +142,11 @@ export default function CustomerHome() {
           <span aria-hidden="true" className="duo-blob duo-blob-green -bottom-10 -right-6 h-36 w-36" />
           <span aria-hidden="true" className="absolute -bottom-14 -right-16 h-32 w-32 rounded-full bg-red-800/60 blur-[2px]" />
           <span className="relative inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-extrabold uppercase tracking-widest text-white">
-            <SparkleIcon className="h-3.5 w-3.5" aria-hidden="true" /> This week only
+            <SparkleIcon className="h-3.5 w-3.5" aria-hidden="true" /> MAAME’S WAAKYE
           </span>
-          <p className="relative mt-2 text-xl font-extrabold leading-snug">Free delivery on your first order</p>
+          <p className="relative mt-2 text-xl font-extrabold leading-snug">A taste of home, made fresh.</p>
           <p className="relative mt-1 text-sm font-medium text-green-100">
-            Order today and taste the difference.
+            Explore waakye, rice meals and more from our kitchen.
           </p>
         </Link>
       </Reveal>
@@ -185,7 +185,7 @@ export default function CustomerHome() {
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-extrabold tracking-tight text-slate-900">Fresh this week</h2>
-            <p className="text-[13px] text-slate-500">Straight from the Maame’s Waakye App kitchen.</p>
+            <p className="text-[13px] text-slate-500">Straight from the Maame’s Waakye kitchen.</p>
           </div>
           <Link to="/app/search" className="flex-none text-sm font-bold text-red-700 hover:underline">
             Browse menu

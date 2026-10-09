@@ -21,10 +21,10 @@ installBootSplashSafetyNet();
 // Every uncaught error is logged with its real message so a blank screen is
 // always debuggable. The React tree itself is protected by <ErrorBoundary>.
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('[ONYX] Unhandled promise rejection:', event.reason);
+  console.error("[Maame's Waakye] Unhandled promise rejection:", event.reason);
 });
 window.addEventListener('error', (event) => {
-  if (event.error) console.error('[ONYX] Uncaught error:', event.error);
+  if (event.error) console.error("[Maame's Waakye] Uncaught error:", event.error);
 });
 
 const queryClient = new QueryClient({

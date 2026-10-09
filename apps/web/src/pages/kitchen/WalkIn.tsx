@@ -420,7 +420,7 @@ export function KitchenWalkIn() {
           <div className="flex justify-between border-t border-slate-100 pt-2 text-lg font-extrabold text-slate-900"><span>Total</span><span>{formatMoney(totals.total)}</span></div>
         </div>
 
-        {errorMessage && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700" role="alert">{errorMessage}</p>}
+        {errorMessage && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800" role="alert">{errorMessage}</p>}
         {retryPayload ? (
           <Button type="button" block size="lg" disabled={isSubmitting} onClick={() => void processPayload(retryPayload)}>
             {isSubmitting ? 'Retrying…' : 'Retry the same order'}

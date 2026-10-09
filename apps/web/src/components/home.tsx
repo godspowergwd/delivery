@@ -45,9 +45,8 @@ export function DeliveryStatusBar({ etaMinutes = 25 }: { etaMinutes?: number }) 
 }
 
 /**
- * Horizontal category pill rail with icons. Active states alternate the two
- * brand colours: "All" is red, individual food categories are green — food
- * categories read as freshness, the global selection reads as action.
+ * Horizontal category pill rail with icons, forest-green selected states, and
+ * calm neutral inactive choices.
  */
 export function CategoryRail<T extends { id: string; name: string }>({
   categories,
@@ -99,12 +98,12 @@ export function CategoryRail<T extends { id: string; name: string }>({
   );
 }
 
-/** Trust row: alternating red and green accents across the three promises. */
+/** Trust row: restrained forest-green accents across the three promises. */
 export function TrustRow() {
   const items = [
-    { icon: <BikeIcon className="h-5 w-5" aria-hidden="true" />, label: 'Live order tracking', tone: 'text-red-600' },
+    { icon: <BikeIcon className="h-5 w-5" aria-hidden="true" />, label: 'Live order tracking', tone: 'text-green-700' },
     { icon: <LeafIcon className="h-5 w-5" aria-hidden="true" />, label: 'Kitchen-fresh meals', tone: 'text-green-600' },
-    { icon: <ShieldIcon className="h-5 w-5" aria-hidden="true" />, label: 'Support on every order', tone: 'text-red-600' },
+    { icon: <ShieldIcon className="h-5 w-5" aria-hidden="true" />, label: 'Support on every order', tone: 'text-green-700' },
   ];
   return (
     <div className="grid grid-cols-3 gap-2">
@@ -122,8 +121,7 @@ export function TrustRow() {
 }
 
 /**
- * Guest-only conversion row: a red promotional surface with green + white
- * actions. Signed-in users never see sign-up prompts again — the row simply
+ * Guest-only conversion row. Signed-in users never see sign-up prompts again — the row simply
  * disappears for them.
  */
 export function PromoCapture() {
@@ -136,7 +134,7 @@ export function PromoCapture() {
       <span className="duo-blob duo-blob-green -right-6 -top-8 h-20 w-20" aria-hidden="true" />
       <div className="relative flex items-center gap-2">
         <p className="min-w-0 flex-1 truncate text-sm font-bold">
-          New to Maame’s Waakye App? Sign in to order
+          New to Maame’s Waakye? Sign in to order
         </p>
         <div className="flex flex-none gap-2">
           <button

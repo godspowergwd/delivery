@@ -128,8 +128,8 @@ export function OrderDetail() {
 }
 
 /**
- * Step + connector tones follow the brand status table: red and green
- * alternate so the timeline never reads as a single-colour sequence.
+ * Step and connector tones follow the shared order status table so the
+ * timeline remains legible throughout the customer-facing journey.
  */
 const ORDER_PROGRESS_TONES = [
   'bg-red-600',

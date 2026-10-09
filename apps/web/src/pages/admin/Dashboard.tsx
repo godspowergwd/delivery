@@ -83,11 +83,11 @@ export function AdminDashboard() {
   }
 
     const statCards: StatCard[] = [
-    { label: 'Revenue today', value: formatMoney(overview?.revenueToday ?? 0), icon: WalletIcon, tile: 'bg-red-50', iconColor: 'text-red-600' },
+    { label: 'Revenue today', value: formatMoney(overview?.revenueToday ?? 0), icon: WalletIcon, tile: 'bg-amber-50', iconColor: 'text-amber-800' },
     { label: 'Orders today', value: String(overview?.ordersToday ?? 0), icon: ReceiptIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
     { label: 'Avg. order', value: formatMoney(overview?.averageOrderValue ?? 0), icon: ChartIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
     { label: 'Active orders', value: String(overview?.activeOrders ?? 0), icon: FlameIcon, tile: 'bg-red-50', iconColor: 'text-red-600' },
-    { label: 'Pending', value: String(overview?.pendingOrders ?? 0), icon: ClockIcon, tile: 'bg-red-50', iconColor: 'text-red-600' },
+    { label: 'Pending', value: String(overview?.pendingOrders ?? 0), icon: ClockIcon, tile: 'bg-amber-50', iconColor: 'text-amber-800' },
     { label: 'Completion', value: `${overview?.completionRate ?? 0}%`, icon: CheckCircleIcon, tile: 'bg-red-50', iconColor: 'text-red-600' },
     { label: 'Customers', value: String(overview?.customersTotal ?? 0), icon: UsersIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
     { label: 'Business', value: settings?.businessName ?? '-', icon: StoreIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
@@ -122,19 +122,19 @@ export function AdminDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartsData.charts.series} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                   <defs>
-                    <linearGradient id="onyxRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#e30613" stopOpacity={0.28} />
-                      <stop offset="100%" stopColor="#e30613" stopOpacity={0} />
+                    <linearGradient id="maameRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#173d2b" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="#173d2b" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9ef" vertical={false} />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6a7383' }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6a7383' }} width={44} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e7e1d4" vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#686b62' }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#686b62' }} width={44} />
                   <Tooltip
-                    contentStyle={{ borderRadius: 16, border: '1px solid #e5e9ef', boxShadow: '0 12px 32px -16px rgba(19,26,38,0.14)' }}
+                    contentStyle={{ borderRadius: 16, border: '1px solid #e7e1d4', boxShadow: '0 12px 32px -16px rgba(37,40,32,0.14)' }}
                     formatter={(value: unknown) => formatMoney(Number(value))}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="#e30613" strokeWidth={2.5} fill="url(#onyxRevenue)" />
+                  <Area type="monotone" dataKey="revenue" stroke="#173d2b" strokeWidth={2.5} fill="url(#maameRevenue)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -144,13 +144,13 @@ export function AdminDashboard() {
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartsData.charts.series} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9ef" vertical={false} />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6a7383' }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6a7383' }} width={30} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e7e1d4" vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#686b62' }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#686b62' }} width={30} allowDecimals={false} />
                   <Tooltip
-                    contentStyle={{ borderRadius: 16, border: '1px solid #e5e9ef', boxShadow: '0 12px 32px -16px rgba(19,26,38,0.14)' }}
+                    contentStyle={{ borderRadius: 16, border: '1px solid #e7e1d4', boxShadow: '0 12px 32px -16px rgba(37,40,32,0.14)' }}
                   />
-                  <Bar dataKey="orders" fill="#e30613" radius={[8, 8, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="orders" fill="#c5a15a" radius={[8, 8, 0, 0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -159,8 +159,8 @@ export function AdminDashboard() {
       )}
 
       {(overview?.lowStockProducts.length ?? 0) > 0 && (
-        <Card className="border-red-200 bg-red-50">
-          <h2 className="mb-2 flex items-center gap-2 text-[15px] font-bold text-red-800">
+        <Card className="border-amber-200 bg-amber-50">
+          <h2 className="mb-2 flex items-center gap-2 text-[15px] font-bold text-amber-900">
             <AlertTriangleIcon className="h-5 w-5" />
             Low stock
           </h2>

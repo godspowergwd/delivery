@@ -107,7 +107,7 @@ export function OfflineBar() {
   if (!offline) return null;
   return (
     <div
-      className="sticky top-0 z-40 flex items-center justify-center gap-2 bg-red-600 py-1.5 text-center text-sm font-bold text-white"
+      className="sticky top-0 z-40 flex items-center justify-center gap-2 bg-amber-700 py-1.5 text-center text-sm font-bold text-white"
       role="status"
     >
       <span className="h-2 w-2 rounded-full bg-green-300" aria-hidden="true" />
@@ -121,10 +121,10 @@ export interface NavItem {
   label: string;
   icon: ComponentType<{ className?: string }>;
   /**
-   * Brand colour of the active state. Red and green alternate across every
-   * role's navigation so neither colour dominates the shell.
+   * Brand colour of the active state. Forest green is primary; gold is a
+   * restrained secondary navigation accent.
    */
-  tone: 'red' | 'green';
+  tone: 'brand' | 'gold';
   /** High-priority sections get a stronger visual treatment. */
   emphasize?: boolean;
   /** Shows the live cart count badge. */
@@ -139,32 +139,32 @@ export interface NavItem {
  */
 const NAV: Record<Role, NavItem[]> = {
   CUSTOMER: [
-    { to: '/app/home', label: 'Home', icon: HomeIcon, tone: 'red' },
-    { to: '/app/menu', label: 'Menu', icon: SearchIcon, tone: 'green' },
-    { to: '/app/orders', label: 'Orders', icon: ReceiptIcon, tone: 'red' },
-    { to: '/app/track', label: 'Track', icon: TruckIcon, tone: 'green' },
-    { to: '/app/cart', label: 'Cart', icon: CartIcon, cart: true, tone: 'red' },
-    { to: '/app/profile', label: 'Account', icon: UserIcon, tone: 'green' },
+    { to: '/app/home', label: 'Home', icon: HomeIcon, tone: 'brand' },
+    { to: '/app/menu', label: 'Menu', icon: SearchIcon, tone: 'gold' },
+    { to: '/app/orders', label: 'Orders', icon: ReceiptIcon, tone: 'brand' },
+    { to: '/app/track', label: 'Track', icon: TruckIcon, tone: 'gold' },
+    { to: '/app/cart', label: 'Cart', icon: CartIcon, cart: true, tone: 'brand' },
+    { to: '/app/profile', label: 'Account', icon: UserIcon, tone: 'gold' },
   ],
   KITCHEN: [
-    { to: '/kitchen', label: 'Orders', icon: FlameIcon, tone: 'red', emphasize: true },
-    { to: '/kitchen/drivers', label: 'Drivers', icon: UsersIcon, tone: 'green' },
-    { to: '/kitchen/walk-in', label: 'Walk-In', icon: StoreIcon, tone: 'green', primary: true },
-    { to: '/kitchen/products', label: 'Products', icon: PackageIcon, tone: 'red' },
-    { to: '/kitchen/settings', label: 'Settings', icon: CogIcon, tone: 'green' },
+    { to: '/kitchen', label: 'Orders', icon: FlameIcon, tone: 'brand', emphasize: true },
+    { to: '/kitchen/drivers', label: 'Drivers', icon: UsersIcon, tone: 'gold' },
+    { to: '/kitchen/walk-in', label: 'Walk-In', icon: StoreIcon, tone: 'gold', primary: true },
+    { to: '/kitchen/products', label: 'Products', icon: PackageIcon, tone: 'brand' },
+    { to: '/kitchen/settings', label: 'Settings', icon: CogIcon, tone: 'gold' },
   ],
   DRIVER: [
-    { to: '/driver/deliveries', label: 'Deliveries', icon: TruckIcon, tone: 'red', emphasize: true },
-    { to: '/driver/map', label: 'Map', icon: MapIcon, tone: 'green' },
-    { to: '/driver/earnings', label: 'Earnings', icon: WalletIcon, tone: 'red' },
-    { to: '/driver/profile', label: 'Profile', icon: UserIcon, tone: 'green' },
+    { to: '/driver/deliveries', label: 'Deliveries', icon: TruckIcon, tone: 'brand', emphasize: true },
+    { to: '/driver/map', label: 'Map', icon: MapIcon, tone: 'gold' },
+    { to: '/driver/earnings', label: 'Earnings', icon: WalletIcon, tone: 'brand' },
+    { to: '/driver/profile', label: 'Profile', icon: UserIcon, tone: 'gold' },
   ],
   ADMIN: [
-    { to: '/admin', label: 'Dashboard', icon: GridIcon, tone: 'red' },
-    { to: '/admin/orders', label: 'Orders', icon: ReceiptIcon, tone: 'green', emphasize: true },
-    { to: '/admin/products', label: 'Products', icon: PackageIcon, tone: 'red' },
-    { to: '/admin/reports', label: 'Reports', icon: ChartIcon, tone: 'green' },
-    { to: '/admin/settings', label: 'Settings', icon: CogIcon, tone: 'red' },
+    { to: '/admin', label: 'Dashboard', icon: GridIcon, tone: 'brand' },
+    { to: '/admin/orders', label: 'Orders', icon: ReceiptIcon, tone: 'gold', emphasize: true },
+    { to: '/admin/products', label: 'Products', icon: PackageIcon, tone: 'brand' },
+    { to: '/admin/reports', label: 'Reports', icon: ChartIcon, tone: 'gold' },
+    { to: '/admin/settings', label: 'Settings', icon: CogIcon, tone: 'brand' },
   ],
 };
 
@@ -178,29 +178,29 @@ function isExactRoute(to: string): boolean {
   );
 }
 
-/** Active/idle classes per tone — equal red and green presence in the nav. */
+/** Accessible, high-contrast active and idle navigation treatments. */
 const SIDEBAR_ACTIVE: Record<NavItem['tone'], string> = {
-  red: 'bg-red-600 text-white shadow-brand-soft',
-  green: 'bg-green-600 text-white shadow-green',
+  brand: 'bg-red-800 text-white shadow-brand-soft',
+  gold: 'bg-amber-700 text-white shadow-soft',
 };
 const SIDEBAR_IDLE_ACCENT: Record<NavItem['tone'], string> = {
-  red: 'text-red-700 hover:bg-red-50',
-  green: 'text-green-700 hover:bg-green-50',
+  brand: 'text-red-800 hover:bg-red-50',
+  gold: 'text-amber-800 hover:bg-amber-50',
 };
 const SIDEBAR_IDLE_ICON: Record<NavItem['tone'], string> = {
-  red: 'text-red-600',
-  green: 'text-green-600',
+  brand: 'text-red-700',
+  gold: 'text-amber-700',
 };
 const BOTTOM_ACTIVE: Record<NavItem['tone'], string> = {
-  red: 'text-red-700',
-  green: 'text-green-700',
+  brand: 'text-red-800',
+  gold: 'text-amber-800',
 };
 const BOTTOM_INDICATOR: Record<NavItem['tone'], string> = {
-  red: 'bg-red-700',
-  green: 'bg-green-700',
+  brand: 'bg-red-800',
+  gold: 'bg-amber-600',
 };
 
-/** Desktop sidebar destination with a balanced red/green active state. */
+/** Desktop sidebar destination with a clear brand or gold active state. */
 function SidebarLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
   const Icon = item.icon;
   return (
@@ -238,7 +238,7 @@ function SidebarLink({ item, cartCount }: { item: NavItem; cartCount: number }) 
               className={clsx(
                 'rounded-full px-2 py-0.5 text-sm font-bold',
                 isActive
-                  ? item.tone === 'red'
+                  ? item.tone === 'brand'
                     ? 'bg-white text-red-700'
                     : 'bg-white text-green-700'
                   : 'bg-red-600 text-white',
@@ -322,19 +322,18 @@ export function AppShell() {
   };
 
   return (
-    <div className="min-h-dvh bg-white lg:flex">
+    <div className="min-h-dvh bg-slate-50 lg:flex">
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh w-64 flex-none flex-col border-r border-slate-200 bg-white lg:flex xl:w-72">
         <div className="flex items-center gap-3 px-5 pb-5 pt-6">
-          <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-11 w-11 rounded-2xl" />
+          <img
+            src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
+            alt="Maame’s Waakye"
+            className="h-auto w-32 shrink-0 object-contain"
+          />
           <div className="min-w-0">
-            <p className="truncate text-base font-extrabold text-slate-900">Maame’s Waakye App</p>
-            <p className="truncate text-xs font-medium text-slate-500">
-              <span className="font-extrabold uppercase tracking-wide text-red-600">ONYX</span>
-              <span aria-hidden="true"> · </span>
-              <span className="font-semibold text-green-700">{roleLabel}</span>
-              {user ? ` · ${user.name}` : ''}
-            </p>
+            <p className="truncate text-xs font-semibold text-slate-600">{roleLabel}</p>
+            {user && <p className="truncate text-xs text-slate-500">{user.name}</p>}
           </div>
         </div>
 
@@ -374,13 +373,13 @@ export function AppShell() {
         <header className="pt-safe sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between gap-3 pb-3 pt-2">
             <Link to="/" className="flex min-w-0 items-center gap-2.5">
-              <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-10 w-10 rounded-xl" />
+              <img
+                src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
+                alt="Maame’s Waakye"
+                className="h-auto w-[92px] shrink-0 object-contain"
+              />
               <div className="min-w-0">
-                <p className="truncate text-[15px] font-extrabold leading-tight text-slate-900">Maame’s Waakye App</p>
-                <p className="truncate text-[10px] font-extrabold uppercase tracking-[0.22em]">
-                  <span className="text-red-600">ONYX</span>
-                  <span className="text-green-700"> · fresh daily</span>
-                </p>
+                <p className="truncate text-[11px] font-semibold text-slate-500">Fresh Ghanaian meals</p>
               </div>
             </Link>
             <div className="flex flex-none items-center gap-2">

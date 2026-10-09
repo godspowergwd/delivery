@@ -49,19 +49,19 @@ export function Login() {
   };
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center bg-white px-5">
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center bg-slate-50 px-5">
       {params.get('expired') && (
-        <p className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800">
           Your session expired. Please sign in again.
         </p>
       )}
-      <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-16 w-16 rounded-2xl" />
-        <h1 className="text-2xl font-extrabold text-slate-900">Maame’s Waakye App</h1>
-        <p className="text-xs font-extrabold uppercase tracking-[0.28em]">
-          <span className="text-red-600">Onyx</span>
-          <span className="text-green-700"> · fresh daily</span>
-        </p>
+      <div className="mb-6 flex flex-col items-center gap-3 text-center">
+        <img
+          src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
+          alt="Maame’s Waakye"
+          className="h-auto w-44 max-w-full object-contain"
+        />
+        <h1 className="text-2xl font-extrabold text-slate-900">Welcome back</h1>
         <p className="text-sm text-slate-500">Hot waakye around Malam and Gbawe. Sign in to order.</p>
       </div>
       <Card className="duo-top">

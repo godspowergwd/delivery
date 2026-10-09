@@ -16,7 +16,7 @@ import { CheckCircleIcon, StoreIcon, XCircleIcon } from './icons';
  * Restaurant open/closed surfaces.
  *
  * One status, one meaning, everywhere: green means the kitchen is taking
- * orders, red means it is not. The Kitchen owns the switch; customers and
+ * orders; rose means it is not. The Kitchen owns the switch; customers and
  * drivers only read it.
  */
 
@@ -38,13 +38,13 @@ export function RestaurantStatusPill({
         'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-wide',
         open
           ? 'bg-green-50 text-green-800 ring-1 ring-inset ring-green-200'
-          : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200',
+          : 'bg-rose-50 text-rose-800 ring-1 ring-inset ring-rose-200',
         className,
       )}
     >
       <span
         aria-hidden="true"
-        className={clsx('h-2 w-2 rounded-full', open ? 'bg-green-600' : 'bg-red-600')}
+        className={clsx('h-2 w-2 rounded-full', open ? 'bg-green-600' : 'bg-rose-600')}
       />
       {label}
     </span>
@@ -70,19 +70,19 @@ export function RestaurantClosedNotice({
     <section
       aria-live="polite"
       className={clsx(
-        'rg-corners overflow-hidden rounded-card border border-red-200 bg-white shadow-card',
+        'rg-corners overflow-hidden rounded-card border border-rose-200 bg-white shadow-card',
         className,
       )}
     >
-      <div className="flex items-center gap-3 border-b border-red-100 bg-red-50 px-4 py-3">
-        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-red-600 text-white">
+      <div className="flex items-center gap-3 border-b border-rose-100 bg-rose-50 px-4 py-3">
+        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-rose-700 text-white">
           <XCircleIcon className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p className="text-[15px] font-extrabold leading-tight text-red-800">
+          <p className="text-[15px] font-extrabold leading-tight text-rose-900">
             {RESTAURANT_CLOSED_TITLE}
           </p>
-          <p className="truncate text-[13px] font-semibold text-red-700">{RESTAURANT_CLOSED_BODY}</p>
+          <p className="truncate text-[13px] font-semibold text-rose-800">{RESTAURANT_CLOSED_BODY}</p>
         </div>
         <RestaurantStatusPill status={status} className="ml-auto flex-none" />
       </div>
@@ -127,7 +127,7 @@ export function RestaurantStatusCard({
     <section
       className={clsx(
         'overflow-hidden rounded-3xl border bg-white shadow-card',
-        open ? 'border-green-200' : 'border-red-200',
+        open ? 'border-green-200' : 'border-rose-200',
         className,
       )}
     >
@@ -151,7 +151,7 @@ export function RestaurantStatusCard({
           'mx-5 mt-4 flex min-h-16 w-[calc(100%-2.5rem)] items-center justify-center gap-3 rounded-2xl text-lg font-extrabold uppercase tracking-wide text-white transition active:scale-[0.98] disabled:cursor-default',
           open
             ? 'bg-green-600 shadow-green hover:bg-green-700'
-            : 'bg-red-600 shadow-brand-soft hover:bg-red-700',
+            : 'bg-rose-700 shadow-soft hover:bg-rose-800',
         )}
       >
         {pending ? (
@@ -195,7 +195,7 @@ export function RestaurantStatusStrip({
     <div
       className={clsx(
         'flex items-center gap-3 rounded-2xl border px-3 py-2.5',
-        open ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50',
+        open ? 'border-green-200 bg-green-50' : 'border-rose-200 bg-rose-50',
       )}
     >
       <RestaurantStatusPill status={status} />

@@ -6,11 +6,8 @@ import { Button, ErrorText, Field, Input, PasswordInput, Sheet } from './ui';
 import { LeafIcon, LockIcon, UserIcon } from './icons';
 
 /**
- * Premium sign-in bottom sheet shown to guests on their first protected
- * action. Balanced red-and-green branding: a duo header band with green
- * ingredient accents, a red primary sign-in action and a green create-account
- * action. Signing in here runs the remembered action immediately — the guest
- * never has to tap the original button twice.
+ * Sign-in sheet shown to guests on their first protected action. Signing in
+ * runs the remembered action immediately so the guest does not need to retry.
  */
 export function AuthSheet() {
   const location = useLocation();
@@ -42,7 +39,7 @@ export function AuthSheet() {
   return (
     <Sheet open={sheetOpen} onClose={closeSheet} title="Sign in to continue your order.">
       <div className="space-y-4">
-        {/* Balanced red-and-green branded header with food accents. */}
+        {/* Food accents keep the guest sign-in prompt connected to the menu. */}
         <div className="duo-top rg-corners -mx-1 rounded-3xl bg-white px-4 pb-4 pt-5 ring-1 ring-inset ring-slate-200/70">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-red-600 text-white shadow-brand">

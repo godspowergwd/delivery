@@ -42,7 +42,7 @@ export function buildDeliveryReceiptHtml(
       </article>`)
     .join('');
   const logoUrl = new URL(
-    `${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`,
+    `${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`,
     window.location.origin,
   ).href;
   const paymentMethodValue: string = receipt.paymentMethod;
@@ -70,7 +70,7 @@ export function buildDeliveryReceiptHtml(
   body { margin: 0; padding: 12px; color: #000; background: #fff; font: 12px/1.4 Arial, sans-serif; }
   .receipt { width: 100%; max-width: 74mm; margin: 0 auto; }
   header { text-align: center; padding-bottom: 10px; border-bottom: 1px dashed #000; }
-  header img { display: block; width: 30mm; max-height: 15mm; object-fit: contain; margin: 0 auto 5px; }
+  header img { display: block; width: 36mm; max-height: 23mm; object-fit: contain; margin: 0 auto 5px; }
   h1 { margin: 0; font-size: 16px; line-height: 1.2; overflow-wrap: anywhere; }
   p { margin: 2px 0; }
   .section { padding: 8px 0; border-bottom: 1px dashed #000; }

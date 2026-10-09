@@ -60,7 +60,7 @@ export function RequireAccount({ roles }: { roles?: Role[] }) {
         <div>
           <p className="text-lg font-extrabold text-slate-900">Sign in to continue</p>
           <p className="mt-1 text-sm text-slate-500">
-            This part of Maame’s Waakye App is linked to your account.
+            This part of Maame’s Waakye is linked to your account.
           </p>
         </div>
         <Button onClick={openSheet}>

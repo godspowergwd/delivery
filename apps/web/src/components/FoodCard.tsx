@@ -9,11 +9,8 @@ import { toast } from '../lib/realtime';
 import { ClockIcon, ImageIcon, LeafIcon, PlusIcon } from './icons';
 
 /**
- * Food card — the brand's signature surface, balancing red and green:
- *   * white card body with selective red + green corner accents
- *   * red food name and red price (appetite + action hierarchy)
- *   * green ingredient chips, green category line and green freshness badge
- *   * red add-to-cart button (ordering is the action)
+ * Food card uses the shared forest-green ordering actions, calm food details,
+ * and a restrained gold popularity badge.
  *
  * Guests can browse every card; the add action routes through the guest gate
  * so the sign-in sheet appears and the item is added automatically afterwards.

@@ -3,21 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Maame’s Waakye App - offline</title>
-    <meta name="theme-color" content="#e30613" />
+    <title>Maame’s Waakye | Offline</title>
+    <meta name="theme-color" content="#173d2b" />
     <style>
-      html, body { height: 100%; margin: 0; background: #ffffff; color: #131a26; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      html, body { height: 100%; margin: 0; background: #fffdf7; color: #252820; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
       main { max-width: 460px; margin: 0 auto; padding: 72px 24px; text-align: center; }
-      img { width: 84px; height: 84px; margin-bottom: 20px; border-radius: 24px; box-shadow: 0 18px 40px -18px rgba(227, 6, 19, 0.55); }
+      img { display: block; width: min(100%, 220px); height: auto; margin: 0 auto 24px; }
       h1 { font-size: 22px; font-weight: 800; margin: 0 0 10px; letter-spacing: -0.01em; }
-      p { color: #6a7383; line-height: 1.6; font-size: 15px; }
-      button { margin-top: 24px; width: 100%; padding: 16px; border: 0; border-radius: 18px; font-size: 16px; font-weight: 600; color: #ffffff; background: #e30613; box-shadow: 0 8px 24px -8px rgba(227, 6, 19, 0.45); cursor: pointer; }
-      ul { text-align: left; color: #6a7383; font-size: 14px; line-height: 1.7; }
+      p { color: #686b62; line-height: 1.6; font-size: 15px; }
+      button { margin-top: 24px; width: 100%; min-height: 48px; padding: 14px 16px; border: 0; border-radius: 14px; font-size: 16px; font-weight: 600; color: #ffffff; background: #173d2b; box-shadow: 0 8px 24px -8px rgba(23, 61, 43, 0.26); cursor: pointer; }
+      button:focus-visible { outline: 3px solid #c5a15a; outline-offset: 3px; }
+      ul { text-align: left; color: #686b62; font-size: 14px; line-height: 1.7; }
     </style>
   </head>
   <body>
     <main>
-      <img src="./brand/maame-waakye-onyx.png" alt="Maame’s Waakye App" />
+      <img src="./brand/maames-waakye-logo.png" alt="Maame’s Waakye" />
       <h1>You are offline</h1>
       <p>
         The app is installed and cached on this device. Reconnect to send or update orders -
@@ -28,7 +29,7 @@
         <li>Cached orders and receipts remain readable.</li>
         <li>New orders need a connection to reach the kitchen.</li>
       </ul>
-      <button type="button" onclick="window.location.reload()">Reconnect to ONYX</button>
+      <button type="button" onclick="window.location.reload()">Reconnect</button>
     </main>
   </body>
 </html>

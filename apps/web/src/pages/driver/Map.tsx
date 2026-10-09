@@ -463,7 +463,7 @@ export default function DriverMap() {
 
       {isError && (
         <div className="absolute inset-x-3 top-20 z-20 rounded-2xl border border-red-200 bg-white p-4 shadow-lift">
-          <p className="text-sm font-bold text-red-700">Deliveries could not be loaded</p>
+          <p className="text-sm font-bold text-rose-800">Deliveries could not be loaded</p>
           <p className="mt-1 text-sm text-slate-600">
             {error instanceof Error ? error.message : 'Check your connection and try again.'}
           </p>

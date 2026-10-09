@@ -248,7 +248,7 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
             +
           </button>
         </div>
-        {soldOut && <p className="text-sm font-semibold text-red-700">Sold out</p>}
+        {soldOut && <p className="text-sm font-semibold text-slate-500">Sold out</p>}
       </div>
     </div>
   );

@@ -48,7 +48,7 @@ describe('delivery receipt print HTML', () => {
       driverName: 'Kofi Driver',
     });
 
-    expect(html).toContain('https://shop.example/brand/maame-waakye-onyx.png');
+    expect(html).toContain('https://shop.example/brand/maames-waakye-logo.png');
     expect(html).toContain('Maame &amp; Sons');
     expect(html).toContain('Order ID: order-id-42');
     expect(html).toContain('Ama &lt;script&gt;');

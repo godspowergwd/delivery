@@ -21,7 +21,7 @@ export interface RecentSearch {
   at: number;
 }
 
-/** Default centre of the Waakye App delivery zone (Malam / Gbawe, Accra). */
+/** Default centre of the delivery zone (Mallam / Gbawe, Accra). */
 export const ACCRA_CENTER = { lat: 5.6037, lng: -0.187 };
 
 export function loadDeliveryLocation(): SavedLocation | null {

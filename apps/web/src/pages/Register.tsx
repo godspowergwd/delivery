@@ -39,13 +39,13 @@ export function Register() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5">
-      <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-16 w-16 rounded-2xl" />
+      <div className="mb-6 flex flex-col items-center gap-3 text-center">
+        <img
+          src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
+          alt="Maame’s Waakye"
+          className="h-auto w-44 max-w-full object-contain"
+        />
         <h1 className="text-2xl font-extrabold text-slate-900">Create your account</h1>
-        <p className="text-xs font-extrabold uppercase tracking-[0.28em]">
-          <span className="text-red-600">Onyx</span>
-          <span className="text-green-700"> · fresh daily</span>
-        </p>
         <p className="text-sm text-slate-500">Order in seconds and follow every delivery live.</p>
       </div>
       <Card className="duo-top">

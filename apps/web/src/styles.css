@@ -1,81 +1,77 @@
 @import "tailwindcss";
 
-/* ===========================================================================
-   ONYX — Maame’s Waakye App design system (2026)
-
-   The supplied Maame’s Waakye logo is the source of truth. RED and GREEN are
-   EQUAL brand pillars: red carries warmth, energy, actions, pricing and food
-   emphasis; green carries freshness, ingredients, availability, active service
-   and delivery progress. White remains the dominant content surface so the two
-   brand colours read as intentional, never noisy.
-
-   Colour rules of the house:
-   * Red   -> primary buttons, prices, food names, navigation, banners, actions.
-   * Green -> ingredient chips, availability, freshness, delivery progress,
-              location accents, positive confirmations, active service.
-   * Both  -> headers, promos, statuses, map controls, cards, containers.
-   =========================================================================== */
+/* Maame's Waakye design system, combining the official gold crest with
+   forest-green and warm-red accents. Utility names stay stable for screens. */
 @theme {
-  /* --- Brand red: warmth, actions, pricing, emphasis ---------------------- */
-  --color-red-50: #fff1f2;
-  --color-red-100: #ffe2e4;
-  --color-red-200: #ffc7cb;
-  --color-red-300: #ff9aa2;
-  --color-red-400: #ff5c66;
-  --color-red-500: #f5253a;
-  --color-red-600: #e30613;
-  --color-red-700: #bf0511;
-  --color-red-800: #99040d;
-  --color-red-900: #7c0410;
-  --color-red-950: #450109;
+  --color-red-50: #fff5f2;
+  --color-red-100: #ffe6df;
+  --color-red-200: #ffcec1;
+  --color-red-300: #f4a18d;
+  --color-red-400: #e87862;
+  --color-red-500: #d65340;
+  --color-red-600: #bd3c2d;
+  --color-red-700: #9f3027;
+  --color-red-800: #812820;
+  --color-red-900: #67221c;
+  --color-red-950: #3b100d;
 
-  /* --- Brand green: freshness, ingredients, availability, progress --------
-     Tuned one step deeper than the 2025 palette so white text on green
-     buttons and green labels on white both clear WCAG AA (>= 4.5:1). */
-  --color-green-50: #edfcf5;
-  --color-green-100: #d3f8e6;
-  --color-green-200: #a7efcf;
-  --color-green-300: #6ee0b4;
-  --color-green-400: #2fc392;
-  --color-green-500: #10a87c;
-  --color-green-600: #0a8058;
-  --color-green-700: #076647;
-  --color-green-800: #064e37;
-  --color-green-900: #053d2b;
-  --color-green-950: #02271b;
-  --color-emerald-50: #edfcf5;
-  --color-emerald-100: #d3f8e6;
-  --color-emerald-200: #a7efcf;
-  --color-emerald-300: #6ee0b4;
-  --color-emerald-400: #2fc392;
-  --color-emerald-500: #10a87c;
-  --color-emerald-600: #0a8058;
-  --color-emerald-700: #076647;
-  --color-emerald-800: #064e37;
-  --color-emerald-900: #053d2b;
+  --color-green-50: #f2f6f1;
+  --color-green-100: #e1eadf;
+  --color-green-200: #c5d7c2;
+  --color-green-300: #9fbd9b;
+  --color-green-400: #739b70;
+  --color-green-500: #4c7950;
+  --color-green-600: #28553b;
+  --color-green-700: #1f4932;
+  --color-green-800: #173d2b;
+  --color-green-900: #10291d;
+  --color-green-950: #0a1e15;
+  --color-emerald-50: #f2f6f1;
+  --color-emerald-100: #e1eadf;
+  --color-emerald-200: #c5d7c2;
+  --color-emerald-300: #9fbd9b;
+  --color-emerald-400: #739b70;
+  --color-emerald-500: #4c7950;
+  --color-emerald-600: #28553b;
+  --color-emerald-700: #1f4932;
+  --color-emerald-800: #173d2b;
+  --color-emerald-900: #10291d;
 
-  /* --- Soft neutral surfaces ---------------------------------------------- */
-  --color-slate-50: #f7f8fa;
-  --color-slate-100: #f1f3f7;
-  --color-slate-200: #e5e9ef;
-  --color-slate-300: #d1d7e0;
-  --color-slate-400: #98a1b0;
-  --color-slate-500: #6a7383;
-  --color-slate-600: #4b5465;
-  --color-slate-700: #363f4f;
-  --color-slate-800: #232b38;
-  --color-slate-900: #131a26;
-  --color-slate-950: #0a0e15;
+  --color-amber-50: #fbf7ed;
+  --color-amber-100: #f4ebd4;
+  --color-amber-200: #e9d8a9;
+  --color-amber-300: #dac37d;
+  --color-amber-400: #c5a15a;
+  --color-amber-500: #b58d45;
+  --color-amber-600: #987238;
+  --color-amber-700: #79592d;
+  --color-amber-800: #604725;
+  --color-amber-900: #4b381f;
+  --color-amber-950: #2b2012;
+
+  --color-slate-50: #fffdf7;
+  --color-slate-100: #f6f1e5;
+  --color-slate-200: #e7e1d4;
+  --color-slate-300: #d5cebf;
+  --color-slate-400: #aaa597;
+  --color-slate-500: #686b62;
+  --color-slate-600: #54574f;
+  --color-slate-700: #3d4039;
+  --color-slate-800: #30332d;
+  --color-slate-900: #252820;
+  --color-slate-950: #171a14;
 
   --font-sans: "Inter var", Inter, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
 
   --shadow-soft: 0 2px 8px -2px rgb(19 26 38 / 0.06), 0 8px 24px -12px rgb(19 26 38 / 0.10);
   --shadow-card: 0 1px 2px rgb(19 26 38 / 0.04), 0 12px 32px -16px rgb(19 26 38 / 0.14);
   --shadow-lift: 0 2px 4px rgb(19 26 38 / 0.05), 0 24px 48px -20px rgb(19 26 38 / 0.22);
-  --shadow-brand: 0 8px 24px -8px rgb(227 6 19 / 0.45);
-  --shadow-brand-soft: 0 6px 18px -10px rgb(227 6 19 / 0.35);
-  --shadow-green: 0 8px 24px -8px rgb(10 128 88 / 0.45);
+  --shadow-brand: 0 8px 24px -8px rgb(23 61 43 / 0.26);
+  --shadow-brand-soft: 0 6px 18px -10px rgb(23 61 43 / 0.24);
+  --shadow-red: 0 8px 24px -8px rgb(189 60 45 / 0.27);
+  --shadow-green: 0 8px 24px -8px rgb(23 61 43 / 0.22);
   --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
   /* Spring used by the driver bottom sheet and modal sheets. */
   --ease-spring: cubic-bezier(0.33, 1.18, 0.42, 1);
@@ -83,33 +79,35 @@
 
 :root {
   color-scheme: light;
-  --brand: #e30613;
-  --brand-hover: #bf0511;
-  --brand-press: #99040d;
-  --brand-highlight: #ff5c66;
-  --brand-soft: #fff1f2;
-  --brand-tint: #fff7f7;
-  --success: #0a8058;
-  --success-deep: #064e37;
-  --success-highlight: #2fc392;
-  --success-soft: #edfcf5;
-  --brand-gradient: linear-gradient(135deg, #e30613 0%, #bf0511 52%, #99040d 100%);
-  --success-gradient: linear-gradient(135deg, #10a87c 0%, #0a8058 52%, #064e37 100%);
-  /* Equal-weight red-and-green pairing for promos, sheets and headers. */
-  --duo-gradient: linear-gradient(120deg, #e30613 0%, #bf0511 38%, #0a8058 100%);
-  --duo-bar: linear-gradient(90deg, #e30613 0%, #e30613 50%, #0a8058 50%, #0a8058 100%);
-  --surface: #ffffff;
-  --surface-muted: #f7f8fa;
-  --line: #e5e9ef;
-  --ink: #131a26;
-  --ink-soft: #4b5465;
-  --muted: #6a7383;
+  --brand: #173d2b;
+  --brand-hover: #28553b;
+  --brand-press: #10291d;
+  --brand-highlight: #4c7950;
+  --brand-soft: #f2f6f1;
+  --brand-tint: #f8faf6;
+  --gold: #c5a15a;
+  --gold-light: #e1ca91;
+  --success: #28553b;
+  --success-deep: #173d2b;
+  --success-highlight: #739b70;
+  --success-soft: #f2f6f1;
+  --brand-gradient: linear-gradient(135deg, #173d2b 0%, #28553b 100%);
+  --success-gradient: linear-gradient(135deg, #28553b 0%, #173d2b 100%);
+  --duo-gradient: linear-gradient(120deg, #173d2b 0%, #28553b 82%, #c5a15a 100%);
+  --duo-bar: linear-gradient(90deg, #173d2b 0%, #173d2b 82%, #c5a15a 82%, #c5a15a 94%, #bd3c2d 94%, #bd3c2d 100%);
+  --surface: #fffdf7;
+  --surface-muted: #f6f1e5;
+  --line: #e7e1d4;
+  --error: #b42318;
+  --ink: #252820;
+  --ink-soft: #54574f;
+  --muted: #686b62;
   --radius-card: 1.5rem;
   --radius-control: 1rem;
   --nav-height: 4.5rem;
 }
 
-/* ONYX branded primitives used by route-level components. */
+/* Brand primitives used by route-level components. */
 .brand-gradient { background: var(--brand-gradient); }
 .success-gradient { background: var(--success-gradient); }
 .rounded-card { border-radius: var(--radius-card); }
@@ -133,7 +131,7 @@
   width: 8rem;
   height: 8rem;
   border-radius: 999px;
-  background: radial-gradient(circle, rgb(227 6 19 / 0.07), transparent 70%);
+  background: radial-gradient(circle, rgb(197 161 90 / 0.10), transparent 70%);
   pointer-events: none;
 }
 
@@ -146,7 +144,7 @@ html {
 body {
   margin: 0;
   min-height: 100dvh;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 16px;
@@ -164,7 +162,7 @@ body {
 }
 
 ::selection {
-  background: var(--brand-soft);
+  background: #e9d8a9;
   color: var(--brand-press);
 }
 
@@ -194,11 +192,11 @@ img {
 /* Slim, premium scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #d1d7e0 transparent;
+  scrollbar-color: #d5cebf transparent;
 }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: #d1d7e0; border-radius: 999px; }
-*::-webkit-scrollbar-thumb:hover { background: #98a1b0; }
+*::-webkit-scrollbar-thumb { background: #d5cebf; border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: #aaa597; }
 
 /* Standalone app polish */
 @media (display-mode: standalone), (display-mode: fullscreen) {
@@ -215,6 +213,7 @@ img {
    Layout primitives + helper classes shared by every screen
    =========================================================================== */
 .page { display: flex; flex-direction: column; gap: 1.25rem; }
+.editorial-heading { font-family: var(--font-display); letter-spacing: -0.035em; }
 .stack { display: flex; flex-direction: column; gap: 0.75rem; }
 .stack-sm { display: flex; flex-direction: column; gap: 0.375rem; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
@@ -237,7 +236,7 @@ img {
 .pill {
   display: inline-flex; align-items: center; gap: 0.375rem;
   border-radius: 999px;
-  border: 1px solid var(--line); background: #f7f8fa; padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line); background: #f6f1e5; padding: 0.25rem 0.75rem;
   font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft);
 }
 
@@ -311,7 +310,7 @@ img {
 .field-float:focus-within > textarea,
 .field-float:focus-within > select {
   border-color: var(--brand);
-  box-shadow: 0 0 0 4px rgb(227 6 19 / 0.12);
+  box-shadow: 0 0 0 4px rgb(23 61 43 / 0.12);
 }
 .field-float:focus-within > label { color: var(--brand); }
 .field-float.is-filled > label,
@@ -320,7 +319,7 @@ img {
 .field-float.is-valid > textarea { border-color: var(--success); box-shadow: 0 0 0 4px rgb(10 128 88 / 0.12); }
 .field-float.is-valid > label { color: var(--success); }
 .field-float.is-invalid > input,
-.field-float.is-invalid > textarea { border-color: var(--brand); box-shadow: 0 0 0 4px rgb(227 6 19 / 0.14); }
+.field-float.is-invalid > textarea { border-color: var(--error); box-shadow: 0 0 0 4px rgb(180 35 24 / 0.14); }
 
 /* Skeleton loaders (shimmer) --------------------------------------------- */
 .skeleton {
@@ -339,10 +338,10 @@ img {
 }
 
 /* ===========================================================================
-   Balanced red-and-green brand surfaces
+   Restrained forest-and-gold brand surfaces
    =========================================================================== */
 
-/* Split red/green top border for white cards and panels. */
+/* Forest-green with a restrained gold top edge for cards and panels. */
 .duo-top { position: relative; overflow: hidden; }
 .duo-top::before {
   content: "";
@@ -353,7 +352,7 @@ img {
   pointer-events: none;
 }
 
-/* Selective red + green corner accents (cards, promos, status panels). */
+/* Selective forest + gold corner accents (cards, promos, status panels). */
 .rg-corners { position: relative; }
 .rg-corners::before,
 .rg-corners::after {
@@ -367,7 +366,7 @@ img {
 .rg-corners::before {
   top: -1px;
   right: -1px;
-  border-top: 4px solid var(--brand);
+  border-top: 4px solid var(--gold);
   border-right: 4px solid var(--brand);
   border-top-right-radius: calc(var(--radius-card) - 2px);
 }
@@ -381,14 +380,14 @@ img {
 .group:hover .rg-corners::before { transform: translate(-3px, 3px); }
 .group:hover .rg-corners::after { transform: translate(3px, -3px); }
 
-/* Decorative duo blob used on promo banners (red field, green flourish). */
+/* Decorative gold accent used sparingly on promotional surfaces. */
 .duo-blob {
   position: absolute;
   border-radius: 999px;
   pointer-events: none;
 }
-.duo-blob-green { background: rgb(10 128 88 / 0.9); }
-.duo-blob-red { background: rgb(227 6 19 / 0.9); }
+.duo-blob-green { background: rgb(197 161 90 / 0.88); }
+.duo-blob-red { background: rgb(16 41 29 / 0.9); }
 
 /* Green ingredient / freshness chip — the food voice of the brand. */
 .food-chip {
@@ -407,9 +406,9 @@ img {
   animation: ds-pop 0.3s var(--ease-premium) both;
 }
 .food-chip-red {
-  border-color: var(--color-red-200);
-  background: var(--brand-soft);
-  color: var(--brand-hover);
+  border-color: var(--line);
+  background: var(--surface-muted);
+  color: var(--ink-soft);
 }
 
 /* Green availability / freshness badge. */
@@ -427,27 +426,27 @@ img {
   letter-spacing: 0.05em;
   box-shadow: var(--shadow-green);
 }
-/* Red emphasis badge (popular, promo, price alerts). */
+/* Gold emphasis badge (popular, promo, price alerts). */
 .badge-hot {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   border-radius: 999px;
-  background: var(--brand);
-  color: #fff;
+  background: var(--gold);
+  color: #252820;
   padding: 0.18rem 0.6rem;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  box-shadow: var(--shadow-brand-soft);
+  box-shadow: 0 6px 18px -10px rgb(197 161 90 / 0.55);
 }
 
 /* Sheet / bottom-sheet spring snapping. */
 .sheet-spring { transition: height 0.42s var(--ease-premium), transform 0.42s var(--ease-spring); }
 .sheet-dragging { transition: none !important; }
 
-/* Animated red-and-green delivery progress bar (split segments). */
+/* Animated forest-and-gold delivery progress bar. */
 .duo-progress {
   background: var(--duo-bar);
   background-size: 200% 100%;
@@ -471,12 +470,12 @@ img {
 @keyframes ds-slide-left { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
 @keyframes ds-slide-up { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes ds-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(227 6 19 / 0.32); }
-  50% { box-shadow: 0 0 0 18px rgb(227 6 19 / 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(23 61 43 / 0.24); }
+  50% { box-shadow: 0 0 0 18px rgb(23 61 43 / 0); }
 }
 @keyframes ds-pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgb(227 6 19 / 0.38); }
-  100% { box-shadow: 0 0 0 14px rgb(227 6 19 / 0); }
+  0% { box-shadow: 0 0 0 0 rgb(197 161 90 / 0.35); }
+  100% { box-shadow: 0 0 0 14px rgb(197 161 90 / 0); }
 }
 @keyframes ds-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes ds-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -514,7 +513,7 @@ img {
   overflow: hidden;
   border-radius: var(--radius-card);
   border: 1px solid var(--line);
-  background: #eef1f6;
+  background: #f6f1e5;
   box-shadow: var(--shadow-card);
 }
 /**
@@ -628,8 +627,7 @@ img {
 .map-control-btn:hover {
   background: var(--surface-muted);
 }
-/* Selected / primary controls -> red. Location + route progress -> green.
-   Secondary controls stay white with red or green icons. */
+/* Selected and primary map controls use forest green. */
 .map-control-btn-active,
 .map-control-btn-red {
   background: var(--brand);
@@ -729,7 +727,7 @@ img {
   padding: 0 1.25rem;
   border: 0;
   border-radius: 1rem;
-  background: var(--brand, #e30613);
+  background: var(--brand, #173d2b);
   color: #ffffff;
   font: inherit;
   font-weight: 700;
@@ -739,4 +737,3 @@ img {
 .map-fallback button:hover {
   filter: brightness(1.05);
 }
-

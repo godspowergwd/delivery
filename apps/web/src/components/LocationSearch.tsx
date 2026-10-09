@@ -36,10 +36,7 @@ const KIND_ICON: Record<PlaceSuggestion['kind'], (className?: string) => ReactNo
 /**
  * Bolt-Food style address search: instant suggestions while typing, real
  * places only (local Mallam/Accra dataset first, then geocoding), keyboard
- * navigation, and balanced red-and-green control states.
- *
- * Green = location / availability affordances (suggestions, current location,
- * selected state). Red = the search affordance and clear action.
+ * navigation, and accessible forest-green controls.
  */
 export function LocationSearch({
   value,

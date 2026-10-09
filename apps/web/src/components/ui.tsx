@@ -28,13 +28,8 @@ import {
   XIcon,
 } from './icons';
 
-/* ===========================================================================
-   ONYX UI kit — one design language for every screen.
-
-   Rules: white surfaces, soft shadows, large radii, 44px+ touch targets, red
-   primary actions, green confirmations, glossy highlights, ripple + lift
-   feedback, no glassmorphism and no emoji anywhere.
-   =========================================================================== */
+/* Shared interface primitives for the customer, kitchen, driver, and admin
+   experiences. Keep semantic feedback distinct from brand-colored actions. */
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'success' | 'ghost' | 'outline' | 'danger';
@@ -50,7 +45,7 @@ const BUTTON_VARIANTS: Record<NonNullable<ButtonProps['variant']>, string> = {
   success: 'success-gradient text-white shadow-green hover:brightness-105 active:brightness-95',
   outline: 'border border-red-600/25 bg-white text-red-700 hover:border-red-600/50 hover:bg-red-50 active:bg-red-100',
   ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 active:bg-slate-200',
-  danger: 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 active:bg-red-200',
+  danger: 'border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 active:bg-rose-200',
 };
 
 /** Rounded, rippling, lift-on-hover button used for every action in the app. */
@@ -196,7 +191,7 @@ const BADGE_VARIANTS = {
   dark: 'bg-slate-900 text-white',
   default: 'bg-slate-100 text-slate-600',
   outline: 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200',
-  destructive: 'bg-red-100 text-red-700',
+  destructive: 'bg-rose-100 text-rose-800',
 } as const;
 
 export function Badge({
@@ -222,26 +217,20 @@ export function Badge({
 }
 
 /**
- * Dual-tone status styles. Every pill pairs red and green AND includes an
- * icon + label, so colour is never the only signal (colour-vision safe).
- * The inset shadows are the second brand colour as a crisp edge accent.
+ * Status styles pair semantic colours with an icon and label, so colour is
+ * never the only signal (colour-vision safe).
  */
 const STATUS_TONE_CLASSES: Record<string, string> = {
   neutral: 'bg-slate-100 text-slate-600',
-  // Order placed — balanced white pill with a red edge and a green edge.
+  // A placed order is neutral, with a restrained gold marker.
   placed:
-    'bg-white text-red-800 ring-1 ring-inset ring-red-200 shadow-[inset_5px_0_0_0_#e30613,inset_-5px_0_0_0_#0a8058]',
-  // Order accepted — green active-service surface with a red supporting edge.
-  accepted: 'bg-green-600 text-white ring-1 ring-inset ring-green-700 shadow-[inset_5px_0_0_0_#e30613]',
-  // Serving — red food-preparation surface with a green freshness edge.
-  prep: 'bg-red-600 text-white ring-1 ring-inset ring-red-700 shadow-[inset_-5px_0_0_0_#0a8058]',
-  // Out for delivery — red delivery-action surface with a green route edge.
-  route: 'bg-red-700 text-white ring-1 ring-inset ring-red-800 shadow-[inset_5px_0_0_0_#0a8058]',
-  // Delivered — green completion surface with a red confirmation edge.
-  delivered:
-    'bg-green-700 text-white ring-1 ring-inset ring-green-800 shadow-[inset_5px_0_0_0_#e30613]',
-  danger: 'bg-white text-red-700 ring-1 ring-inset ring-red-300',
-  warning: 'bg-red-50 text-red-700',
+    'bg-white text-slate-700 ring-1 ring-inset ring-amber-300 shadow-[inset_4px_0_0_0_#c5a15a]',
+  accepted: 'bg-green-600 text-white ring-1 ring-inset ring-green-700',
+  prep: 'bg-red-600 text-white ring-1 ring-inset ring-red-700',
+  route: 'bg-red-700 text-white ring-1 ring-inset ring-red-800',
+  delivered: 'bg-green-700 text-white ring-1 ring-inset ring-green-800',
+  danger: 'bg-white text-rose-800 ring-1 ring-inset ring-rose-300',
+  warning: 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200',
   info: 'bg-slate-100 text-slate-700',
   // Legacy keys kept so older call sites keep working.
   brand: 'bg-white text-red-800 ring-1 ring-inset ring-red-200',
@@ -314,7 +303,7 @@ export function EmptyState({
 export function ErrorText({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <p className="animate-fade-in rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700">
+    <p className="animate-fade-in rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-800">
       {message}
     </p>
   );
@@ -669,10 +658,10 @@ const TOAST_STYLES: Record<ToastTone, { wrap: string; icon: ReactNode }> = {
     wrap: 'border-green-200 bg-white text-green-900',
     icon: <CheckCircleIcon className="h-5 w-5 text-green-600" />,
   },
-  error: { wrap: 'border-red-200 bg-white text-red-900', icon: <XCircleIcon className="h-5 w-5 text-red-600" /> },
+  error: { wrap: 'border-rose-200 bg-white text-rose-900', icon: <XCircleIcon className="h-5 w-5 text-rose-700" /> },
   warning: {
-    wrap: 'border-red-200 bg-white text-red-900',
-    icon: <AlertTriangleIcon className="h-5 w-5 text-red-600" />,
+    wrap: 'border-amber-200 bg-white text-amber-900',
+    icon: <AlertTriangleIcon className="h-5 w-5 text-amber-700" />,
   },
   info: { wrap: 'border-slate-200 bg-white text-slate-900', icon: <InfoIcon className="h-5 w-5 text-slate-500" /> },
 };

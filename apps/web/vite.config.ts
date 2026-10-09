@@ -53,17 +53,17 @@ export default defineConfig(({ mode }) => {
 
   const manifest = {
     id: base,
-    name: process.env.VITE_APP_NAME || 'Maame’s Waakye App',
+    name: process.env.VITE_APP_NAME || 'Maame’s Waakye',
     short_name: 'Maame’s Waakye',
     description:
-      'Maame’s Waakye App - hot waakye and rice meals, live delivery tracking, and a faster kitchen.',
+      'Authentic waakye and Ghanaian meals with live delivery tracking from Maame’s Waakye.',
     start_url: `${base}?source=pwa`,
     scope: base,
     display: 'standalone',
     display_override: ['fullscreen', 'standalone', 'minimal-ui'],
     orientation: 'any',
-    theme_color: '#e30613',
-    background_color: '#ffffff',
+    theme_color: '#173d2b',
+    background_color: '#fffdf7',
     lang: 'en',
     dir: 'ltr',
     categories: ['food', 'shopping', 'business'],
@@ -107,7 +107,7 @@ export default defineConfig(({ mode }) => {
       strategies: 'generateSW',
       registerType: 'autoUpdate',
       injectRegister: null,
-      includeAssets: ['apple-touch-icon-180x180.png', 'brand/maame-waakye-onyx.png', 'robots.txt', 'offline.html'],
+      includeAssets: ['apple-touch-icon-180x180.png', 'brand/maames-waakye-logo.png', 'robots.txt', 'offline.html'],
       manifest,
       manifestFilename: 'manifest.webmanifest',
       workbox: {

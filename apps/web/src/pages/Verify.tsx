@@ -33,10 +33,13 @@ export function Verify() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5">
-      <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <img src={`${import.meta.env.BASE_URL}brand/maame-waakye-onyx.png`} alt="Maame’s Waakye App" className="h-16 w-16 rounded-2xl" />
+      <div className="mb-6 flex flex-col items-center gap-3 text-center">
+        <img
+          src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
+          alt="Maame’s Waakye"
+          className="h-auto w-44 max-w-full object-contain"
+        />
         <h1 className="text-2xl font-extrabold text-slate-900">Receipt verification</h1>
-        <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-red-600">Onyx</p>
       </div>
 
       {isLoading && (
@@ -47,7 +50,7 @@ export function Verify() {
 
       {error && (
         <Card>
-          <p className="text-center text-base font-semibold text-red-700">Invalid receipt code</p>
+          <p className="text-center text-base font-semibold text-rose-800">Invalid receipt code</p>
           <p className="mt-2 text-center text-sm text-slate-500">
             This receipt could not be verified. Check the code printed under the QR code, or contact support.
           </p>
@@ -55,9 +58,9 @@ export function Verify() {
       )}
 
       {data && (
-        <Card className="border-red-200">
+        <Card className="border-green-200">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-bold uppercase tracking-wide text-red-700">Genuine receipt</p>
+            <p className="text-sm font-bold uppercase tracking-wide text-green-800">Genuine receipt</p>
             <StatusPill status={data.order.status as ReceiptDTO['status']} label={ORDER_STATUS_LABELS[data.order.status as ReceiptDTO['status']]} />
           </div>
           <dl className="mt-4 space-y-2 text-sm">
@@ -72,7 +75,7 @@ export function Verify() {
         </Card>
       )}
 
-      <Link to="/login" className="mt-6 text-center text-sm font-semibold text-red-600 hover:underline">
+      <Link to="/login" className="mt-6 text-center text-sm font-semibold text-green-800 hover:underline">
         Open the app
       </Link>
     </div>
@@ -83,7 +86,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   return (
     <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-2 last:border-0">
       <dt className="text-slate-500">{label}</dt>
-      <dd className={strong ? 'font-extrabold text-red-600' : 'font-medium text-slate-800'}>{value}</dd>
+      <dd className={strong ? 'font-extrabold text-green-800' : 'font-medium text-slate-800'}>{value}</dd>
     </div>
   );
 }

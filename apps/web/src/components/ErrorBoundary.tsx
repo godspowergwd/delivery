@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   componentDidCatch(error: Error, info: ErrorInfo): void {
     const label = this.props.label ?? 'UI';
     // Real error, real console — this is what makes white screens debuggable.
-    console.error(`[ONYX] ${label} crashed:`, error, info.componentStack);
+    console.error(`[Maame's Waakye] ${label} crashed:`, error, info.componentStack);
     try {
       window.dispatchEvent(
         new CustomEvent('ds:ui-error', {
@@ -75,7 +75,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return (
       <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-4 px-4 py-10">
         <Card className="duo-top w-full text-center">
-          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-600 text-white shadow-brand">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-700 text-white shadow-soft">
             <AlertTriangleIcon className="h-6 w-6" aria-hidden="true" />
           </span>
           <h1 className="mt-3 text-lg font-extrabold text-slate-900">

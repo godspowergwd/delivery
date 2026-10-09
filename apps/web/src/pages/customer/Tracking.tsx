@@ -10,20 +10,16 @@ import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
 import { ArrowLeftIcon, LocateIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
 
-/**
- * Step tones follow the brand's status table: every step pairs red and green
- * so the lifecycle never reads as a single-colour sequence.
- * [placed balanced, accepted green+red, serving red+green, out duo, done green+red]
- */
+/** Shared forest-green lifecycle with gold markers for active progress. */
 const TRACK_TONE_CLASSES = [
-  'bg-red-600 text-white shadow-[inset_-4px_0_0_#0a8058]',
-  'bg-green-600 text-white shadow-[inset_4px_0_0_#e30613]',
-  'bg-red-700 text-white shadow-[inset_-4px_0_0_#0a8058]',
+  'bg-red-800 text-white shadow-[inset_-4px_0_0_#c5a15a]',
+  'bg-green-700 text-white shadow-[inset_4px_0_0_#c5a15a]',
+  'bg-red-700 text-white shadow-[inset_-4px_0_0_#c5a15a]',
   'duo-progress text-white',
-  'bg-green-700 text-white shadow-[inset_4px_0_0_#e30613]',
+  'bg-green-800 text-white shadow-[inset_4px_0_0_#c5a15a]',
 ] as const;
 
-/** The five customer-facing steps of the Waakye App order lifecycle. */
+/** The five customer-facing steps of the Maame's Waakye order lifecycle. */
 const TRACK_STEPS = [
   { label: 'Order placed', short: 'Placed' },
   { label: 'Order accepted', short: 'Accepted' },

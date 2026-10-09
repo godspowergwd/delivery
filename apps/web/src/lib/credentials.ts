@@ -72,7 +72,7 @@ export async function shareDriverLogin(params: {
   credentials: DriverLoginCredentials;
 }): Promise<LoginShareResult> {
   const { driverName, credentials } = params;
-  const text = `${driverName} - Waakye App driver login\n${driverLoginText(credentials)}`;
+  const text = `${driverName} - Maame’s Waakye driver login\n${driverLoginText(credentials)}`;
 
   if (canUseDeviceShareSheet()) {
     try {

@@ -6,10 +6,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover"
     />
-    <title>Maame’s Waakye App - ONYX Delivery</title>
-    <meta name="description" content="Maame’s Waakye App - hot waakye and rice meals delivered around Malam & Gbawe, Accra." />
-    <meta name="theme-color" content="#e30613" />
-    <link rel="icon" href="%BASE_URL%brand/maame-waakye-onyx.png" type="image/png" />
+    <title>Maame’s Waakye | Ghanaian food, delivered</title>
+    <meta name="description" content="Order authentic waakye and Ghanaian meals from Maame’s Waakye, with reliable delivery around Mallam and Gbawe, Accra." />
+    <meta name="theme-color" content="#173d2b" />
+    <link rel="icon" href="%BASE_URL%pwa-64x64.png" type="image/png" />
     <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon-180x180.png" />
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
 
@@ -29,8 +29,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Maame’s Waakye" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="application-name" content="Maame’s Waakye App" />
-    <meta name="msapplication-TileColor" content="#e30613" />
+    <meta name="application-name" content="Maame’s Waakye" />
+    <meta name="msapplication-TileColor" content="#173d2b" />
     <meta name="format-detection" content="telephone=no" />
     <link rel="apple-touch-startup-image" href="/apple-splash-2048-2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
     <link rel="apple-touch-startup-image" href="/apple-splash-1668-2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
@@ -43,15 +43,13 @@
     <link rel="apple-touch-startup-image" href="/apple-splash-750-1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
 
     <style>
-      /* Returns to a white canvas immediately: no white flash, no dark shell.
-         The splash below is painted by plain HTML so the very first frame is
-         already branded, and the ONYX logo sits inside a soft red glow. */
+      /* Paint the branded warm-white splash before React starts. */
       html,
       body,
       #root {
         height: 100%;
         margin: 0;
-        background-color: #ffffff;
+        background-color: #fffdf7;
       }
       #boot-splash {
         position: fixed;
@@ -61,8 +59,8 @@
         justify-content: center;
         flex-direction: column;
         gap: 22px;
-        background: #ffffff;
-        color: #131a26;
+        background: #fffdf7;
+        color: #252820;
         font-family: "Inter var", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         z-index: 9999;
         transition: opacity 320ms var(--ease-premium);
@@ -71,31 +69,28 @@
         position: relative;
         display: grid;
         place-items: center;
-        width: 168px;
-        height: 168px;
+        width: min(74vw, 320px);
+        height: auto;
       }
       #boot-splash .glow::before {
         content: "";
         position: absolute;
         inset: 0;
         border-radius: 999px;
-        background: radial-gradient(circle, rgba(227, 6, 19, 0.22) 0%, rgba(227, 6, 19, 0) 68%);
+        background: radial-gradient(circle, rgba(197, 161, 90, 0.15) 0%, rgba(197, 161, 90, 0) 68%);
         animation: boot-breathe 2.6s ease-in-out infinite;
       }
       #boot-splash img {
         position: relative;
-        width: 92px;
-        height: 92px;
-        border-radius: 26px;
-        box-shadow: 0 18px 40px -18px rgba(227, 6, 19, 0.55);
+        width: 100%;
+        height: auto;
         animation: boot-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
       }
       #boot-splash .word {
-        font-size: 15px;
-        font-weight: 800;
-        letter-spacing: 0.42em;
-        text-transform: uppercase;
-        color: #131a26;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: #686b62;
         animation: boot-in 700ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
       }
       #boot-splash .track {
@@ -103,7 +98,7 @@
         width: 132px;
         height: 4px;
         border-radius: 999px;
-        background: #f1f3f7;
+        background: #e7e1d4;
         overflow: hidden;
         animation: boot-in 700ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
       }
@@ -113,7 +108,7 @@
         inset-block: 0;
         width: 42%;
         border-radius: 999px;
-        background: linear-gradient(90deg, #e30613, #f5253a);
+        background: linear-gradient(90deg, #173d2b, #c5a15a);
         animation: boot-progress 1.25s ease-in-out infinite;
       }
       @keyframes boot-in {
@@ -139,8 +134,8 @@
   </head>
   <body>
     <div id="boot-splash" role="status" aria-live="polite">
-      <span class="glow"><img src="%BASE_URL%brand/maame-waakye-onyx.png" alt="Maame’s Waakye App" /></span>
-      <span class="word">MAAME’S WAAKYE</span>
+      <span class="glow"><img src="%BASE_URL%brand/maames-waakye-logo.png" alt="Maame’s Waakye" /></span>
+      <span class="word">Fresh Ghanaian meals</span>
       <span class="track" aria-hidden="true"></span>
     </div>
     <script>
@@ -169,7 +164,7 @@
     <div id="root"></div>
     <noscript>
       <p style="color: #e2e8f0; font-family: system-ui, sans-serif; padding: 24px">
-        Maame’s Waakye App needs JavaScript enabled to run.
+        Maame’s Waakye needs JavaScript enabled to run.
       </p>
     </noscript>
     <script type="module" src="/src/main.tsx"></script>
