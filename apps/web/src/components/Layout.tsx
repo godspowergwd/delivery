@@ -120,11 +120,8 @@ export interface NavItem {
   to: string;
   label: string;
   icon: ComponentType<{ className?: string }>;
-  /**
-   * Brand colour of the active state. Forest green is primary; gold is a
-   * restrained secondary navigation accent.
-   */
-  tone: 'brand' | 'gold';
+  /** Brand colour of the active state: red or complementary green. */
+  tone: 'brand' | 'green';
   /** High-priority sections get a stronger visual treatment. */
   emphasize?: boolean;
   /** Shows the live cart count badge. */
@@ -140,30 +137,30 @@ export interface NavItem {
 const NAV: Record<Role, NavItem[]> = {
   CUSTOMER: [
     { to: '/app/home', label: 'Home', icon: HomeIcon, tone: 'brand' },
-    { to: '/app/menu', label: 'Menu', icon: SearchIcon, tone: 'gold' },
+    { to: '/app/menu', label: 'Menu', icon: SearchIcon, tone: 'green' },
     { to: '/app/orders', label: 'Orders', icon: ReceiptIcon, tone: 'brand' },
-    { to: '/app/track', label: 'Track', icon: TruckIcon, tone: 'gold' },
+    { to: '/app/track', label: 'Track', icon: TruckIcon, tone: 'green' },
     { to: '/app/cart', label: 'Cart', icon: CartIcon, cart: true, tone: 'brand' },
-    { to: '/app/profile', label: 'Account', icon: UserIcon, tone: 'gold' },
+    { to: '/app/profile', label: 'Account', icon: UserIcon, tone: 'green' },
   ],
   KITCHEN: [
     { to: '/kitchen', label: 'Orders', icon: FlameIcon, tone: 'brand', emphasize: true },
-    { to: '/kitchen/drivers', label: 'Drivers', icon: UsersIcon, tone: 'gold' },
-    { to: '/kitchen/walk-in', label: 'Walk-In', icon: StoreIcon, tone: 'gold', primary: true },
+    { to: '/kitchen/drivers', label: 'Drivers', icon: UsersIcon, tone: 'green' },
+    { to: '/kitchen/walk-in', label: 'Walk-In', icon: StoreIcon, tone: 'green', primary: true },
     { to: '/kitchen/products', label: 'Products', icon: PackageIcon, tone: 'brand' },
-    { to: '/kitchen/settings', label: 'Settings', icon: CogIcon, tone: 'gold' },
+    { to: '/kitchen/settings', label: 'Settings', icon: CogIcon, tone: 'green' },
   ],
   DRIVER: [
     { to: '/driver/deliveries', label: 'Deliveries', icon: TruckIcon, tone: 'brand', emphasize: true },
-    { to: '/driver/map', label: 'Map', icon: MapIcon, tone: 'gold' },
+    { to: '/driver/map', label: 'Map', icon: MapIcon, tone: 'green' },
     { to: '/driver/earnings', label: 'Earnings', icon: WalletIcon, tone: 'brand' },
-    { to: '/driver/profile', label: 'Profile', icon: UserIcon, tone: 'gold' },
+    { to: '/driver/profile', label: 'Profile', icon: UserIcon, tone: 'green' },
   ],
   ADMIN: [
     { to: '/admin', label: 'Dashboard', icon: GridIcon, tone: 'brand' },
-    { to: '/admin/orders', label: 'Orders', icon: ReceiptIcon, tone: 'gold', emphasize: true },
+    { to: '/admin/orders', label: 'Orders', icon: ReceiptIcon, tone: 'green', emphasize: true },
     { to: '/admin/products', label: 'Products', icon: PackageIcon, tone: 'brand' },
-    { to: '/admin/reports', label: 'Reports', icon: ChartIcon, tone: 'gold' },
+    { to: '/admin/reports', label: 'Reports', icon: ChartIcon, tone: 'green' },
     { to: '/admin/settings', label: 'Settings', icon: CogIcon, tone: 'brand' },
   ],
 };
@@ -181,26 +178,26 @@ function isExactRoute(to: string): boolean {
 /** Accessible, high-contrast active and idle navigation treatments. */
 const SIDEBAR_ACTIVE: Record<NavItem['tone'], string> = {
   brand: 'bg-red-800 text-white shadow-brand-soft',
-  gold: 'bg-amber-700 text-white shadow-soft',
+  green: 'bg-green-700 text-white shadow-green',
 };
 const SIDEBAR_IDLE_ACCENT: Record<NavItem['tone'], string> = {
   brand: 'text-red-800 hover:bg-red-50',
-  gold: 'text-amber-800 hover:bg-amber-50',
+  green: 'text-green-800 hover:bg-green-50',
 };
 const SIDEBAR_IDLE_ICON: Record<NavItem['tone'], string> = {
   brand: 'text-red-700',
-  gold: 'text-amber-700',
+  green: 'text-green-700',
 };
 const BOTTOM_ACTIVE: Record<NavItem['tone'], string> = {
   brand: 'text-red-800',
-  gold: 'text-amber-800',
+  green: 'text-green-800',
 };
 const BOTTOM_INDICATOR: Record<NavItem['tone'], string> = {
   brand: 'bg-red-800',
-  gold: 'bg-amber-600',
+  green: 'bg-green-700',
 };
 
-/** Desktop sidebar destination with a clear brand or gold active state. */
+/** Desktop sidebar destination with a clear red or green active state. */
 function SidebarLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
   const Icon = item.icon;
   return (

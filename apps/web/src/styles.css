@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
-/* Maame's Waakye design system, combining the official gold crest with
-   forest-green and warm-red accents. Utility names stay stable for screens. */
+/* Maame's Waakye red, green and white palette. Utility names stay stable for screens. */
 @theme {
   --color-red-50: #fff1f2;
   --color-red-100: #ffe2e4;
@@ -97,16 +96,14 @@
   --brand-highlight: #4c7950;
   --brand-soft: #f2f6f1;
   --brand-tint: #f8faf6;
-  --gold: #c5a15a;
-  --gold-light: #e1ca91;
   --success: #28553b;
   --success-deep: #173d2b;
   --success-highlight: #739b70;
   --success-soft: #f2f6f1;
   --brand-gradient: linear-gradient(135deg, #e30613 0%, #bf0511 52%, #99040d 100%);
   --success-gradient: linear-gradient(135deg, #28553b 0%, #173d2b 100%);
-  --duo-gradient: linear-gradient(120deg, #173d2b 0%, #28553b 82%, #c5a15a 100%);
-  --duo-bar: linear-gradient(90deg, #173d2b 0%, #173d2b 82%, #c5a15a 82%, #c5a15a 94%, #e30613 94%, #e30613 100%);
+  --duo-gradient: linear-gradient(120deg, #173d2b 0%, #28553b 52%, #e30613 100%);
+  --duo-bar: linear-gradient(90deg, #173d2b 0%, #173d2b 44%, #ffffff 44%, #ffffff 56%, #e30613 56%, #e30613 100%);
   --surface: #ffffff;
   --surface-muted: #f7f8fa;
   --line: #e7e1d4;
@@ -350,10 +347,10 @@ img {
 }
 
 /* ===========================================================================
-   Restrained forest-and-gold brand surfaces
+   Restrained red, green and white brand surfaces
    =========================================================================== */
 
-/* Forest-green with a restrained gold top edge for cards and panels. */
+/* Forest-green with a red, white and green top edge for cards and panels. */
 .duo-top { position: relative; overflow: hidden; }
 .duo-top::before {
   content: "";
@@ -364,7 +361,7 @@ img {
   pointer-events: none;
 }
 
-/* Selective forest + gold corner accents (cards, promos, status panels). */
+/* Selective forest-green and red corner accents (cards, promos, status panels). */
 .rg-corners { position: relative; }
 .rg-corners::before,
 .rg-corners::after {
@@ -378,7 +375,7 @@ img {
 .rg-corners::before {
   top: -1px;
   right: -1px;
-  border-top: 4px solid var(--gold);
+  border-top: 4px solid var(--brand-highlight);
   border-right: 4px solid var(--brand);
   border-top-right-radius: calc(var(--radius-card) - 2px);
 }
@@ -392,14 +389,14 @@ img {
 .group:hover .rg-corners::before { transform: translate(-3px, 3px); }
 .group:hover .rg-corners::after { transform: translate(3px, -3px); }
 
-/* Decorative gold accent used sparingly on promotional surfaces. */
+/* Red and green accents used sparingly on promotional surfaces. */
 .duo-blob {
   position: absolute;
   border-radius: 999px;
   pointer-events: none;
 }
-.duo-blob-green { background: rgb(197 161 90 / 0.88); }
-.duo-blob-red { background: rgb(16 41 29 / 0.9); }
+.duo-blob-green { background: rgb(40 85 59 / 0.88); }
+.duo-blob-red { background: rgb(227 6 19 / 0.9); }
 
 /* Green ingredient / freshness chip — the food voice of the brand. */
 .food-chip {
@@ -438,27 +435,27 @@ img {
   letter-spacing: 0.05em;
   box-shadow: var(--shadow-green);
 }
-/* Gold emphasis badge (popular, promo, price alerts). */
+/* Red emphasis badge (popular, promo, price alerts). */
 .badge-hot {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   border-radius: 999px;
-  background: var(--gold);
-  color: #252820;
+  background: var(--brand);
+  color: #ffffff;
   padding: 0.18rem 0.6rem;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  box-shadow: 0 6px 18px -10px rgb(197 161 90 / 0.55);
+  box-shadow: var(--shadow-brand-soft);
 }
 
 /* Sheet / bottom-sheet spring snapping. */
 .sheet-spring { transition: height 0.42s var(--ease-premium), transform 0.42s var(--ease-spring); }
 .sheet-dragging { transition: none !important; }
 
-/* Animated forest-and-gold delivery progress bar. */
+/* Animated forest-green, white and red delivery progress bar. */
 .duo-progress {
   background: var(--duo-bar);
   background-size: 200% 100%;
@@ -486,8 +483,8 @@ img {
   50% { box-shadow: 0 0 0 18px rgb(23 61 43 / 0); }
 }
 @keyframes ds-pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgb(197 161 90 / 0.35); }
-  100% { box-shadow: 0 0 0 14px rgb(197 161 90 / 0); }
+  0% { box-shadow: 0 0 0 0 rgb(227 6 19 / 0.35); }
+  100% { box-shadow: 0 0 0 14px rgb(227 6 19 / 0); }
 }
 @keyframes ds-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes ds-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }

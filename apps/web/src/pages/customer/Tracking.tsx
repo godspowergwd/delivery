@@ -10,13 +10,13 @@ import { LiveMap, useLiveMap } from '../../components/LiveMap';
 import { Button, Card, Spinner } from '../../components/ui';
 import { ArrowLeftIcon, LocateIcon, PhoneIcon, RestaurantIcon, TruckIcon } from '../../components/icons';
 
-/** Shared forest-green lifecycle with gold markers for active progress. */
+/** Shared red-and-green lifecycle with white markers for active progress. */
 const TRACK_TONE_CLASSES = [
-  'bg-red-800 text-white shadow-[inset_-4px_0_0_#c5a15a]',
-  'bg-green-700 text-white shadow-[inset_4px_0_0_#c5a15a]',
-  'bg-red-700 text-white shadow-[inset_-4px_0_0_#c5a15a]',
+  'bg-red-800 text-white shadow-[inset_-4px_0_0_#ffffff]',
+  'bg-green-700 text-white shadow-[inset_4px_0_0_#ffffff]',
+  'bg-red-700 text-white shadow-[inset_-4px_0_0_#ffffff]',
   'duo-progress text-white',
-  'bg-green-800 text-white shadow-[inset_4px_0_0_#c5a15a]',
+  'bg-green-800 text-white shadow-[inset_4px_0_0_#ffffff]',
 ] as const;
 
 /** The five customer-facing steps of the Maame's Waakye order lifecycle. */
@@ -276,7 +276,7 @@ export default function CustomerTracking() {
                   <p className={done || current ? 'text-sm font-semibold text-slate-900' : 'text-sm font-semibold text-slate-400'}>{step.label}</p>
                   <p className="text-[11px] text-slate-400">{step.short}</p>
                 </div>
-                {current && <span className="ml-auto text-[11px] font-bold text-amber-600">Now</span>}
+                {current && <span className="ml-auto text-[11px] font-bold text-green-700">Now</span>}
               </div>
             );
           })}

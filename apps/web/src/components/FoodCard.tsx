@@ -10,7 +10,7 @@ import { ClockIcon, ImageIcon, LeafIcon, PlusIcon } from './icons';
 
 /**
  * Food card uses the shared forest-green ordering actions, calm food details,
- * and a restrained gold popularity badge.
+ * and a restrained green popularity badge.
  *
  * Guests can browse every card; the add action routes through the guest gate
  * so the sign-in sheet appears and the item is added automatically afterwards.

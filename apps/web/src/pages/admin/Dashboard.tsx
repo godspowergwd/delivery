@@ -83,7 +83,7 @@ export function AdminDashboard() {
   }
 
     const statCards: StatCard[] = [
-    { label: 'Revenue today', value: formatMoney(overview?.revenueToday ?? 0), icon: WalletIcon, tile: 'bg-amber-50', iconColor: 'text-amber-800' },
+    { label: 'Revenue today', value: formatMoney(overview?.revenueToday ?? 0), icon: WalletIcon, tile: 'bg-green-50', iconColor: 'text-green-800' },
     { label: 'Orders today', value: String(overview?.ordersToday ?? 0), icon: ReceiptIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
     { label: 'Avg. order', value: formatMoney(overview?.averageOrderValue ?? 0), icon: ChartIcon, tile: 'bg-slate-100', iconColor: 'text-slate-600' },
     { label: 'Active orders', value: String(overview?.activeOrders ?? 0), icon: FlameIcon, tile: 'bg-red-50', iconColor: 'text-red-600' },
@@ -150,7 +150,7 @@ export function AdminDashboard() {
                   <Tooltip
                     contentStyle={{ borderRadius: 16, border: '1px solid #e7e1d4', boxShadow: '0 12px 32px -16px rgba(37,40,32,0.14)' }}
                   />
-                  <Bar dataKey="orders" fill="#c5a15a" radius={[8, 8, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="orders" fill="#e30613" radius={[8, 8, 0, 0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -222,9 +222,9 @@ export function Badge({
  */
 const STATUS_TONE_CLASSES: Record<string, string> = {
   neutral: 'bg-slate-100 text-slate-600',
-  // A placed order is neutral, with a restrained gold marker.
+  // A placed order is neutral, with a restrained green marker.
   placed:
-    'bg-white text-slate-700 ring-1 ring-inset ring-amber-300 shadow-[inset_4px_0_0_0_#c5a15a]',
+    'bg-white text-slate-700 ring-1 ring-inset ring-green-300 shadow-[inset_4px_0_0_0_#4c7950]',
   accepted: 'bg-green-600 text-white ring-1 ring-inset ring-green-700',
   prep: 'bg-red-600 text-white ring-1 ring-inset ring-red-700',
   route: 'bg-red-700 text-white ring-1 ring-inset ring-red-800',
@@ -415,7 +415,7 @@ export function RatingChip({
         className,
       )}
     >
-      <StarIcon className="h-3.5 w-3.5 text-amber-300" filled />
+      <StarIcon className="h-3.5 w-3.5 text-red-500" filled />
       {value.toFixed(1)}
       {count ? <span className="font-semibold text-white/70">({count})</span> : null}
     </span>
