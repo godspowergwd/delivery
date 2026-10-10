@@ -77,6 +77,19 @@ export function Checkout() {
     staleTime: 60_000,
   });
   const settings = settingsData?.settings;
+  // Admin-controlled methods: checkout only offers what the admin enabled.
+  const momoOn = settings?.momoEnabled !== false;
+  const cashOn = settings?.cashEnabled !== false;
+  const enabledMethods = (['CASH', 'MOBILE_MONEY'] as const).filter((m) =>
+    m === 'CASH' ? cashOn : momoOn,
+  );
+
+  useEffect(() => {
+    if (!enabledMethods.includes(paymentMethod) && enabledMethods.length > 0) {
+      setPaymentMethod(enabledMethods[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [momoOn, cashOn]);
 
   const deliveryQuoteQuery = useQuery({
     queryKey: ['delivery-quote', selected?.lat, selected?.lng],
@@ -396,29 +409,56 @@ export function Checkout() {
         </Field>
         <div>
           <p className="mb-2 text-sm font-semibold text-slate-800">Payment</p>
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
-            {(['CASH', 'MOBILE_MONEY'] as const).map((method) => {
-              const active = paymentMethod === method;
-              return (
-                <button
-                  key={method}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  disabled={Boolean(pendingOrder)}
-                  onClick={() => setPaymentMethod(method)}
-                  className={
-                    active
-                      ? 'flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 bg-red-50 px-3 py-3 text-sm font-bold text-red-700 transition'
-                      : 'flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600 transition hover:border-green-300 hover:bg-green-50'
-                  }
-                >
-                  {active && <CheckIcon className="h-4 w-4" aria-hidden="true" />}
-                  {PAYMENT_METHOD_LABELS[method]}
-                </button>
-              );
-            })}
-          </div>
+          {enabledMethods.length === 0 ? (
+            <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700">
+              No payment methods are available right now. Please try again later.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
+              {enabledMethods.map((method) => {
+                const active = paymentMethod === method;
+                return (
+                  <button
+                    key={method}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={Boolean(pendingOrder)}
+                    onClick={() => setPaymentMethod(method)}
+                    className={
+                      active
+                        ? 'flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 bg-red-50 px-3 py-3 text-sm font-bold text-red-700 transition'
+                        : 'flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600 transition hover:border-green-300 hover:bg-green-50'
+                    }
+                  >
+                    {active && <CheckIcon className="h-4 w-4" aria-hidden="true" />}
+                    {PAYMENT_METHOD_LABELS[method]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {paymentMethod === 'MOBILE_MONEY' && momoOn && (
+            <div className="mt-3 space-y-2 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm">
+              <p className="font-extrabold text-green-900">
+                Pay to {settings?.momoAccountName || 'Maame’s Waakye'}
+              </p>
+              <p className="text-2xl font-extrabold tracking-wide text-slate-900">
+                {settings?.momoNumber || '—'}
+              </p>
+              <p className="leading-relaxed text-green-900">
+                {settings?.momoInstructions || 'Send the exact order total to the MoMo number above, then place your order.'}
+              </p>
+              <p className="rounded-xl bg-white px-3 py-2 text-[13px] font-semibold text-slate-700">
+                Payment must be verified before dispatch. Your order stays in the kitchen queue until an admin confirms it.
+              </p>
+            </div>
+          )}
+          {paymentMethod === 'CASH' && cashOn && (
+            <p className="mt-3 rounded-2xl bg-slate-100 px-4 py-2.5 text-[13px] font-semibold text-slate-600">
+              Pay cash when your food arrives. No advance payment needed.
+            </p>
+          )}
         </div>
       </Card>
 

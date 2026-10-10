@@ -30,6 +30,12 @@ const updateSettingsSchema = z.object({
   // Support contact block - stored in PostgreSQL and live the moment it is saved.
   supportPhone: phoneSchema.optional(),
   supportEmail: emailSchema.optional(),
+  // Admin-controlled payment methods (Admin > Settings > Payments).
+  momoEnabled: z.boolean().optional(),
+  cashEnabled: z.boolean().optional(),
+  momoNumber: z.string().trim().min(7).max(20).optional(),
+  momoAccountName: z.string().trim().min(2).max(120).optional(),
+  momoInstructions: z.string().trim().min(10).max(500).optional(),
   lowStockThreshold: z.coerce.number().int().min(0).max(10_000).optional(),
   // Kitchen / pickup anchor used as the trusted route origin and map location.
   businessLatitude: z.coerce.number().finite().min(4.4).max(11.3).optional(),

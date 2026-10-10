@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { useGuestGate } from '../lib/guest';
 import { loadDeliveryLocation } from '../lib/prefs';
 import { useRestaurantStatus } from '../lib/restaurant-status';
 import { BikeIcon, ClockIcon, LeafIcon, MapPinIcon, ShieldIcon } from './icons';
@@ -114,7 +113,7 @@ export function TrustRow() {
  */
 export function PromoCapture() {
   const { user } = useAuth();
-  const { openSheet } = useGuestGate();
+  const navigate = useNavigate();
   if (user) return null;
 
   return (
@@ -127,7 +126,7 @@ export function PromoCapture() {
         <div className="flex flex-none gap-2">
           <button
             type="button"
-            onClick={openSheet}
+            onClick={() => navigate('/login')}
             className="rounded-xl bg-white px-3.5 py-2.5 text-sm font-extrabold text-red-700 transition hover:bg-red-50 active:scale-[0.97]"
           >
             Sign in

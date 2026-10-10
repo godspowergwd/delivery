@@ -5,7 +5,6 @@ import type { Role } from '@delivery/shared';
 import { ROLE_LABELS } from '@delivery/shared';
 import { useAuth } from '../lib/auth';
 import { useCart } from '../lib/cart';
-import { useGuestGate } from '../lib/guest';
 import { applyPwaUpdate } from '../lib/pwa';
 import { useRestaurantStatus } from '../lib/restaurant-status';
 import { Button } from './ui';
@@ -266,7 +265,6 @@ function BottomLink({ item, cartCount }: { item: NavItem; cartCount: number }) {
 export function AppShell() {
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
-  const { openSheet } = useGuestGate();
   const navigate = useNavigate();
   // Live open/closed badge: one shared query, updated by the socket event.
   const { status } = useRestaurantStatus();
@@ -277,6 +275,9 @@ export function AppShell() {
   const signOut = () => {
     void logout().then(() => navigate('/', { replace: true }));
   };
+
+  /** Every Sign in entry point navigates to the dedicated /login page. */
+  const goLogin = () => navigate('/login', { state: { from: window.location.pathname } });
 
   return (
     <div className="min-h-dvh bg-white lg:flex">
@@ -318,7 +319,7 @@ export function AppShell() {
               Sign out
             </button>
           ) : (
-            <Button block onClick={openSheet}>
+            <Button block onClick={goLogin}>
               <UserIcon className="h-4 w-4" aria-hidden="true" />
               Sign in
             </Button>
@@ -359,7 +360,7 @@ export function AppShell() {
                   <LogOutIcon className="h-5 w-5" />
                 </button>
               ) : (
-                <Button size="sm" className="!min-h-9 !rounded-xl !px-3" onClick={openSheet}>
+                <Button size="sm" className="!min-h-9 !rounded-xl !px-3" onClick={goLogin}>
                   Sign in
                 </Button>
               )}
@@ -383,7 +384,7 @@ export function AppShell() {
           {user ? (
             <NotificationBell />
           ) : (
-            <Button size="sm" variant="outline" onClick={openSheet}>
+            <Button size="sm" variant="outline" onClick={goLogin}>
               Sign in
             </Button>
           )}

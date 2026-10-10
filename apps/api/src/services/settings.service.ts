@@ -23,7 +23,7 @@ const NUMERIC_KEYS: SettingKey[] = [
   'businessLongitude',
   'deliveryRadiusKm',
 ];
-const BOOLEAN_KEYS: SettingKey[] = ['acceptingOrders'];
+const BOOLEAN_KEYS: SettingKey[] = ['acceptingOrders', 'momoEnabled', 'cashEnabled'];
 
 /** Short-lived cache so pricing does not hit the database on every request. */
 let cache: { value: SettingsDTO; expiresAt: number } | null = null;

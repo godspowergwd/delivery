@@ -10,7 +10,6 @@ import { useRealtimeSync } from './lib/realtime';
 import { setupPwa } from './lib/pwa';
 import { installBootSplashSafetyNet, removeBootSplash } from './lib/boot-splash';
 import { Toaster } from './components/ui';
-import { AuthSheet } from './components/AuthSheet';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OfflineOrderSync } from './components/OfflineOrderSync';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
@@ -73,7 +72,6 @@ function Chrome() {
       <RealtimeBridge />
       <OfflineOrderSync />
       <App />
-      <AuthSheet />
       <Toaster />
     </>
   );

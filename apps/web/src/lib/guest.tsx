@@ -107,14 +107,14 @@ export function replayStashedAction(
 }
 
 interface GuestGateValue {
-  /** True when the sign-in sheet is visible. */
+  /** Always false: the modal sheet is removed, login is a dedicated page. */
   sheetOpen: boolean;
-  /** Opens the sign-in sheet without remembering an action. */
+  /** Navigates to /login (kept for compatibility with existing call sites). */
   openSheet: () => void;
   closeSheet: () => void;
   /**
-   * Runs `action` immediately for signed-in visitors; otherwise opens the
-   * sign-in sheet and remembers the action. Returns true when it ran.
+   * Runs `action` immediately for signed-in visitors; otherwise stashes it
+   * and navigates to /login. Returns true when it ran.
    */
   requireAuth: (action: () => void, serialized?: SerializedAction) => boolean;
   /**
@@ -162,18 +162,20 @@ export function GuestGateProvider({ children }: { children: ReactNode }) {
         action();
         return true;
       }
+      // No modal login: stash the action and navigate to the dedicated page.
       pendingRef.current = { run: action };
       storeAction(serialized ?? null);
-      setSheetOpen(true);
+      setSheetOpen(false);
+      navigate('/login', { state: { from: window.location.pathname } });
       return false;
     },
-    [user],
+    [user, navigate],
   );
 
   const openSheet = useCallback(() => {
     pendingRef.current = null;
-    setSheetOpen(true);
-  }, []);
+    navigate('/login', { state: { from: window.location.pathname } });
+  }, [navigate]);
 
   const closeSheet = useCallback(() => {
     pendingRef.current = null;

@@ -253,6 +253,14 @@ export interface SettingsDTO {
    * block deliveries.
    */
   deliveryRadiusKm: number;
+  /** Admin-controlled checkout toggles (Admin > Settings > Payments). */
+  momoEnabled: boolean;
+  cashEnabled: boolean;
+  /** MoMo wallet shown to customers at checkout (admin managed). */
+  momoNumber: string;
+  momoAccountName: string;
+  /** MoMo instructions shown to customers at checkout. */
+  momoInstructions: string;
   updatedAt: string | null;
 }
 

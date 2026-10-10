@@ -39,6 +39,13 @@ export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
   businessLongitude: -0.295258,
   // Long-distance warning threshold only; all valid routes remain orderable.
   deliveryRadiusKm: 12,
+  // Admin-controlled checkout methods (Admin > Settings > Payments).
+  momoEnabled: true,
+  cashEnabled: true,
+  momoNumber: '',
+  momoAccountName: '',
+  momoInstructions:
+    'Send the exact order total to the MoMo number below, then place your order. Your order will be verified before dispatch.',
 };
 
 /** Settings that may be read without authenticating (storefront + support contact). */
@@ -58,6 +65,13 @@ export const PUBLIC_SETTING_KEYS = [
   'supportPhone',
   'supportEmail',
   'deliveryRadiusKm',
+  // Checkout needs to know which methods are enabled + where to send MoMo.
+  // Never expose anything else sensitive here.
+  'momoEnabled',
+  'cashEnabled',
+  'momoNumber',
+  'momoAccountName',
+  'momoInstructions',
 ] as const satisfies ReadonlyArray<keyof Omit<SettingsDTO, 'updatedAt'>>;
 
 /** The subset of settings every client (including anonymous storefront traffic) may read. */

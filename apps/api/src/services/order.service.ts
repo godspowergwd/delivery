@@ -658,14 +658,20 @@ function assertTransitionAllowed(
     if (order.driverId !== actor.id) {
       throw forbidden('You can only update deliveries assigned to you.');
     }
-    // Drivers may only advance their own assigned deliveries one step at a time.
+    // Drivers confirm pickup (Served -> Out for Delivery), then complete.
     const allowedByState: Partial<Record<OrderStatusType, OrderStatusType[]>> = {
+      PREPARING: ['OUT_FOR_DELIVERY'],
+      READY: ['OUT_FOR_DELIVERY'],
       // Drivers claim out-for-delivery orders, then complete them.
       OUT_FOR_DELIVERY: ['DELIVERED'],
     };
     const allowed = allowedByState[order.status] ?? [];
     if (!allowed.includes(next)) {
       throw conflict(`A delivery in state "${statusLabel(order.status)}" cannot move to "${statusLabel(next)}".`);
+    }
+    // MoMo protection: never dispatch an unverified MoMo order.
+    if (next === 'OUT_FOR_DELIVERY' && order.paymentMethod === 'MOBILE_MONEY' && order.paymentStatus !== 'PAID') {
+      throw conflict('MoMo payment must be verified before pickup. Please wait for verification.');
     }
     return;
   }
@@ -684,10 +690,11 @@ export function allowedKitchenTransitions(current: OrderStatus): OrderStatusType
     case OrderStatus.ACCEPTED:
       return ['PREPARING', 'CANCELLED'];
     case OrderStatus.PREPARING:
-      // Simplified lifecycle: serving goes straight out for delivery.
-      return ['OUT_FOR_DELIVERY', 'CANCELLED'];
+      // Kitchen stops at Served (PREPARING): only admin override moves further.
+      // Legacy READY still routes to the driver via admin/dispatch override.
+      return ['CANCELLED'];
     case OrderStatus.READY:
-      // Legacy packed orders dispatch straight to the driver.
+      // Legacy packed orders dispatch straight to the driver (admin/dispatch only).
       return ['OUT_FOR_DELIVERY', 'CANCELLED'];
     case OrderStatus.OUT_FOR_DELIVERY:
       // Only the assigned driver completes a delivery (admins can override).
@@ -703,6 +710,17 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
 
   if (order.fulfillmentType === 'PICKUP' && to === 'OUT_FOR_DELIVERY') {
     throw badRequest('Pickup orders cannot enter the delivery workflow.');
+  }
+
+  // Dispatch protection: MoMo orders require verified payment before any
+  // OUT_FOR_DELIVERY move, regardless of role (kitchen/admin/driver).
+  // Cash on Delivery flows through untouched.
+  if (
+    to === 'OUT_FOR_DELIVERY' &&
+    order.paymentMethod === 'MOBILE_MONEY' &&
+    order.paymentStatus !== 'PAID'
+  ) {
+    throw conflict('MoMo payment must be verified before dispatch. Verify payment first.');
   }
 
   if (order.status === to) {
