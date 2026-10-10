@@ -12,6 +12,7 @@ import {
   generateRefreshToken,
   hashToken,
   refreshTtlMs,
+  sessionExpiresAt,
   signAccessToken,
 } from '../lib/tokens';
 import { logActivity } from './activity-log.service';
@@ -88,7 +89,7 @@ function prepareSession(
 ): PreparedSession {
   const { request } = options;
   const rememberMe = Boolean(options.rememberMe);
-  const expiresAt = new Date(Date.now() + refreshTtlMs(rememberMe));
+  const expiresAt = sessionExpiresAt();
   const { token: refreshToken, hash } = generateRefreshToken();
 
   return {
@@ -316,7 +317,7 @@ export async function refreshSession(
     include: { user: { select: SESSION_USER_SELECT } },
   });
 
-  if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
+  if (!session || session.revokedAt) {
     throw unauthorized('Your session has expired. Please sign in again.');
   }
   if (!session.user.isActive) {
@@ -331,7 +332,6 @@ export async function refreshSession(
         id: session.id,
         refreshTokenHash: hashToken(refreshToken),
         revokedAt: null,
-        expiresAt: { gt: now },
       },
       data: { revokedAt: now, lastUsedAt: now },
     });
@@ -420,7 +420,7 @@ export async function listSessions(
   currentSessionId: string,
 ): Promise<SessionSummary[]> {
   const sessions = await prisma.session.findMany({
-    where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    where: { userId, revokedAt: null },
     orderBy: { lastUsedAt: 'desc' },
   });
   return sessions.map((session) => ({

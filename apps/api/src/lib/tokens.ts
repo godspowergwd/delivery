@@ -64,10 +64,12 @@ export function randomCode(length = 10): string {
   return crypto.randomBytes(length).toString('hex').slice(0, length).toUpperCase();
 }
 
-/**
- * Refresh cookies are capped at the browser-supported 400-day maximum. Each
- * successful refresh slides this window forward for every account type.
- */
+/** Browsers cap persistent cookies at 400 days; active sessions slide this window. */
 export function refreshTtlMs(_rememberMe: boolean): number {
   return 400 * 86_400_000;
+}
+
+/** Session rows do not expire; access remains revocable through logout/admin controls. */
+export function sessionExpiresAt(): Date {
+  return new Date('9999-12-31T23:59:59.999Z');
 }

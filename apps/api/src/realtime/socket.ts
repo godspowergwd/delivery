@@ -66,7 +66,7 @@ export function initRealtime(server: HttpServer): AppServer {
         const [session, user] = await Promise.all([
           prisma.session.findUnique({
             where: { id: payload.sessionId },
-            select: { id: true, userId: true, revokedAt: true, expiresAt: true },
+            select: { id: true, userId: true, revokedAt: true },
           }),
           prisma.user.findUnique({
             where: { id: payload.sub },
@@ -80,7 +80,6 @@ export function initRealtime(server: HttpServer): AppServer {
         socket.data.userId = user.id;
         socket.data.sessionId = session.id;
         socket.data.authorizationExpiresAt = socketAuthorizationExpiresAt(
-          session.expiresAt,
           (payload as { exp?: number }).exp,
         );
         socket.data.role = user.role;

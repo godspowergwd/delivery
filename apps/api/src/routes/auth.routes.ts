@@ -60,7 +60,7 @@ const changePasswordSchema = z.object({
 
 /** Stores the rotating refresh token in an httpOnly cookie plus a CSRF companion cookie. */
 function sendTokens(res: Response, tokens: SessionTokens): void {
-  const maxAge = Math.max(tokens.expiresAt.getTime() - Date.now(), 60_000);
+  const maxAge = refreshTtlMs(true);
   res.cookie(REFRESH_COOKIE, tokens.refreshToken, refreshCookieOptions(maxAge));
   res.cookie(CSRF_COOKIE, tokens.csrfToken, csrfCookieOptions(maxAge));
 }

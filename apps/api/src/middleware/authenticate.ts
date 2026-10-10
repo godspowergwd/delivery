@@ -51,7 +51,7 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
     const [session, user] = await Promise.all([
       prisma.session.findUnique({
         where: { id: payload.sessionId },
-        select: { id: true, revokedAt: true, expiresAt: true, userId: true },
+        select: { id: true, revokedAt: true, userId: true },
       }),
       prisma.user.findUnique({
         where: { id: payload.sub },
