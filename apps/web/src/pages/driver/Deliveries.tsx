@@ -4,11 +4,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { OrderDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { fetchDriverDeliveries, postDriverAction } from '../../lib/driver-api';
+import { api } from '../../lib/api';
 import { useRealtimeSync, toast } from '../../lib/realtime';
 import { useRestaurantStatus } from '../../lib/restaurant-status';
 import { MapPinIcon } from '../../components/icons';
 import { Button, Card, EmptyState, Modal, Spinner, StatusPill, Textarea } from '../../components/ui';
 import { RestaurantStatusPill } from '../../components/restaurant-status';
+import { PushAlertSetup } from '../../components/PushAlertSetup';
 
 type Tab = 'available' | 'mine' | 'history';
 const TAB_ORDER: Tab[] = ['available', 'mine', 'history'];
@@ -45,6 +47,21 @@ export default function DriverDeliveries() {
   const [issueOrder, setIssueOrder] = useState<OrderDTO | null>(null);
   // Live kitchen status — drivers see the same open/closed state as customers.
   const { status } = useRestaurantStatus();
+  const { data: pendingAssignmentAlerts = [] } = useQuery({
+    queryKey: ['driver-push-alerts'],
+    queryFn: async () => (await api.get<{ orderIds: string[] }>('/driver/alerts')).orderIds,
+    refetchInterval: 15_000,
+  });
+
+  async function acknowledgeAssignment(orderId: string) {
+    try {
+      await api.post(`/driver/deliveries/${orderId}/acknowledge`);
+      void queryClient.invalidateQueries({ queryKey: ['driver-push-alerts'] });
+      toast('Delivery assignment acknowledged.', 'success');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not acknowledge this assignment.', 'error');
+    }
+  }
 
   const { data: orders = [], isLoading, isError, error } = useQuery({
     queryKey: ['driver-deliveries', tab],
@@ -84,6 +101,9 @@ export default function DriverDeliveries() {
         </div>
         <RestaurantStatusPill status={status} className="mt-1 flex-none" />
       </header>
+      <Card className="!p-3">
+        <PushAlertSetup alertLabel="driver assignment" />
+      </Card>
 
       {status && !status.open && (
         <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] font-bold text-red-700">
@@ -164,6 +184,11 @@ export default function DriverDeliveries() {
                   >
                     Open map
                   </Link>
+                )}
+                {tab === 'mine' && pendingAssignmentAlerts.includes(order.id) && (
+                  <Button size="sm" onClick={() => void acknowledgeAssignment(order.id)}>
+                    Accept assignment
+                  </Button>
                 )}
                 {tab === 'mine' && ['PREPARING', 'READY'].includes(order.status) && (
                   <Button

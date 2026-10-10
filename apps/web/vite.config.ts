@@ -68,11 +68,11 @@ export default defineConfig(({ mode }) => {
     dir: 'ltr',
     categories: ['food', 'shopping', 'business'],
     icons: [
-      { src: 'pwa-64x64.png?v=red2', sizes: '64x64', type: 'image/png' },
-      { src: 'pwa-192x192.png?v=red2', sizes: '192x192', type: 'image/png' },
-      { src: 'pwa-512x512.png?v=red2', sizes: '512x512', type: 'image/png' },
-      { src: 'maskable-icon-512x512.png?v=red2', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-      { src: 'apple-touch-icon-180x180.png?v=red2', sizes: '180x180', type: 'image/png' },
+      { src: 'pwa-64x64.png?v=red3', sizes: '64x64', type: 'image/png' },
+      { src: 'pwa-192x192.png?v=red3', sizes: '192x192', type: 'image/png' },
+      { src: 'pwa-512x512.png?v=red3', sizes: '512x512', type: 'image/png' },
+      { src: 'maskable-icon-512x512.png?v=red3', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: 'apple-touch-icon-180x180.png?v=red3', sizes: '180x180', type: 'image/png' },
     ],
     shortcuts: [
       {
@@ -111,6 +111,7 @@ export default defineConfig(({ mode }) => {
       manifest,
       manifestFilename: 'manifest.webmanifest',
       workbox: {
+        importScripts: ['push-handler.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,avif,woff,woff2}'],
         navigateFallback: `${base}index.html`,
         navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//],

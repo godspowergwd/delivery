@@ -6,6 +6,7 @@ import { api } from '../../lib/api';
 import { printDeliveryReceipt } from '../../lib/print-receipt';
 import { toast, useRealtimeSync } from '../../lib/realtime';
 import { Button, Card, EmptyState, Spinner, StatusPill } from '../../components/ui';
+import { PushAlertSetup } from '../../components/PushAlertSetup';
 import {
   InboxIcon,
   FlameIcon,
@@ -68,18 +69,25 @@ export function KitchenQueue() {
   useEffect(() => {
     if (!soundEnabled || unacceptedOrders.length === 0 || !audioContext.current) return;
     const context = audioContext.current;
-    const playAlert = () => {
+    const playTone = (at: number, frequency: number, duration: number) => {
       if (context.state !== 'running') return;
       const oscillator = context.createOscillator();
       const gain = context.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 880;
-      gain.gain.setValueAtTime(0.12, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.22);
+      oscillator.type = 'triangle';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.36, at);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + duration);
       oscillator.connect(gain);
       gain.connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.22);
+      oscillator.start(at);
+      oscillator.stop(at + duration);
+    };
+    const playAlert = () => {
+      if (context.state !== 'running') return;
+      const now = context.currentTime;
+      playTone(now, 880, 0.24);
+      playTone(now + 0.32, 1175, 0.24);
+      playTone(now + 0.64, 880, 0.42);
     };
     playAlert();
     const interval = window.setInterval(playAlert, 2_500);
@@ -166,6 +174,7 @@ export function KitchenQueue() {
         <Button size="sm" variant={soundEnabled ? 'success' : 'outline'} onClick={() => void toggleSound()}>
           {soundEnabled ? 'Sound enabled' : 'Enable sound'}
         </Button>
+        <PushAlertSetup alertLabel="kitchen order" />
       </div>
 
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1" role="tablist" aria-label="Order queues">

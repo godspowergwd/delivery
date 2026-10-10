@@ -26,6 +26,9 @@ const envSchema = z.object({
   API_PUBLIC_URL: z.string().default('http://localhost:4000'),
   APP_PUBLIC_URL: z.string().default('http://localhost:5173'),
   APP_ALLOWED_ORIGINS: z.string().default(''),
+  PUSH_VAPID_PUBLIC_KEY: z.string().trim().default(''),
+  PUSH_VAPID_PRIVATE_KEY: z.string().trim().default(''),
+  PUSH_VAPID_SUBJECT: z.string().trim().default('mailto:admin@waakyeapp.online'),
   /**
    * Number of reverse proxies that sit in front of the API.
    *
@@ -57,6 +60,21 @@ const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().trim().default(''),
   R2_BUCKET_NAME: z.string().trim().default(''),
   R2_PUBLIC_URL: z.string().trim().default(''),
+}).superRefine((value, context) => {
+  if (Boolean(value.PUSH_VAPID_PUBLIC_KEY) !== Boolean(value.PUSH_VAPID_PRIVATE_KEY)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['PUSH_VAPID_PRIVATE_KEY'],
+      message: 'PUSH_VAPID_PUBLIC_KEY and PUSH_VAPID_PRIVATE_KEY must be configured together.',
+    });
+  }
+  if (value.PUSH_VAPID_SUBJECT && !/^(?:mailto:.+|https:\/\/.+)$/i.test(value.PUSH_VAPID_SUBJECT)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['PUSH_VAPID_SUBJECT'],
+      message: 'PUSH_VAPID_SUBJECT must be a mailto: address or HTTPS URL.',
+    });
+  }
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -77,6 +95,7 @@ export const loadTestAttestationPath = path.resolve(
 
 export const isProduction = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
+export const webPushEnabled = Boolean(env.PUSH_VAPID_PUBLIC_KEY && env.PUSH_VAPID_PRIVATE_KEY);
 
 if (isProduction && env.LOAD_TEST_ENV === 'isolated') {
   throw new Error('LOAD_TEST_ENV=isolated is not permitted when NODE_ENV=production.');

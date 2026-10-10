@@ -20,6 +20,7 @@ import { ORDER_INCLUDE, serializeDriverOffer, serializeOrder, type OrderWithRela
 import { canViewOrder } from './order-access.service';
 import { decrementOrderStock } from './order-stock';
 import { invalidateActiveDeliveryTargets } from './driver-delivery-cache';
+import { schedulePushAlert, scheduleRolePushAlerts, stopKitchenPushAlerts } from './push-alert.service';
 import type { SessionUser } from '../middleware/authenticate';
 import type { Request } from 'express';
 
@@ -355,6 +356,12 @@ export async function createOrder(params: {
     orderId: fullOrder.id,
     link: '/kitchen',
   });
+  await scheduleRolePushAlerts('KITCHEN', {
+    orderId: fullOrder.id,
+    title: `New kitchen order ${fullOrder.orderNumber}`,
+    body: `${user.name} • ${draft.totals.itemCount} items • ${money(draft.totals.total)}`,
+    link: '/kitchen',
+  });
 
   await notifyAdmins({
     title: `New order ${fullOrder.orderNumber}`,
@@ -588,6 +595,12 @@ export async function createWalkInOrder(params: {
       orderId: fullOrder.id,
       link: '/kitchen',
     });
+    await scheduleRolePushAlerts('KITCHEN', {
+      orderId: fullOrder.id,
+      title: `New kitchen delivery ${fullOrder.orderNumber}`,
+      body: `${fullOrder.customerName} • ${totals.itemCount} items • ${money(totals.total)}`,
+      link: '/kitchen',
+    });
     await notifyAdmins({
       title: `New Walk-In delivery ${fullOrder.orderNumber}`,
       body: `${fullOrder.customerName} placed an order worth ${money(totals.total)}.`,
@@ -779,6 +792,9 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
   }, { maxWait: 10_000, timeout: 30_000 });
 
   invalidateActiveDeliveryTargets(order.driverId);
+  if (to === 'ACCEPTED' || to === 'CANCELLED') {
+    await stopKitchenPushAlerts(order.id);
+  }
 
   const dto = serializeOrder(updated);
   const driverOffer = serializeDriverOffer(updated);
@@ -839,6 +855,12 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
         type: 'ORDER_UPDATE',
         audience: 'KITCHEN',
         orderId: order.id,
+        link: '/kitchen',
+      });
+      await scheduleRolePushAlerts('KITCHEN', {
+        orderId: order.id,
+        title: `Order ${order.orderNumber} needs kitchen acceptance`,
+        body: `Order returned to the kitchen queue by ${actor.name}.`,
         link: '/kitchen',
       });
     }
@@ -943,6 +965,13 @@ export async function assignDriver(params: {
       link: '/driver/map',
       createdById: actor.id,
     });
+    await schedulePushAlert({
+      orderId: order.id,
+      userId: driverId,
+      title: `Delivery awaiting acceptance • ${order.orderNumber}`,
+      body: `${order.customer?.name ?? 'A customer'} • ${order.itemCount} item(s) • ${order.deliveryArea ?? order.deliveryAddress}`,
+      link: `/driver/deliveries?order=${order.id}`,
+    });
   } else if (previousDriverId) {
     await notifyUser(previousDriverId, {
       title: `Delivery reassigned • ${order.orderNumber}`,
@@ -952,6 +981,10 @@ export async function assignDriver(params: {
       orderId: order.id,
       link: '/driver/deliveries',
       createdById: actor.id,
+    });
+    await prisma.pushAlert.updateMany({
+      where: { orderId: order.id, userId: previousDriverId, active: true },
+      data: { active: false },
     });
   }
 

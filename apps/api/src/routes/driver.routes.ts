@@ -19,6 +19,10 @@ import { notifyAdmins } from '../services/notification.service';
 import { emitToRole, hasConnectedDriverSockets } from '../realtime/socket';
 import { invalidateActiveDeliveryTargets } from '../services/driver-delivery-cache';
 import { claimUnassignedDelivery } from '../services/driver-claim';
+import {
+  acknowledgeDriverPushAlert,
+  activeDriverPushAlerts,
+} from '../services/push-alert.service';
 
 export const driverRouter = Router();
 
@@ -152,6 +156,26 @@ driverRouter.get(
       completedTotal,
       earningsToday: earnings._sum.deliveryFee ? Number(earnings._sum.deliveryFee) : 0,
     });
+  }),
+);
+
+driverRouter.get(
+  '/alerts',
+  asyncHandler(async (req, res) => {
+    const driver = getAuth(req).user;
+    res.json({ orderIds: await activeDriverPushAlerts(driver.id) });
+  }),
+);
+
+driverRouter.post(
+  '/deliveries/:id/acknowledge',
+  writeLimiter,
+  asyncHandler(async (req, res) => {
+    const { id } = idParamSchema.parse(req.params);
+    const driver = getAuth(req).user;
+    await requireAssignedOrder(id, driver);
+    await acknowledgeDriverPushAlert(driver.id, id);
+    res.json({ success: true });
   }),
 );
 

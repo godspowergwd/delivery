@@ -2,11 +2,16 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, paginate, paginateQuery } from '../lib/http';
 import { idParamSchema, optionalBooleanQuery, paginationSchema } from '../lib/validation';
-import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
+import { authenticate, getAuth, requireAdmin, requireRole } from '../middleware/authenticate';
 import { prisma } from '../lib/prisma';
 import { notFound } from '../lib/errors';
 import { markAllNotificationsRead, markNotificationRead, notifyRole, serializeNotification } from '../services/notification.service';
 import { emitToUser } from '../realtime/socket';
+import {
+  getPushConfig,
+  removePushSubscription,
+  savePushSubscription,
+} from '../services/push-alert.service';
 
 export const notificationsRouter = Router();
 
@@ -24,6 +29,48 @@ const broadcastSchema = z.object({
   type: z.enum(['PROMOTION', 'BUSINESS_ALERT', 'SYSTEM']).default('PROMOTION'),
   link: z.string().trim().max(200).nullable().optional(),
 });
+
+/** GET /api/notifications/push/config - publish VAPID public key to signed-in staff. */
+notificationsRouter.get(
+  '/push/config',
+  authenticate,
+  requireRole('KITCHEN', 'DRIVER'),
+  asyncHandler(async (_req, res) => {
+    res.json(getPushConfig());
+  }),
+);
+
+/** Save a push subscription for the current kitchen or driver account. */
+notificationsRouter.post(
+  '/push/subscriptions',
+  authenticate,
+  requireRole('KITCHEN', 'DRIVER'),
+  asyncHandler(async (req, res) => {
+    const { user } = getAuth(req);
+    const subscription = z.object({
+      endpoint: z.string().url().max(2048),
+      keys: z.object({
+        p256dh: z.string().min(20).max(200),
+        auth: z.string().min(10).max(100),
+      }).strict(),
+    }).strict().parse(req.body);
+    await savePushSubscription(user.id, subscription);
+    res.status(204).end();
+  }),
+);
+
+/** Remove a push subscription owned by the current account. */
+notificationsRouter.delete(
+  '/push/subscriptions',
+  authenticate,
+  requireRole('KITCHEN', 'DRIVER'),
+  asyncHandler(async (req, res) => {
+    const { user } = getAuth(req);
+    const body = z.object({ endpoint: z.string().url().max(2048) }).strict().parse(req.body);
+    await removePushSubscription(user.id, body.endpoint);
+    res.status(204).end();
+  }),
+);
 
 /** GET /api/notifications - the signed-in account's notifications. */
 notificationsRouter.get(

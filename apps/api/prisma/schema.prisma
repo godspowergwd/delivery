@@ -107,6 +107,8 @@ model User {
   favorites       Favorite[]
   notifications   Notification[]     @relation("NotificationRecipient")
   sentNotifications Notification[]   @relation("NotificationSender")
+  pushSubscriptions PushSubscription[]
+  pushAlerts      PushAlert[]
   sessions        Session[]
   activityLogs    ActivityLog[]
   statusEvents    OrderStatusEvent[]
@@ -214,6 +216,7 @@ model Order {
   /// Driver assigned to deliver this order (set by admin dispatch or driver claim).
   driverId  String?
   driver    User?   @relation("OrderDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  pushAlerts       PushAlert[]
 
   /// Delivery coordinates captured from the customer's device at checkout.
   /// Nullable on purpose: orders placed before GPS capture fall back to an
@@ -293,6 +296,36 @@ model Notification {
 
   @@index([userId, isRead, createdAt])
   @@index([audience, createdAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique @db.Text
+  p256dh    String
+  auth      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model PushAlert {
+  id            String   @id @default(cuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  body          String
+  link          String
+  nextAttemptAt DateTime @default(now())
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@unique([orderId, userId])
+  @@index([active, nextAttemptAt])
 }
 
 model Receipt {

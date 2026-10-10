@@ -7,6 +7,7 @@ import { connectDatabase, disconnectDatabase } from './lib/prisma';
 import { closeRealtime, initRealtime } from './realtime/socket';
 import { ensureUploadDir } from './middleware/upload';
 import { ensureReportDir } from './services/storage.service';
+import { startPushAlertWorker } from './services/push-alert.service';
 
 async function bootstrap(): Promise<void> {
   ensureUploadDir();
@@ -18,6 +19,7 @@ async function bootstrap(): Promise<void> {
   const app = createApp();
   const server = http.createServer(app);
   initRealtime(server);
+  startPushAlertWorker();
 
   await new Promise<void>((resolve) => {
     server.listen(env.PORT, () => resolve());
