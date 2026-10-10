@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DeliveryQuoteDTO, OrderDTO, Paginated, ProductDTO, ReceiptDTO, SettingsDTO } from '@delivery/shared';
+import type { DeliveryQuoteDTO, OrderDTO, Paginated, ProductDTO, PublicSettingsDTO, ReceiptDTO } from '@delivery/shared';
 import { computeTotals, formatMoney } from '@delivery/shared';
 import { ApiError, api, mediaUrl, qs } from '../../lib/api';
 import type { PlaceSuggestion } from '../../lib/geocode';
@@ -88,7 +88,7 @@ export function KitchenWalkIn() {
     .filter((line): line is { product: ProductDTO; quantity: number } => Boolean(line.product));
   const settingsQuery = useQuery({
     queryKey: ['settings'],
-    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
+    queryFn: () => api.get<{ settings: PublicSettingsDTO }>('/settings'),
     staleTime: 60_000,
   });
   const settings = settingsQuery.data?.settings;

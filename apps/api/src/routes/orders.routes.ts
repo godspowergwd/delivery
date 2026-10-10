@@ -7,7 +7,7 @@ import { csvSchema, idParamSchema, optionalBooleanQuery, paginationSchema } from
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
 import { orderCreateLimiter, writeLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
-import { badRequest, forbidden, notFound } from '../lib/errors';
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import {
   assertCanViewOrder,
   assignDriver,
@@ -18,8 +18,10 @@ import {
   getOrderById,
   getOrderByNumber,
 } from '../services/order.service';
-import { ORDER_INCLUDE, serializeOrder } from '../services/serializers';
+import { ORDER_INCLUDE, serializeDriverOffer, serializeOrder } from '../services/serializers';
 import { buildTrackingSnapshot, listLiveDrivers } from '../services/tracking.service';
+import { emitToRole, emitToUser } from '../realtime/socket';
+import { logActivity } from '../services/activity-log.service';
 
 export const ordersRouter = Router();
 
@@ -241,6 +243,67 @@ ordersRouter.get(
     }
 
     res.json({ tracking: await buildTrackingSnapshot(order, user) });
+  }),
+);
+
+/** POST /api/orders/:id/payment/verify - authorized manual MoMo verification. */
+ordersRouter.post(
+  '/:id/payment/verify',
+  authenticate,
+  requireAdmin,
+  writeLimiter,
+  asyncHandler(async (req, res) => {
+    const { id } = idParamSchema.parse(req.params);
+    const actor = getAuth(req).user;
+    const order = await getOrderById(id);
+    if (order.paymentMethod !== 'MOBILE_MONEY') {
+      throw badRequest('Only Mobile Money orders require payment verification.');
+    }
+    if (order.paymentStatus !== 'PENDING') {
+      throw conflict(`Payment is already ${order.paymentStatus.toLowerCase()}.`);
+    }
+    if (order.status === 'CANCELLED') {
+      throw conflict('Payment cannot be verified for a cancelled order.');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const result = await tx.order.updateMany({
+        where: { id, paymentMethod: 'MOBILE_MONEY', paymentStatus: 'PENDING', status: { not: 'CANCELLED' } },
+        data: { paymentStatus: 'PAID' },
+      });
+      if (result.count !== 1) {
+        throw conflict('Payment status changed. Refresh the order and try again.');
+      }
+      await tx.orderStatusEvent.create({
+        data: {
+          orderId: id,
+          status: order.status,
+          note: `Mobile Money payment verified by ${actor.name}`,
+          changedById: actor.id,
+        },
+      });
+    });
+
+    const updated = await getOrderById(id);
+    const dto = serializeOrder(updated);
+    emitToRole('ADMIN', 'order:updated', { order: dto, previousStatus: updated.status });
+    emitToRole('KITCHEN', 'order:updated', { order: dto, previousStatus: updated.status });
+    emitToRole('DRIVER', 'order:updated', { order: serializeDriverOffer(updated), previousStatus: updated.status });
+    if (updated.customerId) {
+      emitToUser(updated.customerId, 'order:updated', { order: dto, previousStatus: updated.status });
+    }
+    await logActivity({
+      action: 'ORDER_PAYMENT_VERIFIED',
+      entity: 'Order',
+      entityId: updated.id,
+      description: `Mobile Money payment verified for ${updated.orderNumber}`,
+      metadata: { paymentMethod: updated.paymentMethod, paymentStatus: updated.paymentStatus },
+      userId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      request: req,
+    });
+    res.json({ order: dto });
   }),
 );
 

@@ -29,6 +29,35 @@ const listQuerySchema = z.object({
   status: csvSchema,
 });
 
+const vehicleProfileSchema = z.object({
+  vehiclePlateNumber: z.string().trim().max(20),
+  vehiclePlateColor: z.string().trim().max(40),
+}).superRefine((profile, context) => {
+  const number = profile.vehiclePlateNumber?.trim() ?? '';
+  const color = profile.vehiclePlateColor?.trim() ?? '';
+  if (Boolean(number) !== Boolean(color)) {
+    context.addIssue({
+      code: 'custom',
+      path: number ? ['vehiclePlateColor'] : ['vehiclePlateNumber'],
+      message: 'Enter both the vehicle plate number and its color, or leave both blank.',
+    });
+  }
+  if (number && (number.length < 3 || !/^[a-z0-9 -]+$/i.test(number))) {
+    context.addIssue({
+      code: 'custom',
+      path: ['vehiclePlateNumber'],
+      message: 'Enter a valid vehicle plate number.',
+    });
+  }
+  if (color && color.length < 2) {
+    context.addIssue({
+      code: 'custom',
+      path: ['vehiclePlateColor'],
+      message: 'Plate color must contain at least 2 characters.',
+    });
+  }
+});
+
 /** Loads an order and verifies it belongs to the signed-in driver. */
 async function requireAssignedOrder(id: string, driver: SessionUser): Promise<OrderWithRelations> {
   const order = await prisma.order.findUnique({ where: { id }, include: ORDER_INCLUDE });
@@ -45,6 +74,53 @@ async function requirePoolOrder(id: string): Promise<OrderWithRelations> {
   if (!order) throw notFound('That delivery could not be found.');
   return order;
 }
+
+/** GET /api/driver/profile - private vehicle details for the signed-in driver. */
+driverRouter.get(
+  '/profile',
+  asyncHandler(async (req, res) => {
+    const driver = getAuth(req).user;
+    const profile = await prisma.user.findUniqueOrThrow({
+      where: { id: driver.id },
+      select: { vehiclePlateNumber: true, vehiclePlateColor: true },
+    });
+    res.json({ profile });
+  }),
+);
+
+/** PATCH /api/driver/profile - a driver may maintain only their own vehicle details. */
+driverRouter.patch(
+  '/profile',
+  writeLimiter,
+  asyncHandler(async (req, res) => {
+    const driver = getAuth(req).user;
+    const body = vehicleProfileSchema.parse(req.body);
+    const number = body.vehiclePlateNumber?.trim() ?? '';
+    const color = body.vehiclePlateColor?.trim() ?? '';
+    const profile = await prisma.user.update({
+      where: { id: driver.id },
+      data: {
+        vehiclePlateNumber: number || null,
+        vehiclePlateColor: color || null,
+      },
+      select: { vehiclePlateNumber: true, vehiclePlateColor: true },
+    });
+    emitToRole('ADMIN', 'user:changed', { action: 'updated', userId: driver.id });
+    emitToRole('KITCHEN', 'user:changed', { action: 'updated', userId: driver.id });
+    await logActivity({
+      action: 'DRIVER_VEHICLE_UPDATED',
+      entity: 'User',
+      entityId: driver.id,
+      description: `${driver.name} updated their vehicle details`,
+      metadata: { vehiclePlateNumber: profile.vehiclePlateNumber, vehiclePlateColor: profile.vehiclePlateColor },
+      userId: driver.id,
+      actorEmail: driver.email,
+      actorRole: driver.role,
+      request: req,
+    });
+    res.json({ profile });
+  }),
+);
 
 /** GET /api/driver/summary - stats for the driver profile and dashboard header. */
 driverRouter.get(
@@ -176,6 +252,27 @@ driverRouter.post(
 );
 
 /** POST /api/driver/deliveries/:id/complete - OUT_FOR_DELIVERY -> DELIVERED. */
+driverRouter.post(
+  '/deliveries/:id/pickup',
+  writeLimiter,
+  asyncHandler(async (req, res) => {
+    const { id } = idParamSchema.parse(req.params);
+    const driver = getAuth(req).user;
+    const order = await requireAssignedOrder(id, driver);
+    if (!['PREPARING', 'READY'].includes(order.status)) {
+      throw conflict('Pickup can only be confirmed after the kitchen has marked the order served.');
+    }
+    const updated = await changeOrderStatus({
+      orderId: id,
+      to: 'OUT_FOR_DELIVERY',
+      actor: driver,
+      note: 'Pickup confirmed by the driver',
+      request: req,
+    });
+    res.json({ data: serializeOrder(updated) });
+  }),
+);
+
 driverRouter.post(
   '/deliveries/:id/complete',
   writeLimiter,

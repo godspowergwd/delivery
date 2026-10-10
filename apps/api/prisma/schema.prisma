@@ -92,6 +92,8 @@ model User {
   /// Admin accounts created by the platform cannot be deleted or demoted.
   isProtected  Boolean   @default(false)
   avatarUrl    String?
+  vehiclePlateNumber String?
+  vehiclePlateColor  String?
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

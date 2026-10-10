@@ -18,6 +18,8 @@ export interface KitchenDriverDTO {
   /** Short sign-in name; null for accounts that only sign in with an email. */
   username: string | null;
   phone: string | null;
+  vehiclePlateNumber: string | null;
+  vehiclePlateColor: string | null;
   email: string;
   isActive: boolean;
   /** True while the driver's device is sharing a live position. */

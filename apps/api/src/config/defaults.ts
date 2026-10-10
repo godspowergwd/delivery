@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: Omit<SettingsDTO, 'updatedAt'> = {
   // Long-distance warning threshold only; all valid routes remain orderable.
   deliveryRadiusKm: 12,
   // Admin-controlled checkout methods (Admin > Settings > Payments).
-  momoEnabled: true,
+  momoEnabled: false,
   cashEnabled: true,
   momoNumber: '',
   momoAccountName: '',
@@ -57,6 +57,7 @@ export const PUBLIC_SETTING_KEYS = [
   'deliveryBaseFee',
   'deliveryMinimumFee',
   'deliveryPerKmRate',
+  'longDistanceWarningText',
   'taxRate',
   'minOrderTotal',
   'acceptingOrders',
@@ -65,6 +66,8 @@ export const PUBLIC_SETTING_KEYS = [
   'supportPhone',
   'supportEmail',
   'deliveryRadiusKm',
+  'businessLatitude',
+  'businessLongitude',
   // Checkout needs to know which methods are enabled + where to send MoMo.
   // Never expose anything else sensitive here.
   'momoEnabled',

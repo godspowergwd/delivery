@@ -19,7 +19,15 @@ export const ORDER_INCLUDE = {
     include: { changedBy: { select: { name: true } } },
   },
   customer: { select: { id: true, name: true, email: true, phone: true } },
-  driver: { select: { id: true, name: true, phone: true } },
+  driver: {
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      vehiclePlateNumber: true,
+      vehiclePlateColor: true,
+    },
+  },
   receipt: { select: { receiptNumber: true } },
 } satisfies Prisma.OrderInclude;
 
@@ -199,6 +207,8 @@ export function serializeOrder(order: OrderWithRelations): OrderDTO {
     estimatedReadyAt: order.estimatedReadyAt?.toISOString() ?? null,
     driverId: order.driverId,
     driverName: order.driver?.name ?? null,
+    driverVehiclePlateNumber: order.driver?.vehiclePlateNumber ?? null,
+    driverVehiclePlateColor: order.driver?.vehiclePlateColor ?? null,
     deliveryLatitude: order.deliveryLatitude,
     deliveryLongitude: order.deliveryLongitude,
     deliveryOriginalLatitude: order.deliveryOriginalLatitude,
@@ -231,6 +241,8 @@ export function serializeDriverOffer(order: OrderWithRelations): OrderDTO {
     deliveryLocationSource: null,
     deliveryLocationConfirmedAt: null,
     deliveryPricingSnapshot: null,
+    driverVehiclePlateNumber: null,
+    driverVehiclePlateColor: null,
     hasReceipt: false,
   };
 }

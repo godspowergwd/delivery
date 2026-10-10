@@ -259,6 +259,13 @@ function OrderDetailBody({
           </div>
         </div>
         <p className="text-sm text-slate-500">Deliver to: {data.deliveryAddress}</p>
+        {data.driverName && (data.driverVehiclePlateNumber || data.driverVehiclePlateColor) && (
+          <div className="rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-sm text-green-900">
+            <p className="font-bold">Driver: {data.driverName}</p>
+            {data.driverVehiclePlateNumber && <p>Vehicle plate: {data.driverVehiclePlateNumber}</p>}
+            {data.driverVehiclePlateColor && <p>Plate color: {data.driverVehiclePlateColor}</p>}
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-2 gap-3">

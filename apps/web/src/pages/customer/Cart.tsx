@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { SettingsDTO } from '@delivery/shared';
+import type { PublicSettingsDTO } from '@delivery/shared';
 import { computeTotals, formatMoney } from '@delivery/shared';
 import { api, mediaUrl } from '../../lib/api';
 import { useCart } from '../../lib/cart';
@@ -19,7 +19,7 @@ export function Cart() {
 
   const { data } = useQuery({
     queryKey: ['settings'],
-    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
+    queryFn: () => api.get<{ settings: PublicSettingsDTO }>('/settings'),
     staleTime: 60_000,
   });
   const settings = data?.settings;

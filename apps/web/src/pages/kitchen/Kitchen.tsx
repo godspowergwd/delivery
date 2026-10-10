@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { OrderDTO, Paginated, ReceiptDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
@@ -12,7 +12,6 @@ import {
   ChefHatIcon,
   CheckCircleIcon,
   XCircleIcon,
-  TruckIcon,
   WalletIcon,
   ReceiptIcon,
 } from '../../components/icons';
@@ -20,11 +19,10 @@ import type { ComponentType } from 'react';
 
 const LIVE_STATUSES = ['RECEIVED', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'] as const;
 
-/** The three queues of the kitchen main screen: New / Active / Completed. */
-type QueueTab = 'new' | 'active' | 'completed';
+/** Active includes newly placed orders; history is kept in a separate view. */
+type QueueTab = 'active' | 'completed';
 const QUEUE_TABS: Array<{ id: QueueTab; label: string; statuses: string }> = [
-  { id: 'new', label: 'New orders', statuses: 'RECEIVED' },
-  { id: 'active', label: 'Active', statuses: 'ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY' },
+  { id: 'active', label: 'Active', statuses: 'RECEIVED,ACCEPTED,PREPARING,READY,OUT_FOR_DELIVERY' },
   { id: 'completed', label: 'Completed', statuses: 'DELIVERED,CANCELLED' },
 ];
 
@@ -41,8 +39,10 @@ interface KitchenSummary {
 export function KitchenQueue() {
   useRealtimeSync();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<QueueTab>('new');
-  const activeStatuses = QUEUE_TABS.find((entry) => entry.id === tab)?.statuses ?? 'RECEIVED';
+  const [tab, setTab] = useState<QueueTab>('active');
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const audioContext = useRef<AudioContext | null>(null);
+  const activeStatuses = QUEUE_TABS.find((entry) => entry.id === tab)?.statuses ?? QUEUE_TABS[0].statuses;
 
   const { data: summary } = useQuery({
     queryKey: ['kitchen-summary'],
@@ -52,11 +52,66 @@ export function KitchenQueue() {
 
   const { data: page, isLoading } = useQuery({
     queryKey: ['kitchen-orders', activeStatuses],
-    queryFn: () => api.get<Paginated<OrderDTO>>(`/kitchen/orders?status=${activeStatuses}`),
+    queryFn: () => api.get<Paginated<OrderDTO>>(`/kitchen/orders?status=${activeStatuses}&pageSize=100`),
+    refetchInterval: 10_000,
+  });
+
+  const { data: unacceptedPage } = useQuery({
+    queryKey: ['kitchen-orders', 'unaccepted-alert'],
+    queryFn: () => api.get<Paginated<OrderDTO>>('/kitchen/orders?status=RECEIVED&pageSize=100'),
     refetchInterval: 10_000,
   });
 
   const orders = page?.items ?? [];
+  const unacceptedOrders = unacceptedPage?.items ?? [];
+
+  useEffect(() => {
+    if (!soundEnabled || unacceptedOrders.length === 0 || !audioContext.current) return;
+    const context = audioContext.current;
+    const playAlert = () => {
+      if (context.state !== 'running') return;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.12, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.22);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.22);
+    };
+    playAlert();
+    const interval = window.setInterval(playAlert, 2_500);
+    return () => window.clearInterval(interval);
+  }, [soundEnabled, unacceptedOrders.length]);
+
+  useEffect(() => () => {
+    void audioContext.current?.close();
+    audioContext.current = null;
+  }, []);
+
+  async function toggleSound() {
+    if (soundEnabled) {
+      setSoundEnabled(false);
+      return;
+    }
+    try {
+      if (typeof window.AudioContext !== 'function') {
+        toast('This browser does not support audible order alerts.', 'error');
+        return;
+      }
+      const context = audioContext.current ?? new window.AudioContext();
+      audioContext.current = context;
+      await context.resume();
+      setSoundEnabled(context.state === 'running');
+      if (context.state !== 'running') {
+        toast('This device has not enabled audio. Tap Enable sound again while the app is active.', 'warning');
+      }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not enable order alert audio on this device.', 'error');
+    }
+  }
 
   async function advance(orderId: string, action: string, note?: string) {
     try {
@@ -92,13 +147,26 @@ export function KitchenQueue() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <KitchenStat label="Incoming" value={summary.incoming} icon={InboxIcon} tile="bg-red-50 text-red-700" />
             <KitchenStat label="Active" value={summary.active} icon={FlameIcon} tile="bg-green-50 text-green-700" />
-            <KitchenStat label="Serving" value={summary.serving} icon={ChefHatIcon} tile="bg-green-100 text-green-800" />
-            <KitchenStat label="Out for delivery" value={summary.outForDelivery} icon={TruckIcon} tile="bg-green-50 text-green-700" />
+            <KitchenStat label="Preparing / served" value={summary.serving} icon={ChefHatIcon} tile="bg-green-100 text-green-800" />
             <KitchenStat label="Done today" value={summary.completedToday} icon={CheckCircleIcon} tile="bg-green-50 text-green-700" />
             <KitchenStat label="Cancelled" value={summary.cancelledToday} icon={XCircleIcon} tile="bg-slate-100 text-slate-500" />
           </div>
         </>
       )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-soft">
+        <div>
+          <p className="text-sm font-bold text-slate-900">New order alert</p>
+          <p className="text-xs text-slate-500">
+            {unacceptedOrders.length
+              ? `${unacceptedOrders.length} order${unacceptedOrders.length === 1 ? '' : 's'} waiting for acceptance.`
+              : 'No unaccepted orders.'}
+          </p>
+        </div>
+        <Button size="sm" variant={soundEnabled ? 'success' : 'outline'} onClick={() => void toggleSound()}>
+          {soundEnabled ? 'Sound enabled' : 'Enable sound'}
+        </Button>
+      </div>
 
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1" role="tablist" aria-label="Order queues">
         {QUEUE_TABS.map((entry) => (
@@ -110,9 +178,7 @@ export function KitchenQueue() {
             onClick={() => setTab(entry.id)}
             className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-bold whitespace-nowrap transition ${
               tab === entry.id
-                ? entry.id === 'new'
-                  ? 'bg-red-700 text-white shadow-brand-soft'
-                  : 'bg-green-600 text-white shadow-green'
+                ? 'bg-red-700 text-white shadow-brand-soft'
                 : 'text-slate-600 hover:text-slate-800'
             }`}
           >
@@ -123,15 +189,11 @@ export function KitchenQueue() {
 
       {orders.length === 0 ? (
         <EmptyState
-          title={
-            tab === 'new' ? 'No new orders' : tab === 'active' ? 'No active orders' : 'No completed orders yet'
-          }
+          title={tab === 'active' ? 'No active orders' : 'No completed orders yet'}
           hint={
-            tab === 'new'
-              ? 'New orders appear here the moment a customer checks out.'
-              : tab === 'active'
-                ? 'Accepted and serving orders show up here.'
-                : 'Delivered and cancelled orders are kept here for reference.'
+            tab === 'active'
+              ? 'New orders appear here until accepted, followed by orders being prepared.'
+              : 'Delivered and cancelled orders are kept here for reference.'
           }
         />
       ) : (
@@ -189,7 +251,7 @@ function KitchenOrderCard({
 
   return (
     <Card className="border-slate-200">
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className={`mb-3 flex items-start justify-between gap-3 rounded-xl ${order.status === 'RECEIVED' ? 'border border-red-200 bg-red-50 p-3' : ''}`}>
         <div>
           <p className="text-sm font-extrabold text-slate-900">{order.orderNumber}</p>
           <p className="text-sm text-slate-500">
@@ -202,7 +264,10 @@ function KitchenOrderCard({
         <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
       </div>
 
-      <div className="space-y-1.5 mb-3">
+      {order.status === 'RECEIVED' && (
+        <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-red-700">New · accept to stop alert</p>
+      )}
+      <div className="mb-3 space-y-1.5">
         {order.items.map((item) => (
           <div key={item.id} className="flex items-center justify-between text-sm">
             <span className="text-slate-700">{item.quantity}× {item.name}</span>
@@ -251,10 +316,10 @@ function kitchenActions(status: string): Array<{
     case 'RECEIVED':
       return [{ label: 'Accept order', endpoint: 'accept', note: 'Accepted by the kitchen' }];
     case 'ACCEPTED':
-      return [{ label: 'Start serving', endpoint: 'preparing', note: 'Serving started' }];
+      return [{ label: 'Mark served', endpoint: 'preparing', note: 'Prepared and packaged by the kitchen' }];
     case 'PREPARING':
     case 'READY': // legacy orders packed before the simplified workflow
-      return [{ label: 'Out for delivery', endpoint: 'dispatch', note: 'Out for delivery', variant: 'success' }];
+      return [];
     default:
       return [];
   }

@@ -5,6 +5,7 @@ import { asyncHandler } from '../lib/http';
 import { emailSchema, percentSchema, phoneSchema } from '../lib/validation';
 import { authenticate, getAuth, requireAdmin } from '../middleware/authenticate';
 import { publicReadLimiter, writeLimiter } from '../middleware/rateLimit';
+import { badRequest } from '../lib/errors';
 import { getPublicSettings, getSettings, updateSettings } from '../services/settings.service';
 import { applyRestaurantStatus, getRestaurantStatus } from '../services/restaurant.service';
 import { logActivity } from '../services/activity-log.service';
@@ -33,9 +34,9 @@ const updateSettingsSchema = z.object({
   // Admin-controlled payment methods (Admin > Settings > Payments).
   momoEnabled: z.boolean().optional(),
   cashEnabled: z.boolean().optional(),
-  momoNumber: z.string().trim().min(7).max(20).optional(),
-  momoAccountName: z.string().trim().min(2).max(120).optional(),
-  momoInstructions: z.string().trim().min(10).max(500).optional(),
+  momoNumber: z.string().trim().max(20).optional(),
+  momoAccountName: z.string().trim().max(120).optional(),
+  momoInstructions: z.string().trim().max(500).optional(),
   lowStockThreshold: z.coerce.number().int().min(0).max(10_000).optional(),
   // Kitchen / pickup anchor used as the trusted route origin and map location.
   businessLatitude: z.coerce.number().finite().min(4.4).max(11.3).optional(),
@@ -46,6 +47,20 @@ const updateSettingsSchema = z.object({
       code: 'custom',
       path: ['businessLongitude'],
       message: 'Update the origin latitude and longitude together.',
+    });
+  }
+  if (settings.momoNumber && !/^\+?[0-9\s()-]{7,20}$/.test(settings.momoNumber)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['momoNumber'],
+      message: 'Enter a valid Mobile Money number.',
+    });
+  }
+  if (settings.momoAccountName && settings.momoAccountName.length < 2) {
+    context.addIssue({
+      code: 'custom',
+      path: ['momoAccountName'],
+      message: 'Recipient name must contain at least 2 characters.',
     });
   }
 });
@@ -64,7 +79,7 @@ settingsRouter.get(
   '/',
   publicReadLimiter,
   asyncHandler(async (_req, res) => {
-    const settings = await getSettings();
+    const settings = await getPublicSettings();
     res.json({ settings });
   }),
 );
@@ -123,6 +138,13 @@ settingsRouter.patch(
       Omit<SettingsDTO, 'updatedAt'>
     >;
     const actor = getAuth(req).user;
+    const current = await getSettings();
+    const nextMomoEnabled = patch.momoEnabled ?? current.momoEnabled;
+    const nextMomoNumber = patch.momoNumber ?? current.momoNumber;
+    const nextMomoAccountName = patch.momoAccountName ?? current.momoAccountName;
+    if (nextMomoEnabled && (!nextMomoNumber.trim() || !nextMomoAccountName.trim())) {
+      throw badRequest('Configure the MoMo wallet number and recipient name before enabling Mobile Money.');
+    }
 
     // Flipping "accepting orders" from Admin > Settings is the same business
     // event as the Kitchen toggle: it is written with its audit trail and

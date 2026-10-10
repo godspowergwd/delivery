@@ -140,6 +140,8 @@ export interface OrderDTO {
   estimatedReadyAt: string | null;
   driverId: string | null;
   driverName: string | null;
+  driverVehiclePlateNumber: string | null;
+  driverVehiclePlateColor: string | null;
   /**
    * Delivery coordinates captured from the customer's device at checkout.
    * Null for orders placed before GPS capture was introduced — those fall back
@@ -263,6 +265,34 @@ export interface SettingsDTO {
   momoInstructions: string;
   updatedAt: string | null;
 }
+
+/** Settings safe for public storefront and operational clients to read. */
+export type PublicSettingsDTO = Pick<
+  SettingsDTO,
+  | 'businessName'
+  | 'businessPhone'
+  | 'currencyCode'
+  | 'currencySymbol'
+  | 'deliveryBaseFee'
+  | 'deliveryMinimumFee'
+  | 'deliveryPerKmRate'
+  | 'longDistanceWarningText'
+  | 'taxRate'
+  | 'minOrderTotal'
+  | 'acceptingOrders'
+  | 'restaurantStatusChangedAt'
+  | 'restaurantStatusChangedBy'
+  | 'supportPhone'
+  | 'supportEmail'
+  | 'businessLatitude'
+  | 'businessLongitude'
+  | 'deliveryRadiusKm'
+  | 'momoEnabled'
+  | 'cashEnabled'
+  | 'momoNumber'
+  | 'momoAccountName'
+  | 'momoInstructions'
+> & { updatedAt: string | null };
 
 export interface AnalyticsOverview {
   date: string;

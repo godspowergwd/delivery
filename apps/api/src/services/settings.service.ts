@@ -94,6 +94,15 @@ export function toPublicSettings(settings: SettingsDTO): PublicSettings {
   const source = settings as unknown as Record<string, unknown>;
   const projected: Record<string, unknown> = {};
   for (const key of PUBLIC_SETTING_KEYS) projected[key] = source[key];
+  const momoEnabled = Boolean(
+    settings.momoEnabled && settings.momoNumber.trim() && settings.momoAccountName.trim(),
+  );
+  projected.momoEnabled = momoEnabled;
+  if (!momoEnabled) {
+    projected.momoNumber = '';
+    projected.momoAccountName = '';
+    projected.momoInstructions = '';
+  }
   return projected as PublicSettings;
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AddressDTO, DeliveryQuoteDTO, OrderDTO, SettingsDTO } from '@delivery/shared';
+import type { AddressDTO, DeliveryQuoteDTO, OrderDTO, PublicSettingsDTO } from '@delivery/shared';
 import { PAYMENT_METHOD_LABELS, computeTotals, formatMoney } from '@delivery/shared';
 import { ApiError, api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -73,7 +73,7 @@ export function Checkout() {
 
   const { data: settingsData } = useQuery({
     queryKey: ['settings'],
-    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
+    queryFn: () => api.get<{ settings: PublicSettingsDTO }>('/settings'),
     staleTime: 60_000,
   });
   const settings = settingsData?.settings;
@@ -490,7 +490,7 @@ export function Checkout() {
           size="lg"
           block
           loading={busy}
-          disabled={!accepting || !confirmedMatchesSelection || !deliveryQuote || deliveryQuoteQuery.isError || Boolean(pendingOrder)}
+          disabled={enabledMethods.length === 0 || !accepting || !confirmedMatchesSelection || !deliveryQuote || deliveryQuoteQuery.isError || Boolean(pendingOrder)}
         >
           {busy
             ? 'Sending…'

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { AnalyticsCharts, AnalyticsOverview, OrderDTO, Paginated, SettingsDTO } from '@delivery/shared';
+import type { AnalyticsCharts, AnalyticsOverview, OrderDTO, Paginated, PublicSettingsDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useRealtimeSync } from '../../lib/realtime';
@@ -58,7 +58,7 @@ export function AdminDashboard() {
 
   const { data: settingsData } = useQuery({
     queryKey: ['admin-settings'],
-    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
+    queryFn: () => api.get<{ settings: PublicSettingsDTO }>('/settings'),
     staleTime: 60_000,
   });
 

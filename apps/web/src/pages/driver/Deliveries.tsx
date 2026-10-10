@@ -53,13 +53,18 @@ export default function DriverDeliveries() {
   });
 
   const action = useMutation({
-    mutationFn: ({ id, verb }: { id: string; verb: 'accept' | 'complete' }) =>
+    mutationFn: ({ id, verb }: { id: string; verb: 'accept' | 'pickup' | 'complete' }) =>
       postDriverAction(`/driver/deliveries/${id}/${verb}`),
     onSuccess: (order, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
       void queryClient.invalidateQueries({ queryKey: ['driver-summary'] });
       if (variables.verb === 'accept') {
         toast(`${order.orderNumber} accepted - opening the delivery map`, 'success');
+        navigate(`/driver/map?order=${order.id}`);
+        return;
+      }
+      if (variables.verb === 'pickup') {
+        toast(`${order.orderNumber} picked up - delivery started.`, 'success');
         navigate(`/driver/map?order=${order.id}`);
         return;
       }
@@ -159,6 +164,15 @@ export default function DriverDeliveries() {
                   >
                     Open map
                   </Link>
+                )}
+                {tab === 'mine' && ['PREPARING', 'READY'].includes(order.status) && (
+                  <Button
+                    size="sm"
+                    loading={action.isPending && action.variables?.id === order.id}
+                    onClick={() => action.mutate({ id: order.id, verb: 'pickup' })}
+                  >
+                    Confirm pickup
+                  </Button>
                 )}
                 {tab === 'mine' && order.status === 'OUT_FOR_DELIVERY' && (
                   <Button

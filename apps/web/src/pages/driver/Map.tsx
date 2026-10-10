@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OrderDTO, SettingsDTO } from '@delivery/shared';
+import type { OrderDTO, PublicSettingsDTO } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatDistance, formatMoney } from '@delivery/shared';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -103,7 +103,7 @@ export default function DriverMap() {
 
   const { data: settingsData } = useQuery({
     queryKey: ['settings'],
-    queryFn: () => api.get<{ settings: SettingsDTO }>('/settings'),
+    queryFn: () => api.get<{ settings: PublicSettingsDTO }>('/settings'),
     staleTime: 5 * 60_000,
   });
 
@@ -192,12 +192,17 @@ export default function DriverMap() {
   }, [mapRef, route]);
 
   const action = useMutation({
-    mutationFn: ({ id, verb }: { id: string; verb: 'complete' }) =>
+    mutationFn: ({ id, verb }: { id: string; verb: 'pickup' | 'complete' }) =>
       postDriverAction(`/driver/deliveries/${id}/${verb}`),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
       void queryClient.invalidateQueries({ queryKey: ['driver-summary'] });
-      toast(`Order ${order.orderNumber} updated to ${ORDER_STATUS_LABELS[order.status]}`, 'success');
+      toast(
+        order.status === 'OUT_FOR_DELIVERY'
+          ? `${order.orderNumber} picked up. Delivery started.`
+          : `Order ${order.orderNumber} updated to ${ORDER_STATUS_LABELS[order.status]}`,
+        'success',
+      );
     },
     onError: (err: Error) => toast(err.message, 'error'),
   });
@@ -355,12 +360,9 @@ export default function DriverMap() {
           <Link to="/driver/deliveries" className="map-control-btn" aria-label="Back to deliveries">
             <ArrowLeftIcon className="h-5 w-5" />
           </Link>
-          <TrackingPill
-            status={location.status}
-            accuracy={location.position?.accuracy ?? null}
-            transport={publisher.transport}
-            lastSentAt={publisher.lastSentAt}
-          />
+          <span className="min-w-0 flex-1 truncate rounded-full border border-slate-200 bg-white/95 px-3 py-2 text-center text-sm font-bold text-slate-800 shadow-soft">
+            Delivery
+          </span>
           {orders.length > 1 && (
             <button
               type="button"
@@ -541,16 +543,8 @@ export default function DriverMap() {
                       </span>
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-slate-600">
-                      {selected.customerName} ·{' '}
-                      {delivering ? selected.deliveryAddress : 'Maame’s Waakye kitchen'}
+                      {delivering ? 'Delivery route' : 'Pickup at kitchen'}
                     </span>
-                    <a
-                      href={`tel:${selected.deliveryPhone}`}
-                      aria-label={`Call ${selected.customerName}`}
-                      className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-green-600 text-white shadow-green transition hover:bg-green-700"
-                    >
-                      <PhoneIcon className="h-4 w-4" />
-                    </a>
                   </div>
                 )}
               </>
@@ -574,6 +568,7 @@ export default function DriverMap() {
             busy={action.isPending}
             deliveryCount={orders.length}
             onComplete={() => action.mutate({ id: selected.id, verb: 'complete' })}
+            onPickup={() => action.mutate({ id: selected.id, verb: 'pickup' })}
             onGetDirection={startNavigation}
             onStopNavigation={stopNavigation}
             onIssue={() => setIssueOpen(true)}
@@ -592,44 +587,6 @@ export default function DriverMap() {
 }
 
 /* ------------------------------------------------------------------ pieces */
-
-/** Live GPS health: what the driver needs to know at a glance. */
-function TrackingPill({
-  status,
-  accuracy,
-  transport,
-  lastSentAt,
-}: {
-  status: string;
-  accuracy: number | null;
-  transport: 'socket' | 'rest' | 'idle';
-  lastSentAt: string | null;
-}) {
-  const live = status === 'granted';
-  const label = live
-    ? accuracy && accuracy > 60
-      ? `Live · ±${Math.round(accuracy)} m`
-      : 'Live location on'
-    : status === 'requesting'
-      ? 'Finding your location…'
-      : 'Location off';
-
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-2 shadow-soft">
-      <span
-        className={`relative flex h-2.5 w-2.5 flex-none rounded-full ${live ? 'bg-green-600' : 'bg-slate-400'}`}
-      >
-        {live && <span className="pulse-ring absolute inset-0 rounded-full bg-green-600/60" />}
-      </span>
-      <span className="min-w-0 truncate text-[13px] font-bold text-slate-800">{label}</span>
-      {live && lastSentAt && (
-        <span className="hidden flex-none text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:inline">
-          {transport === 'socket' ? 'streaming' : transport === 'rest' ? 'synced' : 'sent'}
-        </span>
-      )}
-    </div>
-  );
-}
 
 /** Explains why GPS is needed and never blocks the rest of the screen. */
 function LocationPermissionCard({
@@ -694,6 +651,7 @@ function DeliveryDetails({
   busy,
   deliveryCount,
   onComplete,
+  onPickup,
   onGetDirection,
   onStopNavigation,
   onIssue,
@@ -712,6 +670,7 @@ function DeliveryDetails({
   busy: boolean;
   deliveryCount: number;
   onComplete: () => void;
+  onPickup: () => void;
   onGetDirection: () => void;
   onStopNavigation: () => void;
   onIssue: () => void;
@@ -719,17 +678,45 @@ function DeliveryDetails({
 }) {
   const eta = remainingDurationMin !== null ? durationText(remainingDurationMin) : null;
   const targetLabel = delivering ? 'Customer' : 'Restaurant';
+  const pickupAvailable = !delivering && ['PREPARING', 'READY'].includes(order.status);
 
   return (
     <div className="pb-4 pt-2">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[13px] font-bold uppercase tracking-wide text-red-600">
-            {delivering ? 'Delivering now' : 'Next stop · restaurant'}
+            {delivering ? 'Delivering now' : pickupAvailable ? 'Ready for pickup' : 'Assigned delivery'}
           </p>
           <p className="truncate font-mono text-sm text-slate-700">{order.orderNumber}</p>
         </div>
         <StatusPill status={order.status} label={ORDER_STATUS_LABELS[order.status]} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {delivering ? (
+          <Button
+            className="col-span-1"
+            loading={routeLoading}
+            disabled={navigationActive || !destinationExact}
+            onClick={onGetDirection}
+          >
+            <NavigationIcon className="h-4 w-4" />
+            Get directions
+          </Button>
+        ) : pickupAvailable ? (
+          <Button className="col-span-1" loading={busy} onClick={onPickup}>
+            <BikeIcon className="h-4 w-4" />
+            Confirm pickup
+          </Button>
+        ) : null}
+        <a
+          href={`tel:${order.deliveryPhone}`}
+          aria-label="Call customer"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-green-600 px-4 text-[15px] font-bold text-white shadow-green transition hover:bg-green-700"
+        >
+          <PhoneIcon className="h-4 w-4" />
+          Call customer
+        </a>
       </div>
 
       {/* ETA (red emphasis) paired with the live green distance-to-go. */}
@@ -783,11 +770,6 @@ function DeliveryDetails({
               No customer GPS on this order yet - call the customer for directions.
             </p>
           )}
-          {destinationExact && (
-            <p className="mt-1 text-[12px] font-semibold text-green-700">
-              Exact customer GPS pin.
-            </p>
-          )}
           {order.notes && (
             <p className="mt-1 rounded-xl bg-green-50 px-2 py-1 text-[13px] font-semibold text-green-800">
               Note: {order.notes}
@@ -814,19 +796,6 @@ function DeliveryDetails({
         {delivering && (
           <Button loading={busy} onClick={onComplete}>
             Complete delivery
-          </Button>
-        )}
-        <a
-          href={`tel:${order.deliveryPhone}`}
-          className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-green-600 px-4 text-[15px] font-bold text-white shadow-green transition hover:bg-green-700"
-        >
-          <PhoneIcon className="h-4 w-4" />
-          Call
-        </a>
-        {delivering && (
-          <Button loading={routeLoading} disabled={navigationActive} onClick={onGetDirection}>
-            <NavigationIcon className="h-4 w-4" />
-            Get Direction
           </Button>
         )}
         {navigationActive && <Button variant="ghost" onClick={onStopNavigation}>Stop navigation</Button>}

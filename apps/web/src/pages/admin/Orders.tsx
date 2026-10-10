@@ -157,6 +157,8 @@ function OrderDialog({
   const [working, setWorking] = useState(false);
   const [driverId, setDriverId] = useState<string>(order.driverId ?? '');
   const [driverWorking, setDriverWorking] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState(order.paymentStatus);
+  const [paymentWorking, setPaymentWorking] = useState(false);
 
   const dispatchable = !['RECEIVED', 'DELIVERED', 'CANCELLED'].includes(order.status);
 
@@ -186,6 +188,22 @@ function OrderDialog({
       toast(error?.message ?? 'Could not assign the driver', 'error');
     } finally {
       setDriverWorking(false);
+    }
+  };
+
+  const verifyPayment = async () => {
+    setPaymentWorking(true);
+    try {
+      const result = await api.post<{ order: OrderDTO }>(`/orders/${order.id}/payment/verify`, {});
+      setPaymentStatus(result.order.paymentStatus);
+      void queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      void queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] });
+      void queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
+      toast(`Payment verified for ${order.orderNumber}.`, 'success');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not verify payment.', 'error');
+    } finally {
+      setPaymentWorking(false);
     }
   };
 
@@ -232,8 +250,18 @@ function OrderDialog({
           <Row label="Tax" value={formatMoney(order.tax)} />
           <Row label="Total" value={formatMoney(order.total)} bold />
           <Row label="Payment" value={order.paymentMethod.replace('_', ' ')} />
-          <Row label="Payment status" value={order.paymentStatus} />
+          <Row label="Payment status" value={paymentStatus} />
         </div>
+        {order.paymentMethod === 'MOBILE_MONEY' && paymentStatus === 'PENDING' && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+            <p className="mb-2 text-sm text-amber-900">
+              Confirm the transfer in the provider or wallet account before marking it verified.
+            </p>
+            <Button size="sm" variant="success" loading={paymentWorking} onClick={() => void verifyPayment()}>
+              Verify MoMo payment
+            </Button>
+          </div>
+        )}
 
         {dispatchable && (
           <div className="rounded-2xl border border-red-600/20 bg-red-50 p-3">

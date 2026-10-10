@@ -207,6 +207,69 @@ export function AdminSettings() {
         </div>
       </Card>
 
+      <Card className="space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-slate-900">Payment methods</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Customers can only choose enabled methods. MoMo orders stay on hold until an administrator verifies payment.
+          </p>
+        </div>
+        <label className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+          <input
+            type="checkbox"
+            checked={form.cashEnabled ?? false}
+            onChange={(event) => update({ cashEnabled: event.target.checked })}
+            className="h-5 w-5 rounded border-slate-300 accent-green-600"
+          />
+          <span>
+            <span className="block text-sm font-bold text-slate-900">Cash on Delivery</span>
+            <span className="block text-xs text-slate-500">Customers pay when the order is delivered.</span>
+          </span>
+        </label>
+        <label className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+          <input
+            type="checkbox"
+            checked={form.momoEnabled ?? false}
+            onChange={(event) => update({ momoEnabled: event.target.checked })}
+            className="h-5 w-5 rounded border-slate-300 accent-red-600"
+          />
+          <span>
+            <span className="block text-sm font-bold text-slate-900">Mobile Money</span>
+            <span className="block text-xs text-slate-500">Requires payment confirmation before dispatch.</span>
+          </span>
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="MoMo wallet number" hint="Use the number customers should pay.">
+            <Input
+              type="tel"
+              inputMode="tel"
+              autoComplete="off"
+              value={form.momoNumber ?? ''}
+              onChange={(event) => update({ momoNumber: event.target.value })}
+              placeholder="+233..."
+            />
+          </Field>
+          <Field label="Account holder / recipient name">
+            <Input
+              autoComplete="off"
+              value={form.momoAccountName ?? ''}
+              onChange={(event) => update({ momoAccountName: event.target.value })}
+              placeholder="Recipient name"
+            />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Customer payment instructions">
+              <Textarea
+                rows={3}
+                value={form.momoInstructions ?? ''}
+                onChange={(event) => update({ momoInstructions: event.target.value })}
+                placeholder="Explain how the customer should pay."
+              />
+            </Field>
+          </div>
+        </div>
+      </Card>
+
       <Card>
         <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-900">
           <CogIcon className="h-5 w-5 text-red-600" aria-hidden="true" />

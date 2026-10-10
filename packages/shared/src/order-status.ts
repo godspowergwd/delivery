@@ -2,10 +2,10 @@
  * Order lifecycle - the single source of truth for every interface.
  *
  * RECEIVED ("ORDER PLACED") -> ACCEPTED ("ORDER ACCEPTED") -> PREPARING
- *   ("SERVING") -> OUT_FOR_DELIVERY ("OUT FOR DELIVERY") -> DELIVERED
+ *   -> READY ("SERVED") -> OUT_FOR_DELIVERY ("OUT FOR DELIVERY") -> DELIVERED
  *
  * READY stays only as a legacy technical state for orders packed by the old
- * workflow: it renders as "Serving" and jumps straight to OUT_FOR_DELIVERY.
+ * workflow: it renders as "Served" and advances to OUT_FOR_DELIVERY.
  * New orders never pass through it.
  *
  * CANCELLED can be reached from any non-terminal status by the customer, the
@@ -35,8 +35,8 @@ export const ORDER_STATUS_FLOW: OrderStatus[] = [
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   RECEIVED: 'Order Placed',
   ACCEPTED: 'Order Accepted',
-  PREPARING: 'Serving',
-  READY: 'Serving',
+  PREPARING: 'Served',
+  READY: 'Served',
   OUT_FOR_DELIVERY: 'Out for Delivery',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
@@ -45,8 +45,8 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 export const ORDER_STATUS_DESCRIPTIONS: Record<OrderStatus, string> = {
   RECEIVED: 'Your order reached the kitchen and is waiting to be accepted.',
   ACCEPTED: 'The kitchen accepted your order and will start serving shortly.',
-  PREPARING: 'Your waakye is being served right now.',
-  READY: 'Your waakye is being served right now.',
+  PREPARING: 'The kitchen is preparing your meal.',
+  READY: 'Your order is prepared and packed.',
   OUT_FOR_DELIVERY: 'Your order is on the way to you.',
   DELIVERED: 'Enjoy your meal! This order has been delivered.',
   CANCELLED: 'This order was cancelled.',
@@ -84,7 +84,7 @@ export function isTerminalStatus(status: OrderStatus): boolean {
   return TERMINAL_STATUSES.includes(status);
 }
 
-/** Statuses that render as the "SERVING" step (legacy packed included). */
+/** Statuses that represent the preparation stage. */
 const SERVING_EQUIVALENT: OrderStatus[] = ['PREPARING', 'READY'];
 
 export function orderStatusIndex(status: OrderStatus): number {

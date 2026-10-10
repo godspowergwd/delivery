@@ -162,6 +162,15 @@ export async function buildOrderDraft(input: CreateOrderInput, deliveryFee: numb
   if (!settings.acceptingOrders) {
     throw conflict('The kitchen is currently closed for new orders. Please try again later.');
   }
+  if (input.paymentMethod === 'CASH' && !settings.cashEnabled) {
+    throw badRequest('Cash on Delivery is not currently available.');
+  }
+  if (
+    input.paymentMethod === 'MOBILE_MONEY' &&
+    (!settings.momoEnabled || !settings.momoNumber.trim() || !settings.momoAccountName.trim())
+  ) {
+    throw badRequest('Mobile Money is not currently available.');
+  }
 
   const productIds = [...new Set(input.items.map((item) => item.productId))];
   if (productIds.length === 0) throw badRequest('Your cart is empty.');
@@ -630,8 +639,8 @@ const CUSTOMER_MESSAGES: Partial<Record<OrderStatusType, { title: string; body: 
     title: 'Order accepted',
     body: 'The kitchen accepted your order and will start preparing it shortly.',
   },
-  PREPARING: { title: 'Order being served', body: 'The kitchen is preparing your meal right now.' },
-  READY: { title: 'Order ready', body: 'Your order is ready and waiting to be dispatched.' },
+  PREPARING: { title: 'Order served', body: 'The kitchen prepared and packaged your order.' },
+  READY: { title: 'Order served', body: 'Your order is prepared and packed.' },
   OUT_FOR_DELIVERY: {
     title: 'Out for delivery',
     body: 'Your order left the kitchen and is on its way to you.',
@@ -669,10 +678,6 @@ function assertTransitionAllowed(
     if (!allowed.includes(next)) {
       throw conflict(`A delivery in state "${statusLabel(order.status)}" cannot move to "${statusLabel(next)}".`);
     }
-    // MoMo protection: never dispatch an unverified MoMo order.
-    if (next === 'OUT_FOR_DELIVERY' && order.paymentMethod === 'MOBILE_MONEY' && order.paymentStatus !== 'PAID') {
-      throw conflict('MoMo payment must be verified before pickup. Please wait for verification.');
-    }
     return;
   }
 
@@ -694,13 +699,21 @@ export function allowedKitchenTransitions(current: OrderStatus): OrderStatusType
       // Legacy READY still routes to the driver via admin/dispatch override.
       return ['CANCELLED'];
     case OrderStatus.READY:
-      // Legacy packed orders dispatch straight to the driver (admin/dispatch only).
-      return ['OUT_FOR_DELIVERY', 'CANCELLED'];
+      // Legacy packed orders still require driver pickup confirmation.
+      return ['CANCELLED'];
     case OrderStatus.OUT_FOR_DELIVERY:
       // Only the assigned driver completes a delivery (admins can override).
       return [];
     default:
       return [];
+  }
+}
+
+export function assertCanDispatchOrder(
+  order: Pick<OrderWithRelations, 'paymentMethod' | 'paymentStatus'>,
+): void {
+  if (order.paymentMethod === 'MOBILE_MONEY' && order.paymentStatus !== 'PAID') {
+    throw conflict('MoMo payment must be verified before dispatch. Verify payment first.');
   }
 }
 
@@ -715,13 +728,7 @@ export async function changeOrderStatus(input: ChangeStatusInput): Promise<Order
   // Dispatch protection: MoMo orders require verified payment before any
   // OUT_FOR_DELIVERY move, regardless of role (kitchen/admin/driver).
   // Cash on Delivery flows through untouched.
-  if (
-    to === 'OUT_FOR_DELIVERY' &&
-    order.paymentMethod === 'MOBILE_MONEY' &&
-    order.paymentStatus !== 'PAID'
-  ) {
-    throw conflict('MoMo payment must be verified before dispatch. Verify payment first.');
-  }
+  if (to === 'OUT_FOR_DELIVERY') assertCanDispatchOrder(order);
 
   if (order.status === to) {
     throw conflict(`The order is already ${statusLabel(to).toLowerCase()}.`);
