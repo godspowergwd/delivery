@@ -44,6 +44,7 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
           name: product.name,
           imageUrl: product.imageUrl,
           unitPrice: product.price,
+          isDemoPrice: product.isDemoPrice,
           quantity: 1,
           notes: null,
         },
@@ -111,6 +112,11 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
       <p className="line-clamp-1 min-h-[1.2rem] text-[12px] font-semibold text-green-700 sm:text-[13px]">
           {product.categoryName}
         </p>
+      {product.isDemoPrice && (
+        <span className="w-fit rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+          Demo price
+        </span>
+      )}
         {chips.length > 0 && (
         <div className="flex min-h-6 flex-wrap items-center gap-1" aria-label="Ingredients">
             {chips.map((ingredient) => (

@@ -21,7 +21,7 @@ import path from 'node:path';
 import { isLoopbackDatabaseUrl } from '@delivery/shared';
 import { DEFAULT_SETTINGS } from '../src/config/defaults';
 import { hashPassword } from '../src/lib/password';
-import { replaceMenuCatalog } from './menu-catalog';
+import { applyWaakyeDemoDefaults, replaceMenuCatalog } from './menu-catalog';
 
 loadEnv({ path: path.resolve(__dirname, '../.env') });
 
@@ -246,6 +246,7 @@ async function main(): Promise<void> {
 
   if (withDemo) {
     await replaceMenuCatalog(prisma);
+    await applyWaakyeDemoDefaults(prisma);
     await seedDemoAddress();
   }
 

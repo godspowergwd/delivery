@@ -173,6 +173,7 @@ export function Menu() {
                       name: product.name,
                       imageUrl: product.imageUrl,
                       unitPrice: product.price,
+                      isDemoPrice: product.isDemoPrice,
                       quantity: 1,
                       notes: null,
                       customizationChoices: {},
@@ -255,6 +256,11 @@ function ProductCard({
         <p className="line-clamp-1 min-h-[1.2rem] text-xs font-semibold text-slate-500">
           {product.categoryName}
         </p>
+        {product.isDemoPrice && (
+          <span className="w-fit rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+            Demo price
+          </span>
+        )}
         {isPack && <p className="line-clamp-3 text-xs leading-relaxed text-slate-600">{product.description}</p>}
         <p className="flex min-h-5 items-center gap-1 text-xs font-semibold text-green-700 sm:text-[13px]">
           <LeafIcon className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
@@ -305,6 +311,7 @@ function CustomMealBuilder() {
       name: product.name,
       imageUrl: product.imageUrl,
       unitPrice: product.price,
+      isDemoPrice: product.isDemoPrice,
       quantity,
       notes,
     }));

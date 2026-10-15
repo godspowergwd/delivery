@@ -238,6 +238,7 @@ function OrderDialog({
             <div key={item.id} className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate">
                 {item.quantity}× {item.name}
+                {item.isDemoPrice && <span className="ml-2 font-bold text-amber-800">Demo price</span>}
               </span>
               <span className="flex-none font-semibold text-slate-800">{formatMoney(item.lineTotal)}</span>
             </div>

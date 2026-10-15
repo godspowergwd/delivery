@@ -245,7 +245,7 @@ productsRouter.patch(
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl } : {}),
-        ...(body.price !== undefined ? { price: body.price } : {}),
+        ...(body.price !== undefined ? { price: body.price, isDemoPrice: false } : {}),
         ...(body.productType !== undefined ? { productType: body.productType } : {}),
         ...(body.isBaseIngredient !== undefined ? { isBaseIngredient: body.isBaseIngredient } : {}),
         ...(body.customizationOptions !== undefined ? { customizationOptions: body.customizationOptions } : {}),

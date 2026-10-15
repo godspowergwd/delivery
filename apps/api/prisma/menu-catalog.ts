@@ -94,6 +94,71 @@ export const WAAKYE_MENU_PRODUCTS = [
   }>;
 }>;
 
+export const WAAKYE_DEMO_PRICES: Record<string, number> = {
+  'waakye-ingredient-waakye': 20,
+  'waakye-ingredient-fish': 25,
+  'waakye-ingredient-meat': 25,
+  'waakye-ingredient-egg': 5,
+  'waakye-ingredient-wele': 10,
+  'waakye-ingredient-sausage': 10,
+  'waakye-ingredient-gari': 3,
+  'waakye-ingredient-macaroni': 5,
+  'waakye-ingredient-salad': 5,
+  'waakye-ingredient-plantain': 10,
+};
+
+export const WAAKYE_MENU_IMAGES: Record<string, string> = {
+  'waakye-pack-premium': '/menu-images/waakye-pack-premium.webp',
+  'waakye-pack-standard': '/menu-images/waakye-pack-standard.webp',
+  'waakye-pack-basic': '/menu-images/waakye-pack-basic.webp',
+  'waakye-ingredient-waakye': '/menu-images/waakye-ingredient-waakye.webp',
+  'waakye-ingredient-fish': '/menu-images/waakye-ingredient-fish.webp',
+  'waakye-ingredient-meat': '/menu-images/waakye-ingredient-meat.webp',
+  'waakye-ingredient-egg': '/menu-images/waakye-ingredient-egg.webp',
+  'waakye-ingredient-wele': '/menu-images/waakye-ingredient-wele.webp',
+  'waakye-ingredient-sausage': '/menu-images/waakye-ingredient-sausage.webp',
+  'waakye-ingredient-gari': '/menu-images/waakye-ingredient-gari.webp',
+  'waakye-ingredient-macaroni': '/menu-images/waakye-ingredient-macaroni.webp',
+  'waakye-ingredient-salad': '/menu-images/waakye-ingredient-salad.webp',
+  'waakye-ingredient-plantain': '/menu-images/waakye-ingredient-plantain.webp',
+};
+
+export async function applyWaakyeDemoDefaults(prisma: PrismaClient): Promise<void> {
+  const products = await prisma.product.findMany({
+    where: { menuKey: { in: WAAKYE_MENU_PRODUCTS.map((product) => product.menuKey) } },
+    select: { id: true, menuKey: true, price: true, isDemoPrice: true, imageUrl: true },
+  });
+  let pricesInitialized = 0;
+  let imagesInitialized = 0;
+  for (const product of products) {
+    if (!product.menuKey) continue;
+    const data: Prisma.ProductUpdateInput = {};
+    if (!product.isDemoPrice && Number(product.price) <= 0) {
+      const demoPrice = WAAKYE_DEMO_PRICES[product.menuKey];
+      if (demoPrice !== undefined) {
+        data.price = demoPrice;
+        data.isDemoPrice = true;
+        pricesInitialized += 1;
+      }
+    }
+    if (!product.imageUrl) {
+      const imageUrl = WAAKYE_MENU_IMAGES[product.menuKey];
+      if (imageUrl) {
+        data.imageUrl = imageUrl;
+        imagesInitialized += 1;
+      }
+    }
+    if (Object.keys(data).length === 0) continue;
+    await prisma.product.update({
+      where: { id: product.id },
+      data,
+    });
+  }
+  console.log(
+    `[seed] demo defaults ready (${pricesInitialized} GHS demo price(s), ${imagesInitialized} missing image(s))`,
+  );
+}
+
 export async function replaceMenuCatalog(prisma: PrismaClient): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const baseline = await tx.menuCatalogBackup.findUnique({
@@ -155,7 +220,7 @@ export async function replaceMenuCatalog(prisma: PrismaClient): Promise<void> {
         menuKey: product.menuKey,
         name: product.name,
         description: product.description,
-        imageUrl: null,
+        imageUrl: WAAKYE_MENU_IMAGES[product.menuKey] ?? null,
         price: product.price,
         productType: product.productType,
         isBaseIngredient: product.isBaseIngredient,

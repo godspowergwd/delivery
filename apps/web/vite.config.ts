@@ -68,11 +68,11 @@ export default defineConfig(({ mode }) => {
     dir: 'ltr',
     categories: ['food', 'shopping', 'business'],
     icons: [
-      { src: 'pwa-64x64.png?v=red3', sizes: '64x64', type: 'image/png' },
-      { src: 'pwa-192x192.png?v=red3', sizes: '192x192', type: 'image/png' },
-      { src: 'pwa-512x512.png?v=red3', sizes: '512x512', type: 'image/png' },
-      { src: 'maskable-icon-512x512.png?v=red3', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-      { src: 'apple-touch-icon-180x180.png?v=red3', sizes: '180x180', type: 'image/png' },
+      { src: 'pwa-64x64.png?v=waakye-icon-2', sizes: '64x64', type: 'image/png' },
+      { src: 'pwa-192x192.png?v=waakye-icon-2', sizes: '192x192', type: 'image/png' },
+      { src: 'pwa-512x512.png?v=waakye-icon-2', sizes: '512x512', type: 'image/png' },
+      { src: 'maskable-icon-512x512.png?v=waakye-icon-2', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: 'apple-touch-icon-180x180.png?v=waakye-icon-2', sizes: '180x180', type: 'image/png' },
     ],
     shortcuts: [
       {
@@ -80,21 +80,21 @@ export default defineConfig(({ mode }) => {
         short_name: 'Kitchen',
         description: 'Open the incoming order queue',
         url: `${base}kitchen`,
-        icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
+        icons: [{ src: 'pwa-192x192.png?v=waakye-icon-2', sizes: '192x192' }],
       },
       {
         name: 'My orders',
         short_name: 'Orders',
         description: 'Track and reorder',
         url: `${base}app/orders`,
-        icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
+        icons: [{ src: 'pwa-192x192.png?v=waakye-icon-2', sizes: '192x192' }],
       },
       {
         name: 'Admin dashboard',
         short_name: 'Admin',
         description: 'Business analytics and reports',
         url: `${base}admin`,
-        icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
+        icons: [{ src: 'pwa-192x192.png?v=waakye-icon-2', sizes: '192x192' }],
       },
     ],
   } as unknown as Partial<ManifestOptions>;
@@ -107,7 +107,13 @@ export default defineConfig(({ mode }) => {
       strategies: 'generateSW',
       registerType: 'autoUpdate',
       injectRegister: null,
-      includeAssets: ['apple-touch-icon-180x180.png', 'brand/maames-waakye-logo.png', 'robots.txt', 'offline.html'],
+      includeAssets: [
+        'apple-touch-icon-180x180.png',
+        'favicon.ico',
+        'brand/maames-waakye-logo.png',
+        'robots.txt',
+        'offline.html',
+      ],
       manifest,
       manifestFilename: 'manifest.webmanifest',
       workbox: {

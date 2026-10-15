@@ -68,6 +68,7 @@ export function ProductPage() {
           name: data.name,
           imageUrl: data.imageUrl,
           unitPrice: data.price,
+          isDemoPrice: data.isDemoPrice,
           quantity,
           notes: notes.trim() || null,
           customizationChoices,
@@ -114,6 +115,11 @@ export function ProductPage() {
               {!hasPrice ? 'Price not set' : soldOut ? 'Sold out' : `${data.stock} in stock`}
             </span>
             {data.isPopular && <span className="badge-hot">Popular</span>}
+            {data.isDemoPrice && (
+              <span className="rounded-full bg-amber-50 px-3 py-1 font-semibold text-amber-800">
+                Demo price
+              </span>
+            )}
             {data.isNew && (
               <span className="badge-fresh">
                 <LeafIcon className="h-3 w-3" aria-hidden="true" />

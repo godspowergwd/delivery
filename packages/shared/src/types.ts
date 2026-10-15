@@ -79,6 +79,7 @@ export interface ProductDTO {
   description: string;
   imageUrl: string | null;
   price: number;
+  isDemoPrice: boolean;
   ingredients: string[];
   customizationOptions: ProductCustomizationOption[];
   prepTimeMinutes: number;
@@ -99,6 +100,7 @@ export interface OrderItemDTO {
   productId: string | null;
   name: string;
   imageUrl: string | null;
+  isDemoPrice: boolean;
   unitPrice: number;
   quantity: number;
   lineTotal: number;

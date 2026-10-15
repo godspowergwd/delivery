@@ -76,6 +76,7 @@ interface LineDraft {
   productId: string;
   name: string;
   imageUrl: string | null;
+  isDemoPrice: boolean;
   unitPrice: number;
   quantity: number;
   lineTotal: number;
@@ -211,6 +212,7 @@ export async function buildOrderDraft(input: CreateOrderInput, deliveryFee: numb
       productId: product.id,
       name: product.name,
       imageUrl: product.imageUrl,
+      isDemoPrice: product.isDemoPrice,
       unitPrice,
       quantity: item.quantity,
       lineTotal: Math.round(unitPrice * item.quantity * 100) / 100,
@@ -507,6 +509,7 @@ export async function createWalkInOrder(params: {
       productId: product.id,
       name: product.name,
       imageUrl: product.imageUrl,
+      isDemoPrice: product.isDemoPrice,
       unitPrice,
       quantity: item.quantity,
       lineTotal: Math.round(unitPrice * item.quantity * 100) / 100,
@@ -1027,6 +1030,7 @@ export interface ReorderLine {
   quantity: number;
   imageUrl: string | null;
   productType: 'STANDARD' | 'MEAL_PACK' | 'INGREDIENT';
+  isDemoPrice: boolean;
   available: boolean;
   reason?: string;
 }
@@ -1058,6 +1062,7 @@ export async function buildReorder(
         quantity: item.quantity,
         imageUrl: item.imageUrl,
         productType: 'STANDARD',
+        isDemoPrice: false,
         available: false,
         reason: 'No longer sold',
       });
@@ -1071,6 +1076,7 @@ export async function buildReorder(
         quantity: item.quantity,
         imageUrl: product.imageUrl,
         productType: product.productType,
+        isDemoPrice: product.isDemoPrice,
         available: false,
         reason: 'Archived',
       });
@@ -1084,6 +1090,7 @@ export async function buildReorder(
         quantity: item.quantity,
         imageUrl: product.imageUrl,
         productType: product.productType,
+        isDemoPrice: product.isDemoPrice,
         available: false,
         reason: 'Currently unavailable',
       });
@@ -1098,6 +1105,7 @@ export async function buildReorder(
       quantity,
       imageUrl: product.imageUrl,
       productType: product.productType,
+      isDemoPrice: product.isDemoPrice,
       available: true,
     });
   }

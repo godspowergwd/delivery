@@ -41,9 +41,9 @@ export function Register() {
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5">
       <div className="mb-6 flex flex-col items-center gap-3 text-center">
         <img
-          src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
+          src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png?v=waakye-icon-2`}
           alt="Maame’s Waakye"
-          className="h-auto w-44 max-w-full object-contain"
+          className="h-44 w-44 max-w-full object-contain"
         />
         <h1 className="text-2xl font-extrabold text-slate-900">Create your account</h1>
         <p className="text-sm text-slate-500">Order in seconds and follow every delivery live.</p>

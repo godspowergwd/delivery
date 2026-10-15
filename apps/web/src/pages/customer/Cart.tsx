@@ -58,6 +58,11 @@ export function Cart() {
         </div>
         <p className="mt-1 text-sm text-slate-500">Review your items and continue to checkout.</p>
       </header>
+      {lines.some((line) => line.isDemoPrice) && (
+        <p role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+          Items marked “Demo price” use sample GHS pricing and must be reviewed before production.
+        </p>
+      )}
 
       <div className="space-y-3">
         {lines.map((line) => {
@@ -83,7 +88,10 @@ export function Cart() {
                 {line.customizationChoices && Object.entries(line.customizationChoices).map(([group, choices]) => (
                   <p key={group} className="text-xs font-semibold text-green-700">{group}: {choices.join(', ')}</p>
                 ))}
-                <p className="text-sm text-slate-500">{formatMoney(line.unitPrice)} each</p>
+                <p className="text-sm text-slate-500">
+                  {formatMoney(line.unitPrice)} each
+                  {line.isDemoPrice && <span className="ml-2 font-bold text-amber-800">Demo price</span>}
+                </p>
                 <input
                   value={line.notes ?? ''}
                   onChange={(event) => setNotes(line.lineId ?? line.productId, event.target.value)}

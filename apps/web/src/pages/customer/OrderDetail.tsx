@@ -63,6 +63,7 @@ export function OrderDetail() {
           imageUrl: string | null;
           quantity: number;
           productType: ProductDTO['productType'];
+          isDemoPrice: boolean;
         }>;
       }>(
         `/orders/${id}/reorder`,
@@ -82,6 +83,7 @@ export function OrderDetail() {
           description: '',
           imageUrl: line.imageUrl,
           price: line.price,
+          isDemoPrice: line.isDemoPrice,
           ingredients: [],
           customizationOptions: [],
           prepTimeMinutes: 0,
@@ -267,6 +269,7 @@ function OrderDetailBody({
           <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
             <span className="text-slate-700">
               {item.quantity}× {item.name}
+              {item.isDemoPrice && <span className="ml-2 font-bold text-amber-800">Demo price</span>}
             </span>
             <span className="font-semibold text-slate-800">{formatMoney(item.lineTotal)}</span>
           </div>
@@ -354,6 +357,7 @@ function ReceiptView({ receipt, downloadUrl, createdAt, driverName }: {
           <div key={item.id} className="flex justify-between">
             <span className="text-slate-700">
               {item.quantity}× {item.name}
+              {item.isDemoPrice && <span className="ml-2 font-bold text-amber-800">Demo price</span>}
             </span>
             <span className="text-slate-800">{formatMoney(item.lineTotal, receipt.currencySymbol)}</span>
           </div>

@@ -271,6 +271,9 @@ export async function refreshSession(): Promise<boolean> {
 export function mediaUrl(value: string | null | undefined): string | null {
   if (!value) return null;
   if (/^(https?:\/\/|data:|blob:)/i.test(value)) return value;
+  if (value.startsWith('/menu-images/')) {
+    return `${import.meta.env.BASE_URL}${value.slice(1)}`;
+  }
   return `${API_ORIGIN}${value.startsWith('/') ? '' : '/'}${value}`;
 }
 

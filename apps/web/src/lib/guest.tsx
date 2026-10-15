@@ -74,6 +74,7 @@ export function applyCartLine(
     description: '',
     imageUrl: line.imageUrl,
     price: line.unitPrice,
+    isDemoPrice: line.isDemoPrice ?? false,
     ingredients: [],
     customizationOptions: [],
     prepTimeMinutes: 15,

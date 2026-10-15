@@ -45,6 +45,7 @@ export function buildReceiptPayload(
       id: item.id,
       productId: item.productId,
       name: item.name,
+      isDemoPrice: item.isDemoPrice,
       imageUrl: item.imageUrl,
       unitPrice: decimalToNumber(item.unitPrice),
       quantity: item.quantity,
@@ -237,11 +238,15 @@ export async function renderReceiptPdf(input: {
       doc.text(String(item.quantity), left + 250, y, { width: 50, align: 'right' });
       doc.text(money(item.unitPrice), left + 310, y, { width: 90, align: 'right' });
       doc.text(money(item.lineTotal), left + 410, y, { width: width - 420, align: 'right' });
-      if (item.notes) {
+      const itemDetails = [
+        item.isDemoPrice ? 'DEMO PRICE — review before production' : null,
+        item.notes ? `note: ${item.notes}` : null,
+      ].filter(Boolean).join(' · ');
+      if (itemDetails) {
         doc
-          .fillColor('#64748b')
+          .fillColor(item.isDemoPrice ? '#92400e' : '#64748b')
           .fontSize(8)
-          .text(`note: ${item.notes}`, left + 10, y + 13, { width: 300 });
+          .text(itemDetails, left + 10, y + 13, { width: 300 });
         y += 14;
       }
       y += 20;
@@ -335,6 +340,7 @@ export function renderReceiptHtml(input: {
       <tr>
         <td>
           <span class="item">${escapeHtml(item.name)}</span>
+          ${item.isDemoPrice ? '<span class="demo-price">DEMO PRICE — review before production</span>' : ''}
           ${item.notes ? `<span class="note">${escapeHtml(item.notes)}</span>` : ''}
         </td>
         <td class="num">${item.quantity}</td>
@@ -370,6 +376,7 @@ export function renderReceiptHtml(input: {
   tr:nth-child(even) td { background: #f8fafc; }
   .item { display: block; font-weight: 600; }
   .note { display: block; font-size: 12px; color: #64748b; margin-top: 2px; }
+  .demo-price { display: block; margin-top: 3px; color: #92400e; font-size: 11px; font-weight: 700; }
   .totals { padding: 18px 28px 6px; margin-left: auto; max-width: 320px; }
   .totals div { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #475569; }
   .totals div.grand { border-top: 2px solid #0f172a; margin-top: 8px; padding-top: 12px; font-size: 18px; font-weight: 700; color: #0f172a; }

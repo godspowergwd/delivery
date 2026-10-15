@@ -10,8 +10,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: payload.body || 'Open the app to review this alert.',
-    icon: '/pwa-192x192.png?v=red3',
-    badge: '/pwa-64x64.png?v=red3',
+    icon: '/pwa-192x192.png?v=waakye-icon-2',
+    badge: '/pwa-64x64.png?v=waakye-icon-2',
     tag: `maames-alert-${payload.alertId}`,
     renotify: true,
     requireInteraction: true,

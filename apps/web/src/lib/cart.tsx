@@ -14,6 +14,7 @@ export interface CartLine {
   productId: string;
   name: string;
   imageUrl: string | null;
+  isDemoPrice: boolean;
   unitPrice: number;
   quantity: number;
   notes?: string | null;
@@ -29,7 +30,11 @@ function load(): CartLine[] {
     return Array.isArray(parsed)
       ? parsed
           .filter((line) => line.productId && line.quantity > 0)
-          .map((line, index) => ({ ...line, lineId: line.lineId ?? `${line.productId}-${index}` }))
+          .map((line, index) => ({
+            ...line,
+            isDemoPrice: line.isDemoPrice ?? false,
+            lineId: line.lineId ?? `${line.productId}-${index}`,
+          }))
       : [];
   } catch {
     return [];
@@ -93,6 +98,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           productId: product.id,
           name: product.name,
           imageUrl: product.imageUrl,
+          isDemoPrice: product.isDemoPrice,
           unitPrice: product.price,
           quantity,
           notes: notes ?? null,

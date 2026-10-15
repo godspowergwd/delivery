@@ -260,6 +260,7 @@ model OrderItem {
   /// Snapshot of the product at purchase time (name/price never change retroactively).
   name      String
   imageUrl  String?
+  isDemoPrice Boolean @default(false)
   unitPrice Decimal  @db.Decimal(10, 2)
   quantity  Int
   lineTotal Decimal  @db.Decimal(10, 2)
@@ -443,6 +444,7 @@ model Product {
   description     String
   imageUrl        String?
   price           Decimal  @db.Decimal(10, 2)
+  isDemoPrice     Boolean  @default(false)
   productType     ProductType @default(STANDARD)
   isBaseIngredient Boolean @default(false)
   customizationOptions Json?

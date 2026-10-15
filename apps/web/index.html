@@ -11,8 +11,9 @@
     <link rel="canonical" href="https://waakyeapp.online/" />
     <meta property="og:url" content="https://waakyeapp.online/" />
     <meta name="theme-color" content="#C92A2A" />
-    <link rel="icon" href="%BASE_URL%pwa-64x64.png?v=red3" type="image/png" />
-    <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon-180x180.png?v=red3" />
+    <link rel="icon" href="%BASE_URL%favicon.ico?v=waakye-icon-2" sizes="any" />
+    <link rel="icon" href="%BASE_URL%pwa-64x64.png?v=waakye-icon-2" type="image/png" sizes="64x64" />
+    <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon-180x180.png?v=waakye-icon-2" />
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
 
     <!--
@@ -32,17 +33,18 @@
     <meta name="apple-mobile-web-app-title" content="Maame’s Waakye" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="application-name" content="Maame’s Waakye" />
-    <meta name="msapplication-TileColor" content="#C92A2A" />
+    <meta name="msapplication-TileColor" content="#ffffff" />
+    <meta name="msapplication-TileImage" content="%BASE_URL%pwa-192x192.png?v=waakye-icon-2" />
     <meta name="format-detection" content="telephone=no" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-2048-2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-1668-2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-1536-2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-1290-2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-1179-2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-1170-2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-1125-2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-828-1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/apple-splash-750-1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-2048-2732.png?v=waakye-icon-2" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-1668-2388.png?v=waakye-icon-2" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-1536-2048.png?v=waakye-icon-2" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-1290-2796.png?v=waakye-icon-2" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-1179-2556.png?v=waakye-icon-2" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-1170-2532.png?v=waakye-icon-2" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-1125-2436.png?v=waakye-icon-2" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-828-1792.png?v=waakye-icon-2" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%BASE_URL%apple-splash-750-1334.png?v=waakye-icon-2" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
 
     <style>
       /* Paint the white splash before React starts. */
@@ -73,14 +75,6 @@
         place-items: center;
         width: min(74vw, 320px);
         height: auto;
-      }
-      #boot-splash .glow::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 999px;
-        background: radial-gradient(circle, rgba(227, 6, 19, 0.22) 0%, rgba(227, 6, 19, 0) 68%);
-        animation: boot-breathe 2.6s ease-in-out infinite;
       }
       #boot-splash img {
         position: relative;
@@ -117,16 +111,11 @@
         from { opacity: 0; transform: translateY(12px) scale(0.96); }
         to { opacity: 1; transform: none; }
       }
-      @keyframes boot-breathe {
-        0%, 100% { transform: scale(0.92); opacity: 0.75; }
-        50% { transform: scale(1.06); opacity: 1; }
-      }
       @keyframes boot-progress {
         0% { transform: translateX(-110%); }
         100% { transform: translateX(320%); }
       }
       @media (prefers-reduced-motion: reduce) {
-        #boot-splash .glow::before,
         #boot-splash img,
         #boot-splash .word,
         #boot-splash .track,
@@ -136,7 +125,7 @@
   </head>
   <body>
     <div id="boot-splash" role="status" aria-live="polite">
-      <span class="glow"><img src="%BASE_URL%brand/maames-waakye-logo.png" alt="Maame’s Waakye" /></span>
+      <span class="glow"><img src="%BASE_URL%brand/maames-waakye-logo.png?v=waakye-icon-2" alt="Maame’s Waakye" /></span>
       <span class="word">Fresh Ghanaian meals</span>
       <span class="track" aria-hidden="true"></span>
     </div>

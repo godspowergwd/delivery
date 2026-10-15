@@ -465,6 +465,11 @@ export function Checkout() {
 
       {/* ---------- Totals + submit ---------- */}
       <Card className="duo-top space-y-2 text-sm">
+        {lines.some((line) => line.isDemoPrice) && (
+          <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            Demo prices are sample GHS amounts and must be reviewed before production.
+          </p>
+        )}
         <Row label="Subtotal" value={formatMoney(totals.subtotal)} />
         <Row
           label="Delivery fee"

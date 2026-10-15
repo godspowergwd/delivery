@@ -89,6 +89,11 @@ export function PwaInstallPrompt() {
       role="status"
       aria-live="polite"
     >
+      <img
+        src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png?v=waakye-icon-2`}
+        alt=""
+        className="h-12 w-12 flex-none object-contain"
+      />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold text-green-900">Install Maame’s Waakye</p>
         <p className="mt-1 text-sm leading-5 text-slate-600">

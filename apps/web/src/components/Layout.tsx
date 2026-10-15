@@ -285,9 +285,9 @@ export function AppShell() {
       <aside className="sticky top-0 hidden h-dvh w-64 flex-none flex-col border-r border-slate-200 bg-white lg:flex xl:w-72">
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 pb-5 pt-5">
           <img
-            src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
+            src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png?v=waakye-icon-2`}
             alt=""
-            className="h-14 w-16 shrink-0 object-contain"
+            className="h-14 w-14 shrink-0 object-contain"
           />
           <div className="min-w-0">
             <p className="truncate text-[17px] font-extrabold tracking-tight text-red-700">Maame’s Waakye</p>
@@ -333,9 +333,9 @@ export function AppShell() {
           <div className="flex min-h-[4.25rem] items-center justify-between gap-2.5 py-2">
             <Link to="/" className="flex min-w-0 flex-1 items-center gap-2">
               <img
-                src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png`}
+                src={`${import.meta.env.BASE_URL}brand/maames-waakye-logo.png?v=waakye-icon-2`}
                 alt=""
-                className="h-10 w-12 shrink-0 object-contain"
+                className="h-10 w-10 shrink-0 object-contain"
               />
               <div className="min-w-0 leading-tight">
                 <p className="truncate text-[15px] font-extrabold tracking-tight text-red-700 min-[380px]:text-base">
@@ -395,6 +395,14 @@ export function AppShell() {
         <main className="flex-1 px-4 py-5 pb-28 lg:px-8 lg:py-7 lg:pb-12">
           <Outlet />
         </main>
+        <footer className="border-t border-slate-100 px-4 py-3 text-center text-xs text-slate-500 lg:px-8">
+          <a
+            href={`${import.meta.env.BASE_URL}image-credits.html`}
+            className="font-semibold underline decoration-slate-300 underline-offset-2 hover:text-slate-800"
+          >
+            Food image credits
+          </a>
+        </footer>
 
         {/* Mobile bottom navigation */}
         {items.length > 0 && (
