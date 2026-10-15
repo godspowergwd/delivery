@@ -248,7 +248,7 @@ function ProductDialog({ product, onClose }: { product: ProductDTO | null; onClo
   };
 
   return (
-    <Modal open title={product ? 'Edit product' : 'New product'} onClose={onClose} wide>
+    <Modal open title={product ? 'Edit product' : 'New product'} onClose={onClose} wide keyboardAware>
       <div className="space-y-3">
         {product?.isDemoPrice && (
           <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">

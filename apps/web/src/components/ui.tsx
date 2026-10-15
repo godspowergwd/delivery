@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -557,6 +558,7 @@ export function Modal({
   title,
   children,
   wide,
+  keyboardAware,
   footer,
 }: {
   open: boolean;
@@ -564,9 +566,11 @@ export function Modal({
   title: string;
   children: ReactNode;
   wide?: boolean;
+  keyboardAware?: boolean;
   footer?: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [visualViewport, setVisualViewport] = useState<{ height: number; offsetTop: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -588,11 +592,36 @@ export function Modal({
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open || !keyboardAware || !window.visualViewport) {
+      setVisualViewport(null);
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    const updateViewport = () => {
+      setVisualViewport({ height: viewport.height, offsetTop: viewport.offsetTop });
+    };
+    updateViewport();
+    viewport.addEventListener('resize', updateViewport);
+    viewport.addEventListener('scroll', updateViewport);
+    return () => {
+      viewport.removeEventListener('resize', updateViewport);
+      viewport.removeEventListener('scroll', updateViewport);
+    };
+  }, [open, keyboardAware]);
+
   if (!open) return null;
 
   return (
     <div
       className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 pt-[calc(env(safe-area-inset-top)+0.5rem)] backdrop-blur-[2px] sm:items-center sm:p-6"
+      style={visualViewport ? {
+        top: `${visualViewport.offsetTop}px`,
+        bottom: 'auto',
+        height: `${visualViewport.height}px`,
+        '--modal-visual-viewport-height': `${visualViewport.height}px`,
+      } as CSSProperties : undefined}
       onClick={onClose}
       role="presentation"
     >
@@ -603,7 +632,10 @@ export function Modal({
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
         className={clsx(
-          'animate-slide-up flex min-h-0 max-h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)] w-full flex-col overflow-hidden rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-lift sm:animate-rise sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:pb-5',
+          'animate-slide-up flex min-h-0 w-full flex-col overflow-hidden rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-lift sm:animate-rise sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:pb-5',
+          keyboardAware
+            ? 'max-h-[calc(var(--modal-visual-viewport-height,100dvh)-env(safe-area-inset-top)-0.5rem)]'
+            : 'max-h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)]',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md',
         )}
       >
@@ -619,7 +651,12 @@ export function Modal({
             <XIcon className="h-5 w-5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-y]">
+        <div
+          className={clsx(
+            'min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-y]',
+            keyboardAware && 'scroll-smooth',
+          )}
+        >
           {children}
         </div>
         {footer ? <div className="mt-5 flex-none border-t border-slate-200 pt-4">{footer}</div> : null}
