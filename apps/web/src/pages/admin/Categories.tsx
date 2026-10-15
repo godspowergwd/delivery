@@ -138,7 +138,30 @@ function CategoryDialog({
   const [isActive, setIsActive] = useState(category?.isActive ?? true);
 
   return (
-    <Modal open title={category ? 'Edit category' : 'Add category'} onClose={onClose}>
+    <Modal
+      open
+      title={category ? 'Edit category' : 'Add category'}
+      onClose={onClose}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            loading={saving}
+            onClick={() => {
+              if (name.trim().length < 2 || slug.trim().length < 2) {
+                toast('Name and slug are required', 'warning');
+                return;
+              }
+              onSave({ name: name.trim(), slug: slug.trim(), description: description.trim() || undefined, isActive });
+            }}
+          >
+            Save
+          </Button>
+        </div>
+      }
+    >
       <div className="space-y-3">
         <Field label="Name">
           <Input value={name} onChange={(event) => setName(event.target.value)} />
@@ -158,23 +181,6 @@ function CategoryDialog({
           />
           Active (visible to customers)
         </label>
-      </div>
-      <div className="mt-4 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose} disabled={saving}>
-          Cancel
-        </Button>
-        <Button
-          loading={saving}
-          onClick={() => {
-            if (name.trim().length < 2 || slug.trim().length < 2) {
-              toast('Name and slug are required', 'warning');
-              return;
-            }
-            onSave({ name: name.trim(), slug: slug.trim(), description: description.trim() || undefined, isActive });
-          }}
-        >
-          Save
-        </Button>
       </div>
     </Modal>
   );

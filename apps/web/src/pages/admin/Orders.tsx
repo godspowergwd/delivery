@@ -208,7 +208,22 @@ function OrderDialog({
   };
 
   return (
-    <Modal open title={`Order ${order.orderNumber}`} onClose={onClose} wide>
+    <Modal
+      open
+      title={`Order ${order.orderNumber}`}
+      onClose={onClose}
+      wide
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={working || driverWorking}>
+            Close
+          </Button>
+          <Button loading={working} disabled={nextStatus === order.status} onClick={() => void submit()}>
+            Apply status
+          </Button>
+        </div>
+      }
+    >
       <div className="space-y-4 text-sm text-slate-700">
         <div className="rounded-2xl border border-slate-200 bg-slate-100 p-4">
           <p className="mb-1 text-xs font-extrabold uppercase text-green-700">
@@ -319,14 +334,6 @@ function OrderDialog({
         </Field>
       </div>
 
-      <div className="mt-5 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose} disabled={working || driverWorking}>
-          Close
-        </Button>
-        <Button loading={working} disabled={nextStatus === order.status} onClick={() => void submit()}>
-          Apply status
-        </Button>
-      </div>
     </Modal>
   );
 }

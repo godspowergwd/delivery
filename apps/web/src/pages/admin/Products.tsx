@@ -248,7 +248,22 @@ function ProductDialog({ product, onClose }: { product: ProductDTO | null; onClo
   };
 
   return (
-    <Modal open title={product ? 'Edit product' : 'New product'} onClose={onClose} wide keyboardAware>
+    <Modal
+      open
+      title={product ? 'Edit product' : 'New product'}
+      onClose={onClose}
+      wide
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button loading={saving} onClick={() => void save()}>
+            {product ? 'Save changes' : 'Create product'}
+          </Button>
+        </div>
+      }
+    >
       <div className="space-y-3">
         {product?.isDemoPrice && (
           <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
@@ -339,14 +354,6 @@ function ProductDialog({ product, onClose }: { product: ProductDTO | null; onClo
         </div>
       </div>
 
-      <div className="mt-5 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose} disabled={saving}>
-          Cancel
-        </Button>
-        <Button loading={saving} onClick={() => void save()}>
-          {product ? 'Save changes' : 'Create product'}
-        </Button>
-      </div>
     </Modal>
   );
 }

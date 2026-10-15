@@ -12,6 +12,7 @@ import {
   type TextareaHTMLAttributes,
   forwardRef,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { ORDER_STATUS_TONE, type OrderStatus } from '@delivery/shared';
 import type { ToastTone } from '../lib/realtime';
 import { useRipple } from './motion';
@@ -548,9 +549,8 @@ export function FloatingField({
 /* --------------------------- modal + bottom sheet ------------------------ */
 
 /**
- * Dialog that behaves like a native bottom sheet on phones and a centred card on
- * desktop. Escape closes it, the background never scrolls behind it and focus is
- * moved into the dialog for keyboard and screen-reader users.
+ * Dialog centered within the visible viewport, with independently scrollable
+ * content and viewport-aware sizing for mobile browser chrome and keyboards.
  */
 export function Modal({
   open,
@@ -558,7 +558,6 @@ export function Modal({
   title,
   children,
   wide,
-  keyboardAware,
   footer,
 }: {
   open: boolean;
@@ -566,41 +565,85 @@ export function Modal({
   title: string;
   children: ReactNode;
   wide?: boolean;
-  keyboardAware?: boolean;
   footer?: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [visualViewport, setVisualViewport] = useState<{ height: number; offsetTop: number } | null>(null);
+  const onCloseRef = useRef(onClose);
+  const [visualViewport, setVisualViewport] = useState<{
+    height: number;
+    offsetTop: number;
+    offsetLeft: number;
+    width: number;
+  } | null>(null);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = panel.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (
+        document.activeElement === first ||
+        document.activeElement === panel ||
+        !panel.contains(document.activeElement)
+      )) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const focusTimer = window.setTimeout(() => {
-      panelRef.current?.querySelector<HTMLElement>(
-        'input, textarea, select, button:not([data-close])',
-      )?.focus();
+      panelRef.current?.focus();
     }, 80);
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = previousOverflow;
       window.clearTimeout(focusTimer);
+      previousFocus?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   useEffect(() => {
-    if (!open || !keyboardAware || !window.visualViewport) {
+    if (!open || !window.visualViewport) {
       setVisualViewport(null);
       return;
     }
 
     const viewport = window.visualViewport;
     const updateViewport = () => {
-      setVisualViewport({ height: viewport.height, offsetTop: viewport.offsetTop });
+      setVisualViewport({
+        height: viewport.height,
+        offsetTop: viewport.offsetTop,
+        offsetLeft: viewport.offsetLeft,
+        width: viewport.width,
+      });
     };
     updateViewport();
     viewport.addEventListener('resize', updateViewport);
@@ -609,19 +652,28 @@ export function Modal({
       viewport.removeEventListener('resize', updateViewport);
       viewport.removeEventListener('scroll', updateViewport);
     };
-  }, [open, keyboardAware]);
+  }, [open]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return (
+  const viewportStyles: CSSProperties & { '--modal-visual-viewport-height'?: string } = {
+    padding: 'max(calc(env(safe-area-inset-top) + 0.75rem), 0.75rem) max(calc(env(safe-area-inset-right) + 0.75rem), 0.75rem) max(calc(env(safe-area-inset-bottom) + 0.75rem), 0.75rem) max(calc(env(safe-area-inset-left) + 0.75rem), 0.75rem)',
+    ...(visualViewport
+      ? {
+          top: `${visualViewport.offsetTop}px`,
+          left: `${visualViewport.offsetLeft}px`,
+          bottom: 'auto',
+          width: `${visualViewport.width}px`,
+          height: `${visualViewport.height}px`,
+          '--modal-visual-viewport-height': `${visualViewport.height}px`,
+        }
+      : {}),
+  };
+
+  return createPortal(
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 pt-[calc(env(safe-area-inset-top)+0.5rem)] backdrop-blur-[2px] sm:items-center sm:p-6"
-      style={visualViewport ? {
-        top: `${visualViewport.offsetTop}px`,
-        bottom: 'auto',
-        height: `${visualViewport.height}px`,
-        '--modal-visual-viewport-height': `${visualViewport.height}px`,
-      } as CSSProperties : undefined}
+      className="animate-fade-in fixed inset-0 z-[100] box-border flex items-center justify-center overflow-y-auto bg-slate-900/45 backdrop-blur-[2px]"
+      style={viewportStyles}
       onClick={onClose}
       role="presentation"
     >
@@ -630,14 +682,16 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
         className={clsx(
-          'animate-slide-up flex min-h-0 w-full flex-col overflow-hidden rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-lift sm:animate-rise sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:pb-5',
-          keyboardAware
-            ? 'max-h-[calc(var(--modal-visual-viewport-height,100dvh)-env(safe-area-inset-top)-0.5rem)]'
-            : 'max-h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)]',
+          'animate-rise flex min-h-0 w-full flex-col overflow-hidden rounded-3xl bg-white p-5 shadow-lift',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md',
         )}
+        style={{
+          maxHeight:
+            'max(0px, calc(var(--modal-visual-viewport-height, 100dvh) - max(calc(env(safe-area-inset-top) + 0.75rem), 0.75rem) - max(calc(env(safe-area-inset-bottom) + 0.75rem), 0.75rem)))',
+        }}
       >
         <div className="mb-4 flex flex-none items-start justify-between gap-4">
           <h2 className="text-lg font-extrabold tracking-tight text-slate-900">{title}</h2>
@@ -651,17 +705,13 @@ export function Modal({
             <XIcon className="h-5 w-5" />
           </button>
         </div>
-        <div
-          className={clsx(
-            'min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-y]',
-            keyboardAware && 'scroll-smooth',
-          )}
-        >
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain scroll-smooth [-webkit-overflow-scrolling:touch] [touch-action:pan-y]">
           {children}
         </div>
-        {footer ? <div className="mt-5 flex-none border-t border-slate-200 pt-4">{footer}</div> : null}
+        {footer ? <div className="mt-4 flex-none border-t border-slate-200 pt-3">{footer}</div> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -671,14 +721,16 @@ export function Sheet({
   onClose,
   title,
   children,
+  footer,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  footer?: ReactNode;
 }) {
   return (
-    <Modal open={open} onClose={onClose} title={title}>
+    <Modal open={open} onClose={onClose} title={title} footer={footer}>
       {children}
     </Modal>
   );

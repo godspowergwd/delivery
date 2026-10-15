@@ -307,7 +307,22 @@ function OrderDetailBody({
         </Button>
       )}
 
-      <Modal open={showReceipt} onClose={() => setShowReceipt(false)} title={receipt.data?.receiptNumber ?? 'Receipt'} wide>
+      <Modal
+        open={showReceipt}
+        onClose={() => setShowReceipt(false)}
+        title={receipt.data?.receiptNumber ?? 'Receipt'}
+        wide
+        footer={
+          receipt.data ? (
+            <ReceiptActions
+              receipt={receipt.data.receipt}
+              downloadUrl={receipt.data.downloadUrl}
+              createdAt={data.createdAt}
+              driverName={data.driverName}
+            />
+          ) : undefined
+        }
+      >
         {receipt.isLoading ? (
           <div className="flex justify-center py-8">
             <Spinner />
@@ -315,9 +330,6 @@ function OrderDetailBody({
         ) : receipt.data ? (
           <ReceiptView
             receipt={receipt.data.receipt}
-            downloadUrl={receipt.data.downloadUrl}
-            createdAt={data.createdAt}
-            driverName={data.driverName}
           />
         ) : (
           <p className="text-sm text-slate-500">Generating your receipt…</p>
@@ -327,17 +339,9 @@ function OrderDetailBody({
   );
 }
 
-function ReceiptView({ receipt, downloadUrl, createdAt, driverName }: {
+function ReceiptView({ receipt }: {
   receipt: ReceiptDTO;
-  downloadUrl: string;
-  createdAt: string;
-  driverName: string | null;
 }) {
-  const open = (path: string) => {
-    const base = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/+$/, '');
-    window.open(`${base}${path}`, '_blank', 'noopener');
-  };
-
   return (
     <div className="space-y-4 text-sm">
       <div className="text-center">
@@ -378,19 +382,41 @@ function ReceiptView({ receipt, downloadUrl, createdAt, driverName }: {
           <p className="text-sm text-slate-500">Scan to verify this receipt</p>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          variant="outline"
-          onClick={() =>
-            void printDeliveryReceipt(async () => receipt, { createdAt, driverName }).catch((error) =>
-              toast(error instanceof Error ? error.message : 'Could not open the receipt for printing.', 'error'),
-            )
-          }
-        >
-          Print
-        </Button>
-        <Button onClick={() => open(downloadUrl)}>Download PDF</Button>
-      </div>
+    </div>
+  );
+}
+
+function ReceiptActions({
+  receipt,
+  downloadUrl,
+  createdAt,
+  driverName,
+}: {
+  receipt: ReceiptDTO;
+  downloadUrl: string;
+  createdAt: string;
+  driverName: string | null;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <Button
+        variant="outline"
+        onClick={() =>
+          void printDeliveryReceipt(async () => receipt, { createdAt, driverName }).catch((error) =>
+            toast(error instanceof Error ? error.message : 'Could not open the receipt for printing.', 'error'),
+          )
+        }
+      >
+        Print
+      </Button>
+      <Button
+        onClick={() => {
+          const base = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/+$/, '');
+          window.open(`${base}${downloadUrl}`, '_blank', 'noopener');
+        }}
+      >
+        Download PDF
+      </Button>
     </div>
   );
 }

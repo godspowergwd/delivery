@@ -37,7 +37,25 @@ export function AuthSheet() {
   if (isLoginRoute) return null;
 
   return (
-    <Sheet open={sheetOpen} onClose={closeSheet} title="Sign in to continue your order.">
+    <Sheet
+      open={sheetOpen}
+      onClose={closeSheet}
+      title="Sign in to continue your order."
+      footer={
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button type="submit" form="auth-sheet-form" size="lg" loading={busy}>
+            Sign in
+          </Button>
+          <Button type="button" variant="success" size="lg" onClick={goRegister}>
+            <UserIcon className="h-4 w-4" aria-hidden="true" />
+            Create account
+          </Button>
+          <Button type="button" variant="ghost" className="sm:col-span-2" onClick={closeSheet}>
+            Maybe later
+          </Button>
+        </div>
+      }
+    >
       <div className="space-y-4">
         {/* Food accents keep the guest sign-in prompt connected to the menu. */}
         <div className="duo-top rg-corners -mx-1 rounded-3xl bg-white px-4 pb-4 pt-5 ring-1 ring-inset ring-slate-200/70">
@@ -66,7 +84,7 @@ export function AuthSheet() {
 
         {/* One real credential form: identifier first, password second — the
             exact order and semantics every password manager expects. */}
-        <form onSubmit={submit} className="space-y-3" autoComplete="on">
+        <form id="auth-sheet-form" onSubmit={submit} className="space-y-3" autoComplete="on">
           <Field label="Email or username" htmlFor="auth-sheet-email">
             <Input
               id="auth-sheet-email"
@@ -94,24 +112,7 @@ export function AuthSheet() {
             />
           </Field>
           <ErrorText message={error} />
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Button type="submit" size="lg" loading={busy}>
-              Sign in
-            </Button>
-            <Button type="button" variant="success" size="lg" onClick={goRegister}>
-              <UserIcon className="h-4 w-4" aria-hidden="true" />
-              Create account
-            </Button>
-          </div>
         </form>
-
-        <button
-          type="button"
-          onClick={closeSheet}
-          className="w-full rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-        >
-          Maybe later
-        </button>
       </div>
     </Sheet>
   );

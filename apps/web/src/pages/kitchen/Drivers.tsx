@@ -312,7 +312,16 @@ export function KitchenDrivers() {
       )}
 
       {/* ---------- Credentials handover ---------- */}
-      <Modal open={Boolean(issued)} onClose={() => setIssued(null)} title="New login issued">
+      <Modal
+        open={Boolean(issued)}
+        onClose={() => setIssued(null)}
+        title="New login issued"
+        footer={
+          <Button block onClick={() => setIssued(null)}>
+            Done
+          </Button>
+        }
+      >
         {issued && (
           <DriverCredentialsCard
             title="New password issued"
@@ -321,11 +330,6 @@ export function KitchenDrivers() {
             className="overflow-hidden rounded-2xl border border-green-200 bg-white"
           />
         )}
-        <div className="mt-4">
-          <Button block onClick={() => setIssued(null)}>
-            Done
-          </Button>
-        </div>
       </Modal>
 
       {/* ---------- Confirmations (no browser popups) ---------- */}
@@ -377,4 +381,3 @@ export function KitchenDrivers() {
     </div>
   );
 }
-

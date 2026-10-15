@@ -850,7 +850,21 @@ function IssueDialog({ order, onClose }: { order: OrderDTO; onClose: () => void 
   };
 
   return (
-    <Modal open title={`Report issue · ${order.orderNumber}`} onClose={onClose}>
+    <Modal
+      open
+      title={`Report issue · ${order.orderNumber}`}
+      onClose={onClose}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={working}>
+            Cancel
+          </Button>
+          <Button loading={working} disabled={note.trim().length < 5} onClick={() => void submit()}>
+            Send report
+          </Button>
+        </div>
+      }
+    >
       <p className="text-sm text-slate-700">Describe what happened so the administrators can help.</p>
       <Textarea
         value={note}
@@ -859,14 +873,6 @@ function IssueDialog({ order, onClose }: { order: OrderDTO; onClose: () => void 
         placeholder="e.g. Customer is not answering the phone at the gate…"
         className="mt-3"
       />
-      <div className="mt-4 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose} disabled={working}>
-          Cancel
-        </Button>
-        <Button loading={working} disabled={note.trim().length < 5} onClick={() => void submit()}>
-          Send report
-        </Button>
-      </div>
     </Modal>
   );
 }
