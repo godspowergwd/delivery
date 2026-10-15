@@ -592,7 +592,7 @@ export function Modal({
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 pt-[calc(env(safe-area-inset-top)+0.5rem)] backdrop-blur-[2px] sm:items-center sm:p-6"
       onClick={onClose}
       role="presentation"
     >
@@ -603,11 +603,11 @@ export function Modal({
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
         className={clsx(
-          'animate-slide-up max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-lift sm:animate-rise sm:rounded-3xl',
+          'animate-slide-up flex min-h-0 max-h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)] w-full flex-col overflow-hidden rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-lift sm:animate-rise sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:pb-5',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md',
         )}
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="mb-4 flex flex-none items-start justify-between gap-4">
           <h2 className="text-lg font-extrabold tracking-tight text-slate-900">{title}</h2>
           <button
             type="button"
@@ -619,8 +619,10 @@ export function Modal({
             <XIcon className="h-5 w-5" />
           </button>
         </div>
-        {children}
-        {footer ? <div className="mt-5 border-t border-slate-200 pt-4">{footer}</div> : null}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-y]">
+          {children}
+        </div>
+        {footer ? <div className="mt-5 flex-none border-t border-slate-200 pt-4">{footer}</div> : null}
       </div>
     </div>
   );
