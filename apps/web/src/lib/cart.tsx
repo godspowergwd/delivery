@@ -10,12 +10,14 @@ import {
 import type { ProductDTO } from '@delivery/shared';
 
 export interface CartLine {
+  lineId?: string;
   productId: string;
   name: string;
   imageUrl: string | null;
   unitPrice: number;
   quantity: number;
   notes?: string | null;
+  customizationChoices?: Record<string, string[]>;
 }
 
 const CART_KEY = 'ds_cart_v1';
@@ -24,7 +26,11 @@ function load(): CartLine[] {
   try {
     const raw = localStorage.getItem(CART_KEY);
     const parsed = raw ? (JSON.parse(raw) as CartLine[]) : [];
-    return Array.isArray(parsed) ? parsed.filter((line) => line.productId && line.quantity > 0) : [];
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((line) => line.productId && line.quantity > 0)
+          .map((line, index) => ({ ...line, lineId: line.lineId ?? `${line.productId}-${index}` }))
+      : [];
   } catch {
     return [];
   }
@@ -34,10 +40,15 @@ interface CartContextValue {
   lines: CartLine[];
   itemCount: number;
   subtotal: number;
-  add: (product: ProductDTO, quantity?: number, notes?: string | null) => void;
-  setQuantity: (productId: string, quantity: number) => void;
-  setNotes: (productId: string, notes: string) => void;
-  remove: (productId: string) => void;
+  add: (
+    product: ProductDTO,
+    quantity?: number,
+    notes?: string | null,
+    customizationChoices?: Record<string, string[]>,
+  ) => void;
+  setQuantity: (lineId: string, quantity: number) => void;
+  setNotes: (lineId: string, notes: string) => void;
+  remove: (lineId: string) => void;
   clear: () => void;
 }
 
@@ -54,46 +65,59 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [lines]);
 
-  const add = useCallback((product: ProductDTO, quantity = 1, notes?: string | null) => {
+  const add = useCallback((
+    product: ProductDTO,
+    quantity = 1,
+    notes?: string | null,
+    customizationChoices?: Record<string, string[]>,
+  ) => {
     setLines((current) => {
-      const existing = current.find((line) => line.productId === product.id);
+      const choicesKey = JSON.stringify(Object.entries(customizationChoices ?? {}).sort(([a], [b]) => a.localeCompare(b)));
+      const existing = current.find(
+        (line) =>
+          line.productId === product.id &&
+          (line.notes ?? null) === (notes ?? null) &&
+          JSON.stringify(Object.entries(line.customizationChoices ?? {}).sort(([a], [b]) => a.localeCompare(b))) === choicesKey,
+      );
       if (existing) {
         return current.map((line) =>
-          line.productId === product.id
-            ? { ...line, quantity: line.quantity + quantity, notes: notes ?? line.notes }
+          line.lineId === existing.lineId
+            ? { ...line, quantity: line.quantity + quantity }
             : line,
         );
       }
       return [
         ...current,
         {
+          lineId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           productId: product.id,
           name: product.name,
           imageUrl: product.imageUrl,
           unitPrice: product.price,
           quantity,
           notes: notes ?? null,
+          customizationChoices,
         },
       ];
     });
   }, []);
 
-  const setQuantity = useCallback((productId: string, quantity: number) => {
+  const setQuantity = useCallback((lineId: string, quantity: number) => {
     setLines((current) =>
       quantity <= 0
-        ? current.filter((line) => line.productId !== productId)
-        : current.map((line) => (line.productId === productId ? { ...line, quantity } : line)),
+        ? current.filter((line) => line.lineId !== lineId)
+        : current.map((line) => (line.lineId === lineId ? { ...line, quantity } : line)),
     );
   }, []);
 
-  const setNotes = useCallback((productId: string, notes: string) => {
+  const setNotes = useCallback((lineId: string, notes: string) => {
     setLines((current) =>
-      current.map((line) => (line.productId === productId ? { ...line, notes } : line)),
+      current.map((line) => (line.lineId === lineId ? { ...line, notes } : line)),
     );
   }, []);
 
-  const remove = useCallback((productId: string) => {
-    setLines((current) => current.filter((line) => line.productId !== productId));
+  const remove = useCallback((lineId: string) => {
+    setLines((current) => current.filter((line) => line.lineId !== lineId));
   }, []);
 
   const clear = useCallback(() => setLines([]), []);

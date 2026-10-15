@@ -32,6 +32,7 @@ export const createOrderSchema = z.object({
         productId: z.string().trim().min(1),
         quantity: z.coerce.number().int().min(1).max(50),
         notes: z.string().trim().max(200).optional(),
+        customizationChoices: z.record(z.string(), z.array(z.string().trim().min(1).max(80)).max(10)).optional(),
       }),
     )
     .min(1, 'Your cart is empty'),

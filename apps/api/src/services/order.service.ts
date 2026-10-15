@@ -19,6 +19,11 @@ import { emitToRole, emitToUser } from '../realtime/socket';
 import { ORDER_INCLUDE, serializeDriverOffer, serializeOrder, type OrderWithRelations } from './serializers';
 import { canViewOrder } from './order-access.service';
 import { decrementOrderStock } from './order-stock';
+import {
+  assertProductHasConfiguredPrice,
+  parseCustomizationOptions,
+  validateCustomizationChoices,
+} from './product-customization';
 import { invalidateActiveDeliveryTargets } from './driver-delivery-cache';
 import { schedulePushAlert, scheduleRolePushAlerts, stopKitchenPushAlerts } from './push-alert.service';
 import type { SessionUser } from '../middleware/authenticate';
@@ -28,6 +33,7 @@ export interface CreateOrderItemInput {
   productId: string;
   quantity: number;
   notes?: string;
+  customizationChoices?: Record<string, string[]>;
 }
 
 export interface CreateOrderInput {
@@ -194,6 +200,11 @@ export async function buildOrderDraft(input: CreateOrderInput, deliveryFee: numb
     }
 
     const unitPrice = decimalToNumber(product.price);
+    assertProductHasConfiguredPrice(unitPrice, product.name);
+    const customizationNotes = validateCustomizationChoices(
+      parseCustomizationOptions(product.customizationOptions),
+      item.customizationChoices,
+    );
     maxPrepMinutes = Math.max(maxPrepMinutes, product.prepTimeMinutes);
     pricedItems.push({ unitPrice, quantity: item.quantity });
     lineDrafts.push({
@@ -203,7 +214,7 @@ export async function buildOrderDraft(input: CreateOrderInput, deliveryFee: numb
       unitPrice,
       quantity: item.quantity,
       lineTotal: Math.round(unitPrice * item.quantity * 100) / 100,
-      notes: item.notes?.trim() ? item.notes.trim().slice(0, 200) : null,
+      notes: [...customizationNotes, item.notes?.trim()].filter(Boolean).join('; ').slice(0, 200) || null,
     });
   }
 
@@ -463,15 +474,16 @@ export async function createWalkInOrder(params: {
   const settings = await getSettings();
   const quantities = new Map<string, CreateOrderItemInput>();
   for (const item of input.items) {
-    const previous = quantities.get(item.productId);
+    const key = `${item.productId}:${JSON.stringify(item.customizationChoices ?? {})}:${item.notes ?? ''}`;
+    const previous = quantities.get(key);
     const quantity = (previous?.quantity ?? 0) + item.quantity;
     if (quantity > 50) throw badRequest('A product quantity cannot exceed 50.');
-    quantities.set(item.productId, { ...item, quantity });
+    quantities.set(key, { ...item, quantity });
   }
   if (quantities.size === 0) throw badRequest('Your cart is empty.');
 
   const products = await prisma.product.findMany({
-    where: { id: { in: [...quantities.keys()] } },
+    where: { id: { in: [...new Set([...quantities.values()].map((item) => item.productId))] } },
   });
   const productMap = new Map(products.map((product) => [product.id, product]));
   const lineDrafts: LineDraft[] = [];
@@ -485,6 +497,11 @@ export async function createWalkInOrder(params: {
       throw conflict(`Only ${product.stock} × ${product.name} left. Please adjust the cart.`);
     }
     const unitPrice = decimalToNumber(product.price);
+    assertProductHasConfiguredPrice(unitPrice, product.name);
+    const customizationNotes = validateCustomizationChoices(
+      parseCustomizationOptions(product.customizationOptions),
+      item.customizationChoices,
+    );
     maxPrepMinutes = Math.max(maxPrepMinutes, product.prepTimeMinutes);
     lineDrafts.push({
       productId: product.id,
@@ -493,7 +510,7 @@ export async function createWalkInOrder(params: {
       unitPrice,
       quantity: item.quantity,
       lineTotal: Math.round(unitPrice * item.quantity * 100) / 100,
-      notes: item.notes?.trim() ? item.notes.trim().slice(0, 200) : null,
+      notes: [...customizationNotes, item.notes?.trim()].filter(Boolean).join('; ').slice(0, 200) || null,
     });
   }
 
@@ -1009,6 +1026,7 @@ export interface ReorderLine {
   price: number;
   quantity: number;
   imageUrl: string | null;
+  productType: 'STANDARD' | 'MEAL_PACK' | 'INGREDIENT';
   available: boolean;
   reason?: string;
 }
@@ -1039,6 +1057,7 @@ export async function buildReorder(
         price: decimalToNumber(item.unitPrice),
         quantity: item.quantity,
         imageUrl: item.imageUrl,
+        productType: 'STANDARD',
         available: false,
         reason: 'No longer sold',
       });
@@ -1051,6 +1070,7 @@ export async function buildReorder(
         price: decimalToNumber(product.price),
         quantity: item.quantity,
         imageUrl: product.imageUrl,
+        productType: product.productType,
         available: false,
         reason: 'Archived',
       });
@@ -1063,6 +1083,7 @@ export async function buildReorder(
         price: decimalToNumber(product.price),
         quantity: item.quantity,
         imageUrl: product.imageUrl,
+        productType: product.productType,
         available: false,
         reason: 'Currently unavailable',
       });
@@ -1076,6 +1097,7 @@ export async function buildReorder(
       price: decimalToNumber(product.price),
       quantity,
       imageUrl: product.imageUrl,
+      productType: product.productType,
       available: true,
     });
   }

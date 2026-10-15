@@ -35,6 +35,12 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum ProductType {
+  STANDARD
+  MEAL_PACK
+  INGREDIENT
+}
+
 enum OrderSource {
   ONLINE
   KITCHEN_WALK_IN
@@ -353,6 +359,13 @@ model Setting {
   createdAt   DateTime @default(now())
 }
 
+model MenuCatalogBackup {
+  id         String   @id @default(cuid())
+  categories Json
+  products   Json
+  createdAt  DateTime @default(now())
+}
+
 model Report {
   id            String       @id @default(cuid())
   type          ReportType
@@ -425,10 +438,14 @@ model DriverLocation {
 
 model Product {
   id              String   @id @default(cuid())
+  menuKey         String?  @unique
   name            String
   description     String
   imageUrl        String?
   price           Decimal  @db.Decimal(10, 2)
+  productType     ProductType @default(STANDARD)
+  isBaseIngredient Boolean @default(false)
+  customizationOptions Json?
   ingredients     String[] @default([])
   prepTimeMinutes Int      @default(15)
   isAvailable     Boolean  @default(true)

@@ -28,6 +28,7 @@ import { toast } from './realtime';
  */
 export type SerializedAction =
   | { type: 'ADD_TO_CART'; line: CartLine }
+  | { type: 'ADD_TO_CART_BUNDLE'; lines: CartLine[] }
   | { type: 'NAVIGATE'; to: string };
 
 const PENDING_KEY = 'ds_pending_action_v1';
@@ -64,21 +65,17 @@ export function stashPendingAction(action: SerializedAction | null): void {
 export function applyCartLine(
   line: CartLine,
   add: ReturnType<typeof useCart>['add'],
-  current: CartLine[],
-  setQuantity: ReturnType<typeof useCart>['setQuantity'],
 ): void {
-  const existing = current.find((entry) => entry.productId === line.productId);
-  if (existing) {
-    setQuantity(line.productId, existing.quantity + line.quantity);
-    return;
-  }
   const product: ProductDTO = {
     id: line.productId,
+    productType: 'STANDARD',
+    isBaseIngredient: false,
     name: line.name,
     description: '',
     imageUrl: line.imageUrl,
     price: line.unitPrice,
     ingredients: [],
+    customizationOptions: [],
     prepTimeMinutes: 15,
     isAvailable: true,
     stock: 999,
@@ -91,7 +88,7 @@ export function applyCartLine(
     createdAt: '',
     updatedAt: '',
   };
-  add(product, line.quantity, line.notes ?? null);
+  add(product, line.quantity, line.notes ?? null, line.customizationChoices);
 }
 
 /** Replays a stashed action after an account has been created. No-op otherwise. */
@@ -103,6 +100,7 @@ export function replayStashedAction(
   if (!action) return;
   storeAction(null);
   if (action.type === 'ADD_TO_CART') runCartAdd(action.line);
+  else if (action.type === 'ADD_TO_CART_BUNDLE') action.lines.forEach(runCartAdd);
   else navigate(action.to);
 }
 
@@ -130,7 +128,7 @@ const GuestGateContext = createContext<GuestGateValue | null>(null);
 
 export function GuestGateProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { lines, add, setQuantity } = useCart();
+  const { add } = useCart();
   const navigate = useNavigate();
   const [sheetOpen, setSheetOpen] = useState(false);
   const pendingRef = useRef<PendingAction | null>(null);
@@ -151,10 +149,15 @@ export function GuestGateProvider({ children }: { children: ReactNode }) {
       navigate(stored.to);
       return 'nav';
     }
-    applyCartLine(stored.line, add, lines, setQuantity);
-    toast(`Added ${stored.line.quantity} × ${stored.line.name}`, 'success');
+    if (stored.type === 'ADD_TO_CART') {
+      applyCartLine(stored.line, add);
+      toast(`Added ${stored.line.quantity} × ${stored.line.name}`, 'success');
+      return 'cart';
+    }
+    stored.lines.forEach((line) => applyCartLine(line, add));
+    toast('Customized waakye added to your cart', 'success');
     return 'cart';
-  }, [add, lines, navigate, setQuantity]);
+  }, [add, navigate]);
 
   const requireAuth = useCallback(
     (action: () => void, serialized?: SerializedAction): boolean => {

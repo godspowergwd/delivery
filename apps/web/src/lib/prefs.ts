@@ -83,11 +83,8 @@ export function clearRecentSearches(): void {
 /** Popular searches surfaced on an empty search screen (the focused waakye menu). */
 export const TRENDING_SEARCHES = [
   'Waakye',
-  'Waakye Special',
-  'Jollof rice',
-  'Fried rice',
-  'Sobolo',
-  'Chicken',
+  'Waakye Packs',
+  'Waakye Ingredients',
   'Fish',
-  'Sides',
+  'Plantain',
 ] as const;

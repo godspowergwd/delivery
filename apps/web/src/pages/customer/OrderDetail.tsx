@@ -55,18 +55,35 @@ export function OrderDetail() {
 
   const reorder = useMutation({
     mutationFn: () =>
-      api.post<{ lines: Array<{ productId: string; name: string; price: number; imageUrl: string | null; quantity: number }> }>(
+      api.post<{
+        lines: Array<{
+          productId: string;
+          name: string;
+          price: number;
+          imageUrl: string | null;
+          quantity: number;
+          productType: ProductDTO['productType'];
+        }>;
+      }>(
         `/orders/${id}/reorder`,
       ),
     onSuccess: (data) => {
+      let packToConfigure: string | null = null;
       for (const line of data.lines) {
+        if (line.productType === 'MEAL_PACK') {
+          packToConfigure = line.productId;
+          continue;
+        }
         const product: ProductDTO = {
           id: line.productId,
+          productType: 'STANDARD',
+          isBaseIngredient: false,
           name: line.name,
           description: '',
           imageUrl: line.imageUrl,
           price: line.price,
           ingredients: [],
+          customizationOptions: [],
           prepTimeMinutes: 0,
           isAvailable: true,
           stock: 999,
@@ -81,8 +98,13 @@ export function OrderDetail() {
         };
         add(product, line.quantity);
       }
-      toast('Items added back to your cart', 'success');
-      navigate('/app/cart');
+      if (packToConfigure) {
+        toast('Other available items were added. Choose the waakye pack options again.', 'info');
+        navigate(`/app/product/${packToConfigure}`);
+      } else {
+        toast('Items added back to your cart', 'success');
+        navigate('/app/cart');
+      }
     },
     onError: (error) => toast(error instanceof Error ? error.message : 'Could not reorder', 'error'),
   });

@@ -61,13 +61,26 @@ export interface CategoryDTO {
   productCount?: number;
 }
 
+export type ProductType = 'STANDARD' | 'MEAL_PACK' | 'INGREDIENT';
+
+export interface ProductCustomizationOption {
+  id: string;
+  label: string;
+  options: string[];
+  required: boolean;
+  maxSelections: number;
+}
+
 export interface ProductDTO {
   id: string;
+  productType: ProductType;
+  isBaseIngredient: boolean;
   name: string;
   description: string;
   imageUrl: string | null;
   price: number;
   ingredients: string[];
+  customizationOptions: ProductCustomizationOption[];
   prepTimeMinutes: number;
   isAvailable: boolean;
   stock: number;

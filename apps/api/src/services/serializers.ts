@@ -11,6 +11,7 @@ import type {
 } from '@delivery/shared';
 import { decimalToNumber } from '../lib/prisma';
 import { serializeNotification } from './notification.service';
+import { parseCustomizationOptions } from './product-customization';
 
 export const ORDER_INCLUDE = {
   items: { orderBy: { createdAt: 'asc' } },
@@ -112,10 +113,13 @@ export const CATEGORY_INCLUDE = {
 export function serializeProduct(product: ProductWithCategory): ProductDTO {
   return {
     id: product.id,
+    productType: product.productType,
+    isBaseIngredient: product.isBaseIngredient,
     name: product.name,
     description: product.description,
     imageUrl: product.imageUrl,
     price: decimalToNumber(product.price),
+    customizationOptions: parseCustomizationOptions(product.customizationOptions),
     ingredients: product.ingredients,
     prepTimeMinutes: product.prepTimeMinutes,
     isAvailable: product.isAvailable,

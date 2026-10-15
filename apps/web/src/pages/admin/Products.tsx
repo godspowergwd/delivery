@@ -104,7 +104,9 @@ export function AdminProducts() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-slate-900">{product.name}</p>
                   <p className="text-sm text-slate-500">{product.categoryName}</p>
-                  <p className="mt-1 text-sm font-extrabold text-red-600">{formatMoney(product.price)}</p>
+                  <p className="mt-1 text-sm font-extrabold text-red-600">
+                    {product.price > 0 ? formatMoney(product.price) : 'Price not set'}
+                  </p>
                 </div>
               </div>
 
@@ -254,7 +256,7 @@ function ProductDialog({ product, onClose }: { product: ProductDTO | null; onClo
           <Textarea value={form.description} onChange={(event) => update({ description: event.target.value })} rows={3} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Price">
+          <Field label="Price (0 means not configured)">
             <Input type="number" min="0" step="0.01" value={form.price} onChange={(event) => update({ price: event.target.value })} />
           </Field>
           <Field label="Category">

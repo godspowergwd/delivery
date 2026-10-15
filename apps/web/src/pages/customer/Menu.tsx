@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { CategoryDTO, Paginated, ProductDTO } from '@delivery/shared';
 import { formatMoney } from '@delivery/shared';
 import { api, mediaUrl, qs } from '../../lib/api';
@@ -29,6 +29,7 @@ export function Menu() {
   const [sort, setSort] = useState<Sort>('newest');
   const sentinel = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { requireAuth } = useGuestGate();
   const { add } = useCart();
@@ -116,7 +117,7 @@ export function Menu() {
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search waakye, rice, sobolo…"
+          placeholder="Search waakye packs and ingredients…"
           aria-label="Search products"
         />
         <div className="flex items-center gap-2">
@@ -157,6 +158,7 @@ export function Menu() {
               product={product}
               favorite={favorites.has(product.id)}
               onFavorite={() => void toggleFavorite(product)}
+              onCustomize={() => navigate(`/app/product/${product.id}`)}
               onAdd={() => {
                 // Add to cart is protected: guests sign in, then it adds itself.
                 requireAuth(
@@ -173,6 +175,7 @@ export function Menu() {
                       unitPrice: product.price,
                       quantity: 1,
                       notes: null,
+                      customizationChoices: {},
                     },
                   },
                 );
@@ -181,6 +184,8 @@ export function Menu() {
           ))}
         </div>
       )}
+
+      <CustomMealBuilder />
 
       <div ref={sentinel} className="h-4" />
       {products.isFetchingNextPage && (
@@ -192,9 +197,23 @@ export function Menu() {
   );
 }
 
-function ProductCard({ product, favorite, onFavorite, onAdd }: { product: ProductDTO; favorite: boolean; onFavorite: () => void; onAdd: () => void }) {
+function ProductCard({
+  product,
+  favorite,
+  onFavorite,
+  onAdd,
+  onCustomize,
+}: {
+  product: ProductDTO;
+  favorite: boolean;
+  onFavorite: () => void;
+  onAdd: () => void;
+  onCustomize: () => void;
+}) {
   const image = mediaUrl(product.imageUrl);
   const soldOut = !product.isAvailable || product.stock <= 0;
+  const hasPrice = product.price > 0;
+  const isPack = product.productType === 'MEAL_PACK';
 
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-card">
@@ -236,25 +255,145 @@ function ProductCard({ product, favorite, onFavorite, onAdd }: { product: Produc
         <p className="line-clamp-1 min-h-[1.2rem] text-xs font-semibold text-slate-500">
           {product.categoryName}
         </p>
+        {isPack && <p className="line-clamp-3 text-xs leading-relaxed text-slate-600">{product.description}</p>}
         <p className="flex min-h-5 items-center gap-1 text-xs font-semibold text-green-700 sm:text-[13px]">
           <LeafIcon className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
           {product.prepTimeMinutes} min prep
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
-          <span className="whitespace-nowrap text-[14px] font-extrabold tabular-nums text-red-700 sm:text-base">{formatMoney(product.price)}</span>
+          <span className="whitespace-nowrap text-[14px] font-extrabold tabular-nums text-red-700 sm:text-base">
+            {hasPrice ? formatMoney(product.price) : 'Price not set'}
+          </span>
           <button
-            onClick={onAdd}
-            disabled={soldOut}
+            onClick={isPack ? onCustomize : onAdd}
+            disabled={soldOut || (!hasPrice && !isPack)}
             className="btn-ripple flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-xl bg-red-600 px-2.5 text-sm font-bold text-white shadow-brand-soft transition hover:bg-red-700 active:scale-95 disabled:opacity-40 sm:min-w-[5rem]"
-            aria-label={soldOut ? 'Sold out' : `Add ${product.name} to cart`}
+            aria-label={soldOut ? 'Sold out' : isPack ? `Choose ${product.name} options` : hasPrice ? `Add ${product.name} to cart` : `${product.name} price not set`}
           >
-            <span aria-hidden="true" className="text-base leading-none">+</span>
-            <span>Add</span>
+            <span aria-hidden="true" className="text-base leading-none">{isPack ? '›' : '+'}</span>
+            <span>{isPack ? 'Choose' : 'Add'}</span>
           </button>
         </div>
         {soldOut && <p className="text-sm font-semibold text-slate-500">Sold out</p>}
       </div>
     </div>
+  );
+}
+
+function CustomMealBuilder() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['custom-waakye-ingredients'],
+    queryFn: () => api.get<Paginated<ProductDTO>>('/products?productType=INGREDIENT&pageSize=50'),
+  });
+  const { add } = useCart();
+  const { requireAuth } = useGuestGate();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [quantity, setQuantity] = useState(1);
+  const ingredients = data?.items ?? [];
+  const selected = ingredients.filter((product) => selectedIds.includes(product.id));
+  const baseSelected = selected.some((product) => product.isBaseIngredient);
+  const unitTotal = selected.reduce((total, product) => total + product.price, 0);
+  const composition = selected.map((product) => product.name).join(', ');
+  const selectable = (product: ProductDTO) =>
+    product.isAvailable && product.stock > 0 && product.price > 0;
+
+  const addCustomMeal = () => {
+    if (!baseSelected || selected.length === 0 || selected.some((product) => !selectable(product))) return;
+    const notes = `Customized waakye: ${composition}`;
+    const lines = selected.map((product) => ({
+      productId: product.id,
+      name: product.name,
+      imageUrl: product.imageUrl,
+      unitPrice: product.price,
+      quantity,
+      notes,
+    }));
+    requireAuth(
+      () => {
+        selected.forEach((product) => add(product, quantity, notes));
+        toast('Customized waakye added to your cart', 'success');
+      },
+      { type: 'ADD_TO_CART_BUNDLE', lines },
+    );
+  };
+
+  return (
+    <section className="space-y-4 rounded-3xl border border-green-200 bg-green-50/70 p-4 sm:p-5">
+      <div>
+        <h2 className="text-xl font-extrabold text-slate-900">Build a customized waakye meal</h2>
+        <p className="mt-1 text-sm text-slate-600">Choose waakye and any available ingredients. Prices are set by the restaurant.</p>
+      </div>
+      {isLoading ? (
+        <div className="flex justify-center py-5"><Spinner /></div>
+      ) : isError ? (
+        <p className="text-sm font-semibold text-red-700">Ingredients could not be loaded. Please refresh and try again.</p>
+      ) : ingredients.length === 0 ? (
+        <p className="text-sm text-slate-600">No ingredients are available yet.</p>
+      ) : (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {ingredients.map((product) => {
+              const disabled = !selectable(product);
+              const checked = selectedIds.includes(product.id);
+              return (
+                <label
+                  key={product.id}
+                  className={`flex items-center justify-between gap-3 rounded-2xl border bg-white p-3 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={disabled}
+                      onChange={(event) => setSelectedIds((current) =>
+                        event.target.checked
+                          ? [...current, product.id]
+                          : current.filter((id) => id !== product.id),
+                      )}
+                      className="h-4 w-4 accent-green-700"
+                    />
+                    <span className="truncate text-sm font-bold text-slate-800">{product.name}</span>
+                    {product.isBaseIngredient && <span className="text-xs text-green-700">Required base</span>}
+                  </span>
+                  <span className="shrink-0 text-xs font-bold text-red-700">
+                    {product.price > 0 ? formatMoney(product.price) : 'Price not set'}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-green-200 pt-3">
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-slate-800">Selected ingredients</p>
+              <p className="text-sm text-slate-600">{composition || 'Select waakye to start.'}</p>
+              <p className="text-sm font-extrabold text-red-700">
+                Estimated meal total: {formatMoney(unitTotal * quantity)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="custom-meal-quantity" className="text-sm font-semibold text-slate-700">Qty</label>
+              <input
+                id="custom-meal-quantity"
+                type="number"
+                min="1"
+                max="50"
+                value={quantity}
+                onChange={(event) => setQuantity(Math.max(1, Math.min(50, Number(event.target.value) || 1)))}
+                className="w-16 rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm"
+              />
+              <button
+                type="button"
+                disabled={!baseSelected || selected.length === 0 || selected.some((product) => !selectable(product))}
+                onClick={addCustomMeal}
+                className="rounded-xl bg-green-700 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Add customized meal
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

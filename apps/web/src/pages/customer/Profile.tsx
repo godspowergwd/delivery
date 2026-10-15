@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import type { AddressDTO, AuthUser, ProductDTO } from '@delivery/shared';
 import { formatMoney, initials } from '@delivery/shared';
 import { api, mediaUrl } from '../../lib/api';
@@ -192,6 +193,7 @@ function AddressForm({ onDone }: { onDone: () => void }) {
 
 function FavoritesCard() {
   const { add } = useCart();
+  const navigate = useNavigate();
   const { data, isLoading } = useQuery({
     queryKey: ['favorites'],
     queryFn: () => api.get<{ favorites: Array<{ product: ProductDTO }> }>('/favorites'),
@@ -224,11 +226,24 @@ function FavoritesCard() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{product.name}</p>
-                  <p className="text-xs text-red-600">{formatMoney(product.price)}</p>
+                  <p className="text-xs text-red-600">
+                    {product.price > 0 ? formatMoney(product.price) : 'Price not set'}
+                  </p>
                 </div>
               </div>
-              <Button size="sm" onClick={() => { add(product); toast(`Added ${product.name}`, 'success'); }}>
-                Add
+              <Button
+                size="sm"
+                disabled={product.productType !== 'MEAL_PACK' && product.price <= 0}
+                onClick={() => {
+                  if (product.productType === 'MEAL_PACK') {
+                    navigate(`/app/product/${product.id}`);
+                    return;
+                  }
+                  add(product);
+                  toast(`Added ${product.name}`, 'success');
+                }}
+              >
+                {product.productType === 'MEAL_PACK' ? 'Choose' : 'Add'}
               </Button>
             </div>
           ))}

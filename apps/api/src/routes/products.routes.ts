@@ -25,6 +25,7 @@ const productQuerySchema = paginationSchema.extend({
   q: z.string().trim().max(120).optional(),
   categoryId: z.string().trim().optional(),
   categorySlug: z.string().trim().optional(),
+  productType: z.enum(['STANDARD', 'MEAL_PACK', 'INGREDIENT']).optional(),
   sort: z
     .enum(['newest', 'price_asc', 'price_desc', 'name_asc', 'name_desc', 'popular'])
     .default('newest'),
@@ -41,6 +42,15 @@ const productBodySchema = z.object({
   description: z.string().trim().min(4, 'Add a short description').max(2000),
   imageUrl: z.string().trim().max(500).nullable().optional(),
   price: moneySchema,
+  productType: z.enum(['STANDARD', 'MEAL_PACK', 'INGREDIENT']).default('STANDARD'),
+  isBaseIngredient: z.boolean().default(false),
+  customizationOptions: z.array(z.object({
+    id: z.string().trim().min(1).max(60),
+    label: z.string().trim().min(1).max(80),
+    options: z.array(z.string().trim().min(1).max(80)).min(1).max(10),
+    required: z.boolean(),
+    maxSelections: z.number().int().min(1).max(10),
+  })).max(10).default([]),
   ingredients: z.array(z.string().trim().min(1).max(60)).max(30).optional().default([]),
   prepTimeMinutes: z.coerce.number().int().min(1).max(240).default(15),
   isAvailable: z.boolean().default(true),
@@ -97,6 +107,7 @@ productsRouter.get(
     if (query.isNew) where.isNew = true;
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.categorySlug) where.category = { slug: query.categorySlug };
+    if (query.productType) where.productType = query.productType;
     if (query.minPrice !== undefined || query.maxPrice !== undefined) {
       where.price = {
         ...(query.minPrice !== undefined ? { gte: query.minPrice } : {}),
@@ -173,9 +184,13 @@ productsRouter.post(
     const created = await prisma.product.create({
       data: {
         name: body.name,
+        menuKey: null,
         description: body.description,
         imageUrl: body.imageUrl ?? null,
         price: body.price,
+        productType: body.productType,
+        isBaseIngredient: body.isBaseIngredient,
+        customizationOptions: body.customizationOptions,
         ingredients: body.ingredients,
         prepTimeMinutes: body.prepTimeMinutes,
         isAvailable: body.isAvailable,
@@ -231,6 +246,9 @@ productsRouter.patch(
         ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl } : {}),
         ...(body.price !== undefined ? { price: body.price } : {}),
+        ...(body.productType !== undefined ? { productType: body.productType } : {}),
+        ...(body.isBaseIngredient !== undefined ? { isBaseIngredient: body.isBaseIngredient } : {}),
+        ...(body.customizationOptions !== undefined ? { customizationOptions: body.customizationOptions } : {}),
         ...(body.ingredients !== undefined ? { ingredients: body.ingredients } : {}),
         ...(body.prepTimeMinutes !== undefined ? { prepTimeMinutes: body.prepTimeMinutes } : {}),
         ...(body.isAvailable !== undefined ? { isAvailable: body.isAvailable } : {}),

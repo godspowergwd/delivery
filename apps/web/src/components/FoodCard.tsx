@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { ProductDTO } from '@delivery/shared';
 import { formatMoney } from '@delivery/shared';
 import { clsx } from 'clsx';
@@ -18,12 +18,19 @@ import { ClockIcon, ImageIcon, LeafIcon, PlusIcon } from './icons';
 export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: number }) {
   const { add } = useCart();
   const { requireAuth } = useGuestGate();
+  const navigate = useNavigate();
   const image = mediaUrl(product.imageUrl);
-  const soldOut = !product.isAvailable || product.stock <= 0;
+  const hasPrice = product.price > 0;
+  const soldOut = !product.isAvailable || product.stock <= 0 || !hasPrice;
+  const isPack = product.productType === 'MEAL_PACK';
   const chips = product.ingredients.slice(0, 2);
   const extraChips = Math.max(0, product.ingredients.length - chips.length);
 
   const onAdd = () => {
+    if (isPack) {
+      navigate(`/app/product/${product.id}`);
+      return;
+    }
     if (soldOut) return;
     requireAuth(
       () => {
@@ -90,7 +97,7 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
         )}
         {soldOut && (
           <span className="absolute inset-x-0 bottom-0 bg-slate-900/70 py-1 text-center text-[11px] font-bold uppercase tracking-wide text-white">
-            Sold out
+            {!hasPrice ? 'Price not set' : 'Sold out'}
           </span>
         )}
       </Link>
@@ -121,19 +128,21 @@ export function FoodCard({ product, index = 0 }: { product: ProductDTO; index?: 
           {product.prepTimeMinutes} min
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
-          <span className="whitespace-nowrap text-[14px] font-extrabold tabular-nums text-red-700 sm:text-base">{formatMoney(product.price)}</span>
+          <span className="whitespace-nowrap text-[14px] font-extrabold tabular-nums text-red-700 sm:text-base">
+            {hasPrice ? formatMoney(product.price) : 'Price not set'}
+          </span>
           <button
             type="button"
-            disabled={soldOut}
+            disabled={soldOut && !isPack}
             onClick={onAdd}
-            aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
+            aria-label={soldOut ? `${product.name} is sold out` : isPack ? `Choose ${product.name} options` : `Add ${product.name} to cart`}
             className={clsx(
               'btn-ripple flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-xl px-2.5 text-sm font-bold text-white transition active:scale-95 disabled:opacity-40 sm:min-w-[5rem]',
-              soldOut ? 'bg-slate-300' : 'bg-red-600 shadow-brand-soft hover:bg-red-700',
+              soldOut && !isPack ? 'bg-slate-300' : 'bg-red-600 shadow-brand-soft hover:bg-red-700',
             )}
           >
             <PlusIcon className="h-4 w-4" aria-hidden="true" />
-            <span>Add</span>
+            <span>{isPack ? 'Choose' : 'Add'}</span>
           </button>
         </div>
       </div>

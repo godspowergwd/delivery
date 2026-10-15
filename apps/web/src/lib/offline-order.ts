@@ -3,7 +3,12 @@ import { isConfirmedDeliveryLocation, type ConfirmedDeliveryLocation } from './d
 
 export interface OrderSubmissionPayload {
   idempotencyKey: string;
-  items: Array<{ productId: string; quantity: number; notes?: string }>;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    notes?: string;
+    customizationChoices?: Record<string, string[]>;
+  }>;
   deliveryAddress: string;
   deliveryPhone: string;
   notes?: string;

@@ -17,6 +17,7 @@ export function ProductPage() {
   const { requireAuth } = useGuestGate();
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
+  const [customizationChoices, setCustomizationChoices] = useState<Record<string, string[]>>({});
 
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ['product', id],
@@ -46,13 +47,17 @@ export function ProductPage() {
 
   const data = product.product;
   const image = mediaUrl(data.imageUrl);
-  const soldOut = !data.isAvailable || data.stock <= 0;
+  const hasPrice = data.price > 0;
+  const soldOut = !data.isAvailable || data.stock <= 0 || !hasPrice;
+  const missingRequiredChoice = data.customizationOptions.some(
+    (group) => group.required && !(customizationChoices[group.id]?.length),
+  );
 
   const addToCart = () => {
     // Ordering is protected: guests sign in on the sheet, then this runs.
     requireAuth(
       () => {
-        add(data, quantity, notes.trim() || null);
+        add(data, quantity, notes.trim() || null, customizationChoices);
         toast(`Added ${quantity} × ${data.name}`, 'success');
         navigate('/app/cart');
       },
@@ -65,6 +70,7 @@ export function ProductPage() {
           unitPrice: data.price,
           quantity,
           notes: notes.trim() || null,
+          customizationChoices,
         },
       },
     );
@@ -90,7 +96,7 @@ export function ProductPage() {
         <div className="space-y-3 p-5">
           <div className="flex items-start justify-between gap-3">
             <h1 className="text-2xl font-extrabold text-red-700">{data.name}</h1>
-            <span className="text-lg font-extrabold text-red-600">{formatMoney(data.price)}</span>
+            <span className="text-lg font-extrabold text-red-600">{hasPrice ? formatMoney(data.price) : 'Price not set'}</span>
           </div>
           <p className="text-sm leading-relaxed text-slate-600">{data.description}</p>
           <div className="flex flex-wrap gap-2 text-xs">
@@ -105,7 +111,7 @@ export function ProductPage() {
                   : 'badge-fresh'
               }
             >
-              {soldOut ? 'Sold out' : `${data.stock} in stock`}
+              {!hasPrice ? 'Price not set' : soldOut ? 'Sold out' : `${data.stock} in stock`}
             </span>
             {data.isPopular && <span className="badge-hot">Popular</span>}
             {data.isNew && (
@@ -130,6 +136,41 @@ export function ProductPage() {
               </div>
             </div>
           )}
+          {data.customizationOptions.map((group) => (
+            <fieldset key={group.id} className="space-y-2">
+              <legend className="text-sm font-semibold text-slate-800">
+                {group.label}{group.required ? ' (required)' : ''}
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {group.options.map((option) => {
+                  const selected = customizationChoices[group.id] ?? [];
+                  const checked = selected.includes(option);
+                  return (
+                    <label key={option} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                      <input
+                        type={group.maxSelections === 1 ? 'radio' : 'checkbox'}
+                        name={`${data.id}-${group.id}`}
+                        checked={checked}
+                        onChange={(event) => {
+                          setCustomizationChoices((current) => {
+                            const currentValues = current[group.id] ?? [];
+                            const nextValues = group.maxSelections === 1
+                              ? [option]
+                              : event.target.checked
+                                ? [...currentValues, option].slice(0, group.maxSelections)
+                                : currentValues.filter((value) => value !== option);
+                            return { ...current, [group.id]: nextValues };
+                          });
+                        }}
+                        className="h-4 w-4 accent-red-600"
+                      />
+                      {option}
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ))}
           <p className="text-sm text-slate-600">
             Category:{' '}
             <span className="font-semibold text-green-700">{data.categoryName}</span>
@@ -187,8 +228,8 @@ export function ProductPage() {
               +
             </button>
           </div>
-          <Button size="lg" className="flex-1" disabled={soldOut} onClick={addToCart}>
-            {soldOut ? 'Sold out' : `Add · ${formatMoney(data.price * quantity)}`}
+          <Button size="lg" className="flex-1" disabled={soldOut || missingRequiredChoice} onClick={addToCart}>
+            {!hasPrice ? 'Price not set' : soldOut ? 'Sold out' : missingRequiredChoice ? 'Choose required options' : `Add · ${formatMoney(data.price * quantity)}`}
           </Button>
         </div>
       </div>

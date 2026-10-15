@@ -269,6 +269,7 @@ export function Checkout() {
         productId: line.productId,
         quantity: line.quantity,
         notes: line.notes || undefined,
+        customizationChoices: line.customizationChoices,
       })),
       deliveryAddress: confirmedLocation.address,
       deliveryPhone,
