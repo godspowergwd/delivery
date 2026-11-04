@@ -76,9 +76,13 @@ async function bootstrap(): Promise<void> {
       errorType: reason instanceof Error ? reason.name : typeof reason,
     });
   });
-  process.on('uncaughtException', (error) => {
-    logger.error('Uncaught exception', { errorType: error.name });
-    process.exit(1);
+  process.on('uncaughtException', (error: NodeJS.ErrnoException) => {
+    const message = String(error.message ?? '').replace(/postgres(ql)?:\/\/\S+/gi, '[redacted]').slice(0, 300);
+    logger.error('Uncaught exception', { errorType: error.name, code: error.code, message });
+    // Idle pooled DB sockets dropped by Supabase/pgbouncer surface as uncaught
+    // errors; the pool reconnects on demand, so they must not kill the API.
+    const transientDb = /Connection terminated|terminating connection|ECONNRESET|ETIMEDOUT|EPIPE|57P01|57P03/i.test(`${error.code ?? ''} ${message}`);
+    if (!transientDb) process.exit(1);
   });
 }
 
