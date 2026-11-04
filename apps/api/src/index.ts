@@ -13,17 +13,32 @@ async function bootstrap(): Promise<void> {
   ensureUploadDir();
   ensureReportDir();
 
-  // One connectivity probe (connectDatabase logs its own timing), then listen.
-  await connectDatabase();
-
   const app = createApp();
   const server = http.createServer(app);
   initRealtime(server);
-  startPushAlertWorker();
 
-  await new Promise<void>((resolve) => {
-    server.listen(env.PORT, () => resolve());
+  // Bind first so Render sees an open port and /api/health answers even while
+  // the database is still waking up; the DB probe runs in the background.
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(env.PORT, '0.0.0.0', () => resolve());
   });
+
+  void (async () => {
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      try {
+        await connectDatabase();
+        return;
+      } catch (error) {
+        logger.error('Database not ready yet', {
+          attempt,
+          errorType: error instanceof Error ? error.name : typeof error,
+        });
+        await new Promise((r) => setTimeout(r, Math.min(2_000 * attempt, 15_000)));
+      }
+    }
+  })();
+  startPushAlertWorker();
 
   if (!isProduction) {
     fs.writeFileSync(loadTestAttestationPath, JSON.stringify({

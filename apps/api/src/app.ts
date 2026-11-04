@@ -23,6 +23,12 @@ export function createApp(): Express {
 
   ensureUploadDir();
 
+  // Liveness probe: registered before every middleware (CORS, origin guard,
+  // rate limiting, body parsing) and never touches the database.
+  app.get(['/healthz', '/api/health'], (_req, res) => {
+    res.set('Cache-Control', 'no-store').status(200).json({ status: 'ok', time: new Date().toISOString() });
+  });
+
   app.use(securityHeaders);
   app.use(cors(corsOptions));
   app.use(express.json({ limit: '1mb' }));
