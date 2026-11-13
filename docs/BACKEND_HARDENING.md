@@ -77,9 +77,10 @@ Already present and kept: `User.email` (unique), `User(role, isActive)`
 `OrderItem(orderId)`, `Product(categoryId)`, `Product(isArchived, isAvailable)`,
 `Category(slug)`.
 
-Deployment: `apps/api`'s `start` script already runs `prisma migrate deploy`
-before booting, so the migration applies on the next Render deploy
-(`DIRECT_URL` is used for migrations, `DATABASE_URL` for the running app).
+Deployment: `apps/api`'s `start` script runs `prisma migrate deploy` before
+booting and fails closed if a migration cannot be applied. `DIRECT_URL` is used
+for migrations; `DATABASE_URL` is used for the running app. Do not start the API
+against a schema with unapplied migrations.
 
 ---
 
@@ -233,6 +234,5 @@ Removed - delete them from Render if they are still configured:
 Render build/start commands stay as they are: `npm install && npm run build`
 (build) and `npm start` (start) - the API start script runs
 `prisma migrate deploy` first, which applies the new migration.
-
 
 

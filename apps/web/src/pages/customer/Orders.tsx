@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { OrderDTO, Paginated } from '@delivery/shared';
 import { ORDER_STATUS_LABELS, formatMoney, formatRelativeTime } from '@delivery/shared';
-import { api, qs } from '../../lib/api';
-import { Button, Card, EmptyState, Spinner, StatusPill } from '../../components/ui';
+import { api } from '../../lib/api';
+import { Button, Card, EmptyState, ErrorText, Spinner, StatusPill } from '../../components/ui';
 
 export function Orders() {
   const history = useQuery({
@@ -13,7 +13,7 @@ export function Orders() {
   const active = useQuery({
     queryKey: ['active-orders'],
     queryFn: () => api.get<{ orders: OrderDTO[] }>('/orders/active'),
-    refetchInterval: 15_000,
+    refetchInterval: (query) => query.state.status === 'error' ? 60_000 : 15_000,
   });
 
   if (history.isLoading) {
@@ -35,7 +35,14 @@ export function Orders() {
       </header>
         <section className="space-y-3">
                   <h2 className="text-base font-bold uppercase tracking-wide text-red-600">Live now</h2>
-          {activeOrders.map((order) => (
+          {active.isError ? (
+            <div role="alert" className="space-y-2">
+              <ErrorText message={active.error instanceof Error ? active.error.message : 'Active orders could not be loaded.'} />
+              <Button variant="secondary" size="sm" onClick={() => void active.refetch()}>
+                Try again
+              </Button>
+            </div>
+          ) : activeOrders.map((order) => (
             <Link key={order.id} to={`/app/orders/${order.id}`} className="block">
               <Card className="border-red-200 transition hover:border-red-600/50">
                 <div className="flex items-center justify-between gap-3">
@@ -55,7 +62,16 @@ export function Orders() {
 
       <section className="space-y-3">
                 <h2 className="text-base font-bold uppercase tracking-wide text-slate-500">Order history</h2>
-        {past.length === 0 ? (
+        {history.isError ? (
+          <EmptyState
+            title="Order history couldn't load"
+            hint={history.error instanceof Error ? history.error.message : 'Please try again in a moment.'}
+          >
+            <Button variant="secondary" onClick={() => void history.refetch()}>
+              Try again
+            </Button>
+          </EmptyState>
+        ) : past.length === 0 ? (
           <EmptyState title="No orders yet" hint="Your completed orders and receipts will appear here.">
             <Link to="/app/menu" className="mt-3">
               <Button>Start an order</Button>

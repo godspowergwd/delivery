@@ -13,6 +13,7 @@ import { Toaster } from './components/ui';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OfflineOrderSync } from './components/OfflineOrderSync';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
+import { ApiError } from './lib/api';
 import './styles.css';
 
 setupPwa();
@@ -31,9 +32,11 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 15_000,
-      // A failed request retries once briefly, then surfaces a real error
-      // state — it never destroys the whole UI.
-      retry: 1,
+      // Retry transient failures once, but never retry client errors or schema drift.
+      retry: (failureCount, error) =>
+        failureCount < 1 &&
+        !(error instanceof ApiError &&
+          (error.status < 500 || error.code === 'DATABASE_SCHEMA_MISMATCH')),
       retryDelay: 800,
       refetchOnWindowFocus: true,
       // Keep last-good data on screen while refetching instead of flashing

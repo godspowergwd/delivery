@@ -76,6 +76,20 @@ export function errorHandler(
   }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2022') {
+      logger.error(`Prisma schema mismatch on ${req.method} ${req.path}`, {
+        code: error.code,
+        modelName: error.meta?.modelName,
+        column: error.meta?.column,
+      });
+      send(500, {
+        error: {
+          code: 'DATABASE_SCHEMA_MISMATCH',
+          message: 'A required database field is unavailable. Please try again later.',
+        },
+      });
+      return;
+    }
     if (error.code === 'P2002') {
       const target = Array.isArray(error.meta?.target)
         ? (error.meta?.target as string[]).join(', ')

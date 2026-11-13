@@ -10,7 +10,7 @@ import { useGuestGate } from '../../lib/guest';
 import { toast } from '../../lib/realtime';
 import { useRestaurantStatus } from '../../lib/restaurant-status';
 import { HeartIcon, ImageIcon, LeafIcon } from '../../components/icons';
-import { EmptyState, Input, Select, Spinner } from '../../components/ui';
+import { Button, EmptyState, ErrorText, Input, Select, Spinner } from '../../components/ui';
 import { RestaurantClosedNotice } from '../../components/restaurant-status';
 import {
   TRENDING_SEARCHES,
@@ -148,42 +148,56 @@ export function Menu() {
         <div className="flex justify-center py-16">
           <Spinner className="h-8 w-8" />
         </div>
+      ) : products.isError && items.length === 0 ? (
+        <EmptyState
+          title="Menu couldn't load"
+          hint={products.error instanceof Error ? products.error.message : 'Please try again in a moment.'}
+        >
+          <Button variant="secondary" onClick={() => void products.refetch()}>
+            Try again
+          </Button>
+        </EmptyState>
       ) : items.length === 0 ? (
         <EmptyState title="No products match" hint="Try a different search or category - the kitchen is always adding more." />
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {items.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              favorite={favorites.has(product.id)}
-              onFavorite={() => void toggleFavorite(product)}
-              onCustomize={() => navigate(`/app/product/${product.id}`)}
-              onAdd={() => {
-                // Add to cart is protected: guests sign in, then it adds itself.
-                requireAuth(
-                  () => {
-                    add(product);
-                    toast(`Added ${product.name}`, 'success');
-                  },
-                  {
-                    type: 'ADD_TO_CART',
-                    line: {
-                      productId: product.id,
-                      name: product.name,
-                      imageUrl: product.imageUrl,
-                      unitPrice: product.price,
-                      isDemoPrice: product.isDemoPrice,
-                      quantity: 1,
-                      notes: null,
-                      customizationChoices: {},
+        <>
+          {products.isError && (
+            <ErrorText message="Some menu results may be out of date. Reconnect or refresh to try again." />
+          )}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {items.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                favorite={favorites.has(product.id)}
+                onFavorite={() => void toggleFavorite(product)}
+                onCustomize={() => navigate(`/app/product/${product.id}`)}
+                onAdd={() => {
+                  // Add to cart is protected: guests sign in, then it adds itself.
+                  requireAuth(
+                    () => {
+                      add(product);
+                      toast(`Added ${product.name}`, 'success');
                     },
-                  },
-                );
-              }}
-            />
-          ))}
-        </div>
+                    {
+                      type: 'ADD_TO_CART',
+                      line: {
+                        productId: product.id,
+                        name: product.name,
+                        imageUrl: product.imageUrl,
+                        unitPrice: product.price,
+                        isDemoPrice: product.isDemoPrice,
+                        quantity: 1,
+                        notes: null,
+                        customizationChoices: {},
+                      },
+                    },
+                  );
+                }}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       <CustomMealBuilder />

@@ -10,7 +10,7 @@ import { Reveal } from '../../components/motion';
 import { FoodCard } from '../../components/FoodCard';
 import { CategoryRail, DeliveryStatusBar, PromoCapture, TrustRow } from '../../components/home';
 import { SearchIcon, SparkleIcon, TruckIcon } from '../../components/icons';
-import { Card, Spinner, StatusPill } from '../../components/ui';
+import { Button, Card, ErrorText, Spinner, StatusPill } from '../../components/ui';
 import { RestaurantClosedNotice, RestaurantStatusPill } from '../../components/restaurant-status';
 import { useRestaurantStatus } from '../../lib/restaurant-status';
 
@@ -28,26 +28,39 @@ export default function CustomerHome() {
     staleTime: 60_000,
   });
 
-  const { data: popular, isLoading: popularLoading } = useQuery({
+  const {
+    data: popular,
+    isLoading: popularLoading,
+    isError: popularError,
+    error: popularFailure,
+    refetch: refetchPopular,
+  } = useQuery({
     queryKey: ['home-popular'],
     queryFn: () => api.get<Paginated<ProductDTO>>('/products?sort=popular&pageSize=8'),
     staleTime: 30_000,
   });
 
-  const { data: fresh, isLoading: freshLoading } = useQuery({
+  const {
+    data: fresh,
+    isLoading: freshLoading,
+    isError: freshError,
+    error: freshFailure,
+    refetch: refetchFresh,
+  } = useQuery({
     queryKey: ['home-fresh'],
     queryFn: () => api.get<Paginated<ProductDTO>>('/products?isNew=true&pageSize=4'),
     staleTime: 30_000,
   });
 
-  const { data: active } = useQuery({
+  const activeOrdersQuery = useQuery({
     queryKey: ['active-orders'],
     queryFn: () => api.get<{ orders: OrderDTO[] }>('/orders/active'),
     // Order history is account data — guests browse without it.
     enabled: Boolean(user),
-    refetchInterval: 15_000,
+    refetchInterval: (query) => query.state.status === 'error' ? 60_000 : 15_000,
     staleTime: 10_000,
   });
+  const active = activeOrdersQuery.data;
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
 
@@ -81,6 +94,14 @@ export default function CustomerHome() {
           </span>
           <StatusPill status={active!.orders[0].status} label={ORDER_STATUS_LABELS[active!.orders[0].status]} />
         </Link>
+      )}
+      {user && activeOrdersQuery.isError && (
+        <div role="alert" className="space-y-2">
+          <ErrorText message={activeOrdersQuery.error instanceof Error ? activeOrdersQuery.error.message : 'Active orders could not be loaded.'} />
+          <Button variant="secondary" size="sm" onClick={() => void activeOrdersQuery.refetch()}>
+            Try again
+          </Button>
+        </div>
       )}
 
       {/* ---------- Hero ---------- */}
@@ -162,6 +183,14 @@ export default function CustomerHome() {
             See all
           </Link>
         </div>
+        {popularError && (
+          <div role="alert" className="space-y-2">
+            <ErrorText message={popularFailure instanceof Error ? popularFailure.message : 'Popular meals could not be loaded.'} />
+            <Button variant="secondary" size="sm" onClick={() => void refetchPopular()}>
+              Try again
+            </Button>
+          </div>
+        )}
         {popularLoading ? (
           <div className="flex justify-center py-8">
             <Spinner className="h-8 w-8" />
@@ -191,6 +220,14 @@ export default function CustomerHome() {
             Browse menu
           </Link>
         </div>
+        {freshError && (
+          <div role="alert" className="space-y-2">
+            <ErrorText message={freshFailure instanceof Error ? freshFailure.message : 'New meals could not be loaded.'} />
+            <Button variant="secondary" size="sm" onClick={() => void refetchFresh()}>
+              Try again
+            </Button>
+          </div>
+        )}
         {freshLoading ? (
           <div className="flex justify-center py-8">
             <Spinner className="h-8 w-8" />

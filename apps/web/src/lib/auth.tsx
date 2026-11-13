@@ -15,6 +15,7 @@ import { createAppSocket, safeDisconnect, type AppSocket } from './socket';
 const USER_KEY = 'ds_user';
 const LOGOUT_PENDING_KEY = 'ds_logout_pending';
 const LOGOUT_CSRF_KEY = 'ds_logout_csrf';
+let logoutPromise: Promise<void> | null = null;
 
 /**
  * Sessions are INDEFINITE: a signed-in visitor stays signed in until they press
@@ -401,20 +402,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applySession],
   );
 
-  const logout = useCallback(async () => {
-    markLogoutPending(getCsrfToken());
-    let completed = false;
-    try {
-      await api.post('/auth/logout');
-      completed = true;
-    } catch (error) {
-      const status = (error as { status?: number })?.status;
-      const code = (error as { code?: string })?.code;
-      completed = status === 401 || code === 'SESSION_EXPIRED';
-    }
-    clearAuthStorage();
-    if (completed) clearPendingLogout();
-    setUser(null);
+  const logout = useCallback(() => {
+    if (logoutPromise) return logoutPromise;
+    const operation = (async () => {
+      markLogoutPending(getCsrfToken());
+      let completed = false;
+      try {
+        await api.post('/auth/logout');
+        completed = true;
+      } catch (error) {
+        const status = (error as { status?: number })?.status;
+        const code = (error as { code?: string })?.code;
+        completed = status === 401 || code === 'SESSION_EXPIRED';
+      }
+      clearAuthStorage();
+      if (completed) clearPendingLogout();
+      setUser(null);
+    })();
+    logoutPromise = operation.finally(() => {
+      logoutPromise = null;
+    });
+    return logoutPromise;
   }, [setUser]);
 
   const value = useMemo(

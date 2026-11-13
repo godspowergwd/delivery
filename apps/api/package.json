@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "npm run prisma:generate && tsc -p tsconfig.json",
-    "start": "(prisma migrate deploy || echo 'WARNING: prisma migrate deploy failed - starting API anyway; resolve the migration state manually') && node dist/index.js",
+    "start": "prisma migrate deploy && node dist/index.js",
     "prisma:generate": "prisma generate",
     "db:migrate": "node ../../scripts/local-db-guard.mjs && prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
